@@ -3187,3 +3187,61 @@ tone or message counts, no rules per topic, going over the calories said once li
   out, and they are named.
 - Exam round 3 adds `honest-praise` (praise must be counted exactly). Before/after: live main in a git worktree vs the
   branch, on Gemini through `scripts/exam/_ba.test.ts` (a local scratch file, never committed; see the plan doc).
+
+## Living coach, step 2: goals you tell it (26 Oct 2026, branch `claude/project-thread-fomqy0`, not shipped yet)
+Omar's go 26 Oct 00:37: "if I want a plan, like, I want to lose 2 kilos in 2 weeks… and it also checks my recovery and
+training, and if I'm stalling… make sure I'm not losing muscle… like a real coach. That's the bar." Built overnight in
+rounds, each checked by a fresh judge that only suggests (6.5 → 7.5 → 8.0 → see the plan doc's table).
+- **A goal is a memory note with numbers** (`types.ts` `GoalPlan` on `MemoryNote.goal`: metric weight / lift / other,
+  target, reps, by, startDate, start, status done / dropped, endedOn, plan). Additive and optional: old notes are untouched
+  (an old goal note without numbers is listed apart as "Older goal notes", never as a running goal). `cleanGoal`
+  (`defaults.ts`) keeps it through reload and backups. The Coach saves it with `remember` (kind goal + `goal`, or the flat
+  `goalPlan`); a model that leaves the object out still works: `goalFromText` (`agent.ts`) reads "81.8 → 79.8 kg by
+  2026-11-16", "lose 2 kg" (a delta from where the app tracks them), "bench 100 kg", lb, a Danish "86 kg-klassen", and
+  "reached" (only when the goal is: "halfway reached" isn't). New targets set in the same answer become its plan. A goal
+  note rewritten under another kind stays a goal. A weight class above where they are is a ceiling already made (no pace).
+  The same goal saved twice makes no second card. Cards show one set of numbers with readable dates.
+- **Where a goal stands is worked out on the phone** (`goals.ts` `goalState`, the GOALS block right under Targets):
+  - Weight: one "now" everywhere (`scaleNow`: the line through the last 4 weeks' weigh-ins, else the smoothed trend; a goal
+    two weeks away or less, a weigh-in, uses the morning scale and is made by one morning on or before its day). In its
+    first 2 weeks, and until it has 8 weigh-ins of its own, it is judged on what they eat against the maintenance from
+    the 4 weeks before it (`goalMaintenance`: a window mixing old and new eating reads a new cut as a lower maintenance,
+    and a goal on plan looked "behind"); after that on its own scale line (Theil–Sen). Unfinished food days (dinner
+    missing) don't count. Safe band: losing 0.5–1 % of bodyweight a week, gaining 0.25–0.5 %; a date past it is said.
+    Calories for the date and the safe band from TRUE MAINTENANCE, never under max(1,700 men / 1,400 women, 70 %);
+    "eating the current target from today lands around …"; reached → maintenance, stepped up halfway for a week first.
+  - Lift: estimated max (Epley) against the target's; pace from the last 4 weeks; a plateau (no better best set in 4+
+    workouts over 2+ weeks, counting only tries near the best) is STALLED, never "ahead"; a heavy single/double/triple is
+    reached only by doing it (else READY TO TEST); top sets since the goal and "no progress in N workouts" are listed.
+  - Statuses: REACHED, READY TO TEST, ON PACE, AHEAD, BEHIND, TOO FAST, GOING THE WRONG WAY, SLOW, STALLED, DATE PASSED,
+    CAN'T JUDGE YET. A promise ("log every meal this week") is a goal without a number: OVER after its day, gone from
+    the running list a week later.
+- **GOAL WATCH** (`goalWatchLines`, under Stalled lifts): strength on the main compound lifts (the better of the last 2
+  workouts against the better of the 2 before the goal), food since the goal (from its 3rd day), sleep / HRV / resting HR
+  for 7 days against usual, workouts, skipped sets, stalls. A SIGN TO RAISE when lifts fall on a cut while sleep or HRV
+  is off, or most lifts fall. Facts only, never orders.
+- **How the Coach coaches it** (`coachContext.ts` `GOAL_COACHING`): understand first (one question; vague → leaner,
+  stronger or fitter for their sport, with an example from their data each); safe and honest about too-fast once, with
+  the version that works; never a water cut, sauna or fluid taper; an adult a little over a weigh-in (≤ 2.5 %, 3+ days)
+  gets the low-residue route with water and salt as usual and a cut-off morning; unknown age → ask and plan as under 18;
+  plans with numbers (calories offered as the target, protein, a lift progression in kilos and reps); saved in the same
+  turn with the agreed plan; follow-ups say where they are, the pace, what the date needs; behind → the one change in
+  numbers and the choice of date or calories; a plan that didn't work is changed, never repeated, and never by taking
+  weight off the bar; profile goal and calorie target only with consent.
+- **On the screens:** Today notes per goal (`nudges.ts`: "On pace: 79.7 kg by 16 Nov — 81.8 kg now, 2.1 kg to go, 23
+  days left. What you eat points to −0.55 kg a week."), a one-time "What are we working on?", a "My goal: …" chip in
+  the Coach, and Settings → Coach memory shows each goal's status and ended goals.
+- **Judge round 4 fixes:** while a weight goal is judged on food, "now" is the start plus what the food adds up to (the
+  scale's line is shown beside it), so kilos left and what the date needs aren't read off a water drop; "reached" needs a
+  real weigh-in at the target. A weigh-in two weeks away or less that is more than 2.5 % over, or for someone under 18 or
+  whose age isn't known (`ageFromMemory`, else Settings → Profile birth year), is kept as the event (metric other), and
+  Today never counts down to it; a close call (≤ 2.5 %, adult) is counted down ("Coming up: 80 kg by 24 Oct"). A lift
+  goal without an agreed plan gets the workout screen's next target as its first step (`liftNext`), and one not trained
+  since it was set says "Goal set · Next: 77.5 kg × 6", never "Stalled". The planning table adds where −0.25 / −0.5 /
+  +0.25 kg a week lands in 4, 8 and 12 weeks and the main lifts' best sets. Plans name the one risky habit with its
+  number and a check-in rule; on pace gets one extra line for anything GOAL WATCH marks off; a class nobody named is
+  "the next class up". `goalFromText`: a lift's target is the weight after its name, "for 12 weeks" isn't reps, "in a
+  row" isn't a lift.
+- Tests: `tests/goals.test.ts`. Before/after on Gemini Flash: `scripts/exam/_goals.test.ts` (scratch, never committed; a
+  copy and `show.py` live in `/mnt/project-files/living-coach/tools/`), run as
+  `G_OUT=dir G_TAG=after npx vitest run --config scripts/exam/vitest.config.ts scripts/exam/_goals.test.ts`.
