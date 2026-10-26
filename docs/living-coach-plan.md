@@ -7,7 +7,7 @@ exact step; a "yes, but…" is not a go. Omar's doc for it: https://claude.ai/ar
 
 | Step | State | Where |
 | --- | --- | --- |
-| 1 · Honest voice | **built; refined through round 7 (Omar 23:00: "I want this to be very good"); fresh judges 7 → 7.5 → 7.5 → 8 → (round 7 judge), every must-fix done. Waiting on Omar's clear yes** on https://claude.ai/artifact/GjDMaqc9pEpChSCGqHzvPZ | branch `claude/project-thread-fomqy0` (not merged, no version bump yet), README "Living coach, step 1"; replies per round in /mnt/project-files/living-coach/step1-r*-run*.json |
+| 1 · Honest voice | **built; refined through round 9 (Omar 23:00: "I want this to be very good"); six fresh judges 7 → 7.5 → 7.5 → 8 → 8.2 → 8.4, every must-fix done (round 9's small fixes self-checked + tests). What's left is the backup model's wording. Waiting on Omar's clear yes** on https://claude.ai/artifact/GjDMaqc9pEpChSCGqHzvPZ | branch `claude/project-thread-fomqy0` (not merged, no version bump yet), README "Living coach, step 1"; replies per round in /mnt/project-files/living-coach/step1-r*-run*.json |
 | 2 · Goals you tell it | not started, needs its own go | — |
 | 3 · Phone test (APK) | not started | — |
 | 4 · Morning looks | not started | — |
