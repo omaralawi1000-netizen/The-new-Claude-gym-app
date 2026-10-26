@@ -221,7 +221,13 @@ export class Expander {
     st.anims.forEach((a) => a.cancel());
     fl.forEach((o) => o.b.getAnimations().forEach((a) => a.cancel()));
     fl.forEach((o) => { o.c.style.transform = o.from ?? 'none'; });
-    page.forEach(({ e: x, o, t }) => { x.getAnimations().forEach((a) => a.cancel()); x.style.transform = t === 'none' ? '' : t; this.anim(x, [{ opacity: o }, { opacity: 0 }], { duration: Math.round(D * 0.25), easing: 'linear' }); });
+    // a word the landing number will pass over is gone before it gets there; the rest leave as home comes back
+    const lanes = fl.map(({ c, a }) => { const r = c.getBoundingClientRect(), q = a.getBoundingClientRect(), p0 = this.e.root.getBoundingClientRect(); return { l: Math.min(r.left, q.left) - p0.left, r: Math.max(r.right, q.right) - p0.left, t: Math.min(r.top, q.top) - p0.top, b: Math.max(r.bottom, q.bottom) - p0.top }; });
+    page.forEach(({ e: x, o, t }) => {
+      x.getAnimations().forEach((a) => a.cancel()); x.style.transform = t === 'none' ? '' : t;
+      const r = this.box(x), inLane = lanes.some((L) => r.x < L.r && r.x + r.w > L.l && r.y < L.b && r.y + r.h > L.t);
+      this.anim(x, [{ opacity: o }, { opacity: 0 }], { duration: inLane ? 90 : Math.round(D * 0.25), easing: 'linear' });
+    });
     (st.out ?? []).forEach((a) => a.cancel());
     const wf = this.frames(st.src);
     const out: Animation[] = [];
