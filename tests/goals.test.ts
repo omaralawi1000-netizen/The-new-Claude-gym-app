@@ -292,6 +292,13 @@ describe('a lift goal on a plateau', () => {
   it('is STALLED, never ahead, even right after a climb, and GOALS says for how long', () => {
     const kgs = [70, 72.5, 75, 77.5, 77.5, 77.5, 77.5, 77.5, 77.5];
     useStore.setState({ sessions: kgs.map((kg, i) => session(addDays(today, -40 + i * 5), [['bench-press', kg, 5]])), memory: [{ id: 'g', kind: 'goal', text: 'Goal: bench 100', at: 0, exerciseIds: ['bench-press'], goal: { metric: 'lift', target: 100, reps: 1, by: addDays(today, 200), startDate: today } }] });
+    // (set today, not trained since: the plateau is where the plan starts, not a stall of the goal; its first step is the
+    // workout screen's next target)
+    const st0 = goalState(data(), data().memory[0], today)!;
+    expect(st0.pace).toBe('too early');
+    expect(st0.next).toEqual({ kg: 77.5, reps: 6 });
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/next target for its first set: 77\.5 kg × 6 \(no plan agreed yet/);
+    useStore.setState({ memory: [{ ...data().memory[0], goal: { ...data().memory[0].goal!, startDate: addDays(today, -12) } }] });
     const st = goalState(data(), data().memory[0], today)!;
     expect(st.pace).toBe('stalled');
     expect(st.plateau).toMatchObject({ kg: 77.5, reps: 5, workouts: 6 });
@@ -373,3 +380,59 @@ describe('a goal note rewritten with another kind', () => {
   });
 });
 
+
+describe('judge round 4 (26 Oct)', () => {
+  it('in its first 2 weeks a goal is where what they eat puts it, not where a water drop on the scale does', () => {
+    // 4 weeks flat at 82 on 2,900, then 10 days at 2,350 (about −0.5 kg a week) while the scale drops 1.4 kg (water)
+    const pre = weighIns(38, 82, 0).filter((w) => w.date <= addDays(today, -10));
+    const post = Array.from({ length: 10 }, (_, i) => ({ id: `q${i}`, date: addDays(today, -9 + i), kg: Math.round((81.6 - 0.1 * i) * 10) / 10, at: 0 }));
+    const entries = [...Array.from({ length: 28 }, (_, i) => entry(addDays(today, -38 + i), 2900)), ...Array.from({ length: 10 }, (_, i) => entry(addDays(today, -10 + i), 2350))];
+    useStore.setState({ weights: [...pre, ...post], entries, memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 80 kg', at: 0, goal: { metric: 'weight', target: 80, by: addDays(today, 18), startDate: addDays(today, -10), start: 82 } }] });
+    const st = goalState(data(), data().memory[0], today)!;
+    expect(st.now).toBeGreaterThan(81.1);
+    expect(st.now).toBeLessThan(81.5);
+    expect(st.scaleKg).toBeLessThan(80.9);
+    expect(Math.abs(st.need!)).toBeLessThan(0.6);
+    expect(st.pace).toBe('on pace');
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Now about 81\.\d kg by what they eat .*the scale's line says 80\.\d kg/);
+    expect(findNudges(data(), today, 9, t, 'en', name).find((x) => x.id.startsWith('goal:'))!.body).toMatch(/^About 81\.\d kg by what you eat, 1\.\d kg to go, 18 days left\./);
+  });
+  it('a weigh-in that would take a water cut, or with the age unknown, is kept as the event, not a countdown', async () => {
+    useStore.setState({ weights: weighIns(20, 82, 0) });
+    await act({ type: 'remember', kind: 'goal', text: `Weigh-in: 79 kg class on ${addDays(today, 10)}`, goal: { metric: 'weight', target: 79, by: addDays(today, 10) } });
+    expect(data().memory[0].goal!.metric).toBe('other');
+    await act({ type: 'remember', kind: 'goal', text: `Weigh-in: 81 kg class on ${addDays(today, 9)}`, goal: { metric: 'weight', target: 81, by: addDays(today, 9) } });
+    expect(data().memory[1].goal!.metric).toBe('other');
+    useStore.setState({ memory: [], settings: { ...data().settings, body: { birthYear: 1999 } } });
+    await act({ type: 'remember', kind: 'goal', text: `Weigh-in: 81 kg class on ${addDays(today, 9)}`, goal: { metric: 'weight', target: 81, by: addDays(today, 9) } });
+    expect(data().memory[0].goal).toMatchObject({ metric: 'weight', target: 81 });
+    // (a 2-week cut that isn't a weigh-in stays tracked)
+    useStore.setState({ memory: [], settings: { ...data().settings, body: {} } });
+    await act({ type: 'remember', kind: 'goal', text: 'Goal: lose 2 kg in 2 weeks', goal: { metric: 'weight', delta: -2, by: addDays(today, 14) } });
+    expect(data().memory[0].goal!.metric).toBe('weight');
+  });
+  it('a lift goal with no plan agreed starts from the workout screen\'s next target', async () => {
+    useStore.setState({ sessions: [70, 72.5, 75, 77.5].map((kg, i) => session(addDays(today, -20 + i * 5), [['bench-press', kg, 5]])) });
+    await act({ type: 'remember', kind: 'goal', exercise: 'Bench Press', text: 'Goal: bench 100 kg by 2027-06-01', goal: { metric: 'lift', target: 100, reps: 1, by: '2027-06-01' } });
+    expect(data().memory[0].goal!.plan).toMatch(/^next: 77\.5 kg × 6 on the first set/);
+    const nd = findNudges(data(), today, 9, t, 'en', name).find((x) => x.id.startsWith('goal:'))!;
+    expect(nd.title).toMatch(/^Goal set: /);
+    expect(nd.body).toMatch(/Next: 77\.5 kg × 6\./);
+  });
+  it('the planning numbers say where each pace lands by a date, and the main lifts as they are', () => {
+    const entries = Array.from({ length: 20 }, (_, i) => entry(addDays(today, -20 + i), 2600));
+    useStore.setState({ weights: weighIns(20, 82, 0), entries, sessions: [70, 72.5, 75, 77.5].map((kg, i) => session(addDays(today, -20 + i * 5), [['bench-press', kg, 5]])) });
+    const g = goalLines(data(), today, name).join('\n');
+    expect(g).toMatch(/Where a pace lands: -0\.25 kg\/week: 81 kg by 2026-11-22, 80 kg by 2026-12-20/);
+    expect(g).toMatch(/Main lifts, best set in the last 8 weeks \(estimated max\): Bench Press 77\.5 × 5 \(90\.4 kg\)/);
+  });
+});
+
+describe('goal words, judge round 4', () => {
+  it('a lift target is the weight after its name; "for 12 weeks" is not reps; "in a row" is not a lift', () => {
+    expect(goalFromText('Goal: bench press 100 kg by 2027-06-01 at 82 kg bodyweight', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100, reps: 1 });
+    expect(goalFromText('Goal: squat 140 kg for 12 weeks', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 140, reps: 1 });
+    expect(goalFromText('Goal: bench 90 kg for 5', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 90, reps: 5 });
+    expect(goalFromText('Goal: 82 → 80 kg, weighing in 5 days in a row', undefined, undefined, 'en')).toMatchObject({ metric: 'weight', target: 80 });
+  });
+});
