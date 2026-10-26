@@ -2060,7 +2060,7 @@ export const da: Record<string, string> = {
  "{n} trend": "{n} trend",
  "Protein averaged {x} over the last 4 days, against {g}.": "Dit protein lå i snit på {x} de sidste 4 dage, mod {g}.",
  "Protein averaged {x} over the {n} days you logged of the last 4, against {g}.": "Dit protein lå i snit på {x} de {n} dage, du loggede af de sidste 4, mod {g}.",
- "Since {date}, {x} went 500+ kcal over your {target} target.": "Siden {date} er {x} gået 500+ kcal over dit mål på {target}.",
+ "Since {date}, {x} went 500+ kcal over your {target} target.": "Siden {date} har du {x} været 500+ kcal over dit mål på {target}.",
  "Tell the Coach a goal and it follows it here.": "Fortæl Coachen et mål, så følger den det her.",
  "Tell the Coach what is next.": "Fortæl Coachen, hvad der er det næste.",
  "The Coach can judge it soon.": "Coachen kan snart bedømme det.",

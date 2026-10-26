@@ -385,7 +385,7 @@ const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; tod
     <button className="hx-goal press" style={{ ['--c' as string]: col }} onClick={() => ask(t('How am I doing on my goal “{goal}”? Be honest.', { goal: name }))}>
       <div className="hx-ghead"><span className="hx-gt">{title}</span>{st && !gone && st.whyCode !== 'untracked' ? <span className={`hx-gpace${WARN.has(st.pace) ? ' hx-gwarn' : ''}`}>{PACE(t)[st.pace]}</span> : <span className="hx-gchev">›</span>}</div>
       {bar && <div className="hx-gbar" style={{ ['--f' as string]: f }}><span className="hx-gnow">{(lift ? t('{n} now', { n: fmtNum(kgToDisplay(bar.now, u), lang, 1) }) : t('{n} trend', { n: fmtNum(kgToDisplay(bar.now, u), lang, 1) }))}</span>{exp !== undefined && <b className="hx-gexp" style={{ left: `${exp * 100}%` }} />}<i /></div>}
-      {bar && <div className="hx-gends"><span>{fmtNum(kgToDisplay(bar.start, u), lang, 1)}&nbsp;{u}</span><span>{fmtNum(kgToDisplay(bar.target, u), lang, 1)}</span></div>}
+      {bar && <div className="hx-gends"><span>{fmtNum(kgToDisplay(bar.start, u), lang, 1)}&nbsp;{u}</span><span>{fmtNum(kgToDisplay(bar.target, u), lang, 1)}&nbsp;{u}</span></div>}
       {(line || more > 0) && <div className="hx-gline">{line}{more > 0 && <>{line ? ' · ' : ''}<b>{t('+{n} more', { n: more })}</b></>}</div>}
     </button>
   );

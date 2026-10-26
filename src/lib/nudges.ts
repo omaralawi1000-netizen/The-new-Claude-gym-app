@@ -342,7 +342,7 @@ export function rankNotes(d: AppData, today: string, hour: number, t: T, lang: L
 export interface AiNote { kind: 'reminder' | 'suggestion' | 'warning' | 'app'; title: string; body?: string; ask: string }
 const AI_ICON: Record<AiNote['kind'], IconName> = { reminder: 'bell', suggestion: 'sparkle', warning: 'info', app: 'settings' };
 /** What Health's Coach line says second: the first note that isn't a goal (the goal card under it says that) or a chore. */
-export const healthNote = (list: Nudge[]) => list.find((n) => !n.id.startsWith('goal:') && n.id !== 'goal-ask' && n.kind !== 'app');
+export const healthNote = (list: Nudge[]) => list.find((n) => !n.id.startsWith('goal:') && n.id !== 'goal-ask' && n.kind !== 'app' && !(n.id.startsWith('ai:') && n.icon === AI_ICON.app));
 
 // ── what you set aside ───────────────────────────────────────
 const KEY = 'aven.nudges';
