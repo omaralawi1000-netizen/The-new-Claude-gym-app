@@ -18,12 +18,14 @@ import { springCurve, SMOOTH, SURFACE } from '../../ui/motion';
 
 export interface Els { root: HTMLElement; scr: HTMLElement; shade: HTMLElement; det: HTMLElement; L: [HTMLElement, HTMLElement, HTMLElement]; mat: HTMLElement; dsc: HTMLElement; fly: HTMLElement; edge: HTMLElement }
 interface Flight { c: HTMLElement; a: HTMLElement; b: HTMLElement; from?: string; tint?: HTMLElement }
-interface State { k: string; src: HTMLElement; anims: Animation[]; home?: Animation[]; fl: Flight[]; dim: HTMLElement[]; closing?: boolean; next?: { k: string; src: HTMLElement } | null; out?: Animation[] | null; page?: { e: HTMLElement }[]; done?: (next: { k: string; src: HTMLElement } | null) => void }
+interface State { slide?: boolean; k: string; src: HTMLElement; anims: Animation[]; home?: Animation[]; fl: Flight[]; dim: HTMLElement[]; closing?: boolean; next?: { k: string; src: HTMLElement } | null; out?: Animation[] | null; page?: { e: HTMLElement }[]; done?: (next: { k: string; src: HTMLElement } | null) => void }
 
 const reduced = () => {
   const m = document.documentElement.dataset.motion;
   return m === 'reduce' || (m !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
 };
+/** Beta trial: the page slides in from the side, home slides out the other way (like Today's sections), no number flight */
+const slide = () => document.documentElement.dataset.hxMotion === 'slide';
 const $$ = (s: string, r: ParentNode) => [...r.querySelectorAll<HTMLElement>(s)];
 const curT = (el: Element) => { const s = getComputedStyle(el).transform; return s === 'none' ? 'none' : s; };
 const SHARE = ['num', 'unit', 'chart'];
@@ -147,6 +149,7 @@ export class Expander {
     det.classList.add('live', 'moving');
     const st: State = { k, src, anims: [], fl: [], dim: [] };
     this.st = st;
+    if (slide()) { this.slideOpen(st); return; }
     const { duration: D, easing: E } = this.win();
     const paths: [Box, Box][] = [];
     for (const [a, b] of this.pairs(src)) {
@@ -223,6 +226,7 @@ export class Expander {
   close(done: State['done']) {
     const st = this.st; if (!st || st.closing) return;
     st.closing = true; st.next = null; st.done = done; this.e.det.classList.add('moving');
+    if (st.slide) { this.slideClose(st); return; }
     const { L, mat, edge, dsc } = this.e;
     const { duration: D, easing: E } = this.win();
     const fromL = L.map(curT), matO = getComputedStyle(mat).opacity, edgeO = getComputedStyle(edge).opacity, shO = getComputedStyle(this.e.shade).opacity;
@@ -322,6 +326,7 @@ export class Expander {
     const st = this.st; if (!st || !st.closing || !st.out) return;
     st.closing = false; st.next = null;
     st.out.forEach((a) => a.reverse());
+    if (st.slide) return;
     (st.page ?? []).forEach(({ e: x }) => { const cs = getComputedStyle(x), o = cs.opacity, t = cs.transform; x.getAnimations().forEach((a) => a.cancel()); x.style.transform = ''; this.anim(x, [{ opacity: o, transform: t }, { opacity: 1, transform: 'none' }], { duration: 200, delay: 60, easing: 'linear' }); });
   }
 
@@ -330,6 +335,34 @@ export class Expander {
     const st = this.st;
     if (!st) { openIt(); return; }
     if (st.closing) { if (k === st.k) this.reopen(); else st.next = { k, src }; }
+  }
+
+  /** the two screens sit side by side with a gap, on one spring: home leaves to the left as the page arrives from the right */
+  private slideOpen(st: State) {
+    const { L, mat, scr } = this.e, sm = this.sm(), W = this.e.root.clientWidth + 48;
+    st.slide = true;
+    L.forEach((l) => { l.style.transform = ''; });
+    st.anims.push(this.anim(mat, [{ opacity: 1 }, { opacity: 1 }], { duration: 1 }));
+    // the page's own number and chart stay where they are (nothing flies)
+    $$('[data-share]', this.e.dsc).forEach((x) => { x.style.opacity = ''; });
+    const o = { duration: sm.duration + 160, easing: softEnd(sm.easing) };
+    st.anims.push(this.anim(L[0], [{ transform: `translateX(${W}px)` }, { transform: 'none' }], o));
+    st.anims.push(this.anim(scr, [{ transform: 'none' }, { transform: `translateX(${-W}px)` }], o));
+    this.playPage(Math.round(o.duration * 0.25));
+    st.anims[1].finished.then(() => { if (this.st === st && !st.closing) this.e.det.classList.remove('moving'); }).catch(() => {});
+  }
+  private slideClose(st: State) {
+    const { L, scr } = this.e, sm = this.sm(), W = this.e.root.clientWidth + 48;
+    const o = { duration: sm.duration + 160, easing: softEnd(sm.easing) };
+    const from = [curT(L[0]), curT(scr)];
+    L[0].getAnimations().forEach((a) => a.cancel()); scr.getAnimations().forEach((a) => a.cancel());
+    const out = [this.anim(L[0], [{ transform: from[0] }, { transform: `translateX(${W}px)` }], o), this.anim(scr, [{ transform: from[1] }, { transform: 'none' }], o)];
+    st.out = out;
+    out[0].finished.then(() => {
+      if (this.st !== st || !st.closing) return;
+      const nx = st.next ?? null;
+      requestAnimationFrame(() => { this.closeNow(); st.done?.(nx); });
+    }).catch(() => {});
   }
 
   closeNow() {
@@ -359,10 +392,10 @@ export class Expander {
     else if (top + newSrc.offsetHeight > room) scroller.scrollTop = newSrc.offsetTop + newSrc.offsetHeight - room;
     // the row the page came from hides under it now (home is covered, not gone, and the page is see-through)
     const was = st.src.closest('.hx-row') ?? st.src;
-    { const a = this.anim(was, [{ opacity: 0 }, { opacity: 0 }], { duration: 1 }); a.id = 'hx-cover'; }
-    st.k = k; st.src = newSrc; st.dim = this.dimOf(newSrc);
+    if (!st.slide) { const a = this.anim(was, [{ opacity: 0 }, { opacity: 0 }], { duration: 1 }); a.id = 'hx-cover'; }
+    st.k = k; st.src = newSrc; st.dim = st.slide ? [] : this.dimOf(newSrc);
     st.dim.forEach((x) => { x.style.opacity = '0'; });
-    $$('[data-share]', newSrc).forEach((x) => { x.style.opacity = '0'; });
+    if (!st.slide) $$('[data-share]', newSrc).forEach((x) => { x.style.opacity = '0'; });
     const { dsc, L } = this.e;
     const old = $$(':scope > .hx-page > .hx-body > *', dsc);
     const first = old[0] ? old[0].getBoundingClientRect().top - dsc.getBoundingClientRect().top : 0;

@@ -106,6 +106,7 @@
 .hx-detail.live { opacity: 1; transform: none; }
 .hx-shade { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0; background: color-mix(in srgb, var(--bg) 45%, transparent); }
 .hx-L { position: absolute; inset: 0; overflow: hidden; will-change: transform; }
+[data-hx-motion="slide"] .hx-screen { will-change: transform; } /* the slide trial moves home as one layer that stays a layer */
 /* the window's edges are rounded like a card while it moves (a fixed radius, never animated); square once it fills the screen */
 .moving .hx-rnd { border-radius: 22px; }
 .hx-edge { position: absolute; left: 0; right: 0; top: 0; height: 16px; pointer-events: none; opacity: 0; z-index: 2; background: linear-gradient(rgba(0, 0, 0, .18), transparent); }
