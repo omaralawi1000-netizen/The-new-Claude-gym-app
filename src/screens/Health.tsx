@@ -7,7 +7,7 @@
  * Scores (lib/scores.ts) are measured against his own normal, never 100 for a 7-hour night, and never tell him to train
  * lighter. Plan: /mnt/project-files/health/plan/build-plan.md. Mock: /mnt/project-files/health/concepts/mock-v8.html.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useScreenStore } from '../lib/hooks';
 import { useT, useLang, type TFn } from '../lib/i18n';
 import { useToday } from '../lib/derive';
@@ -227,7 +227,7 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     }
     fresh.forEach((x) => { x.style.opacity = '0'; io.current!.observe(x); });
   });
-  useEffect(() => () => { io.current?.disconnect(); io.current = null; }, []);
+  useEffect(() => () => { io.current?.disconnect(); io.current = null; seen.current.clear(); }, []);
 }
 
 function Pill({ k, children, onTap }: { k: K; children: ReactNode; onTap: (k: K, el: HTMLElement) => void }) {
@@ -247,7 +247,7 @@ function Words({ tpl, pill }: { tpl: string; pill?: ReactNode }) {
 }
 
 /** what the Coach's second sentence is about, by its note: the colour of its number */
-const NOTE_COL = (n: Nudge) => (n.id.startsWith('protein:') ? 'var(--c-protein, #e0b07a)' : n.id.startsWith('over:') ? 'var(--c-kcal, #f5e2b8)' : C.body);
+const NOTE_COL = (n: Nudge) => (n.id.startsWith('protein:') ? 'var(--c-protein, #e0b07a)' : n.id.startsWith('over:') ? 'var(--c-kcal, #f5e2b8)' : n.id.startsWith('stall:') ? C.train : C.body);
 const sentenceOf = (x: string) => (/[.!?…]$/.test(x.trim()) ? x.trim() : `${x.trim()}.`);
 
 /**
@@ -257,12 +257,11 @@ const sentenceOf = (x: string) => (/[.!?…]$/.test(x.trim()) ? x.trim() : `${x.
  */
 function CoachLine({ v, d, today, t, lang, onTap }: { v: HealthView; d: AppData; today: string; t: TFn; lang: Lang; onTap: (k: K, el: HTMLElement) => void }) {
   const hour = new Date().getHours();
-  const note = (() => {
+  // once per store change, not on every section open (those renders land in the frame before the open animation)
+  const note = useMemo(() => {
     const map = exerciseMap(d.exercises);
     return healthNote(rankNotes(d, today, hour, t, lang, (id) => { const e = map.get(id); return e ? exName(e, lang) : '?'; }, cachedInsights(today)));
-    // (the store's own objects: a new one when what it reads changes)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  })();
+  }, [d, today, hour, t, lang]);
   const night = v.night;
   // last night: "about your usual" within 30 min of the median of the 30 nights before (lib/recovery.ts usualSleep)
   let p1: ReactNode = null;
@@ -289,6 +288,9 @@ function CoachLine({ v, d, today, t, lang, onTap }: { v: HealthView; d: AppData;
 
 const PACE: Record<Pace, string> = { reached: 'Reached', ready: 'Ready to test', 'on pace': 'On pace', ahead: 'Ahead', behind: 'Behind', 'too fast': 'Faster than safe', 'wrong way': 'Wrong way', slow: 'Slow', stalled: 'Stalled', 'date passed': 'Date passed', 'too early': 'Too early to tell' };
 
+/** paces that need something from him: the pill gets a coral rim (white words, no wash) so it reads at a glance */
+const WARN = new Set<Pace>(['behind', 'too fast', 'wrong way', 'stalled', 'date passed']);
+
 /** why a goal can't be judged yet, as the one thing that helps (never "log food" where food can't count) */
 function earlyLine(st: GoalState, t: TFn): string {
   switch (st.whyCode) {
@@ -298,6 +300,7 @@ function earlyLine(st: GoalState, t: TFn): string {
     case 'fewInWindow': return t('A few more weigh-ins and the Coach can judge it.');
     case 'notTrained': case 'liftUntrained': return t('Train it once and the Coach can judge it.');
     case 'fewWorkouts': return t('A few more workouts with it and the Coach can judge it.');
+    case 'noExercise': return t('Tell the Coach which lift it is, and it follows it here.');
     case 'untracked': return t('No number to follow, so the Coach checks in with you instead.');
     default: return t('The Coach can judge it soon.');
   }
@@ -308,7 +311,7 @@ function earlyLine(st: GoalState, t: TFn): string {
  * the first tracked goal, as the Coach's "My goal" chip picks it). A thin outline, no fill: it is part of the Coach's
  * voice, not another card. Tap it to ask the Coach how it is going.
  */
-function GoalCard({ d, today, t, lang }: { d: AppData; today: string; t: TFn; lang: Lang }) {
+const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; today: string; t: TFn; lang: Lang }) {
   const all = activeGoals(d, today);
   const goals = all.filter(tracked);
   const m = goals[0] ?? all[0];
@@ -328,7 +331,8 @@ function GoalCard({ d, today, t, lang }: { d: AppData; today: string; t: TFn; la
   const name = m.text.replace(/^(goal|mål)\s*:\s*/i, '');
   const by = m.goal.by ? fmtDate(m.goal.by, lang, { day: 'numeric', month: 'short' }) : undefined;
   const lift = m.goal.metric === 'lift';
-  const what = m.goal.target === undefined ? name : lift ? `${m.exerciseIds?.[0] ? `${exName(exerciseMap(d.exercises).get(m.exerciseIds[0])!, lang)} ` : ''}${kg(m.goal.target)}${(m.goal.reps ?? 1) > 1 ? ` × ${m.goal.reps}` : ''}` : kg(m.goal.target);
+  const ex = m.exerciseIds?.[0] ? exerciseMap(d.exercises).get(m.exerciseIds[0]) : undefined; // a deleted lift: just the weight
+  const what = m.goal.target === undefined ? name : lift ? `${ex ? `${exName(ex, lang)} ` : ''}${kg(m.goal.target)}${(m.goal.reps ?? 1) > 1 ? ` × ${m.goal.reps}` : ''}` : kg(m.goal.target);
   const title = by && m.goal.target !== undefined ? t('{what} by {date}', { what, date: by }).replace(/ (\d)/g, '\u00a0$1') : what;
   let line = '';
   let bar: { start: number; now: number; target: number } | undefined;
@@ -348,12 +352,12 @@ function GoalCard({ d, today, t, lang }: { d: AppData; today: string; t: TFn; la
   const f = bar ? Math.max(0, Math.min(1, (bar.now - bar.start) / (bar.target - bar.start))) : 0;
   return (
     <button className="hx-goal press" style={{ ['--c' as string]: col }} onClick={() => ask(t('How am I doing on my goal “{goal}”? Be honest.', { goal: name }))}>
-      <div className="hx-ghead"><span className="hx-gt">{title}</span>{st ? <span className="hx-gpace">{t(PACE[st.pace])}</span> : <span className="hx-gchev">›</span>}</div>
+      <div className="hx-ghead"><span className="hx-gt">{title}</span>{st ? <span className={`hx-gpace${WARN.has(st.pace) ? ' hx-gwarn' : ''}`}>{t(PACE[st.pace])}</span> : <span className="hx-gchev">›</span>}</div>
       {bar && <div className="hx-gbar" style={{ ['--f' as string]: f }}><span className="hx-gnow">{t('{n} now', { n: fmtNum(kgToDisplay(bar.now, u), lang, 1) })}</span><i /></div>}
       {(line || more > 0) && <div className="hx-gline">{line}{more > 0 && <>{line ? ' · ' : ''}<b>{t('+{n} more', { n: more })}</b></>}</div>}
     </button>
   );
-}
+});
 
 function RibbonBlock({ v, t, lang }: { v: HealthView; t: TFn; lang: Lang }) {
   const [ref, w] = useWidth<HTMLDivElement>(384);

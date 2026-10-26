@@ -2067,6 +2067,8 @@ export const da: Record<string, string> = {
  "Weigh in again and the Coach can judge it.": "Vej dig igen, så kan Coachen bedømme det.",
  "Weigh in most mornings and the Coach can judge it.": "Vej dig de fleste morgener, så kan Coachen bedømme det.",
  "Weigh in once and the Coach can judge it.": "Vej dig én gang, så kan Coachen bedømme det.",
+ "Tell the Coach which lift it is, and it follows it here.": "Fortæl Coachen hvilket løft det er, så følger den det her.",
+ "{ex} has stalled at {x} for {n} sessions.": "{ex} har stået stille på {x} i {n} træninger.",
  "Your {n} fully logged days of the last 7 averaged {x}, about {over} over your {target} target.": "Dine {n} fuldt loggede dage af de sidste 7 lå i snit på {x}, omkring {over} over dit mål på {target}.",
  "{a} kcal for a week, then about {b} to hold it.": "{a} kcal i en uge, derefter omkring {b} for at holde den.",
  "{n} days": "{n} dage",

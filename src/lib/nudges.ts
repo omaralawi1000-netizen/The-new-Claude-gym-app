@@ -102,6 +102,7 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     const name = exName(stall.exerciseId);
     add({ id: `stall:${stall.exerciseId}:${stall.since}`, kind: 'suggestion', icon: 'info', priority: 60,
       title: t('{ex} has stalled', { ex: name }),
+      say: { tpl: t('{ex} has stalled at {x} for {n} sessions.', { ex: name, n: stall.sessions }), x: `${fmtNum(kgToDisplay(stall.best.kg, u), lang, 2)}\u00a0${u} × ${stall.best.reps}` },
       body: t('Best {w} × {r} for {n} sessions. A small change usually gets it moving again.', { w: `${fmtNum(kgToDisplay(stall.best.kg, u), lang, 2)} ${u}`, r: stall.best.reps, n: stall.sessions }),
       action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('My {ex} has stalled at {w} × {r}. What one change should I make?', { ex: name, w: `${fmtNum(kgToDisplay(stall.best.kg, u), lang, 2)} ${u}`, r: stall.best.reps }) } } });
   }
@@ -285,19 +286,23 @@ const weekOf = (day: string) => addDays(day, -((weekdayOf(day) + 6) % 7));
  *  C, when the Coach must say it (a weight goal behind, 2+ days 500+ over since it started) and A and B don't fire. */
 export function overNote(d: AppData, today: string, t: T, lang: Lang): Nudge | undefined {
   const tk = d.settings.goals.kcal;
-  if (!tk || heavyMode(d.settings) === 'off') return undefined;
-  const goals = activeGoals(d, today).filter(tracked).filter((m) => m.goal.metric === 'weight');
-  const cutting = goals.some((m) => m.goal.target! < (m.goal.start ?? Infinity)) || (!goals.length && d.settings.profile?.goal === 'fatloss');
+  const mode = heavyMode(d.settings);
+  if (!tk || mode === 'off') return undefined;
+  // a goal's start is optional: goalState works it out, as the Coach does (lib/goals.ts goalLines), so a bulk never reads as a cut
+  const goals = activeGoals(d, today).filter(tracked).filter((m) => m.goal.metric === 'weight').map((m) => ({ m, st: goalState(d, m, today) }));
+  const cutting = goals.some(({ m, st }) => m.goal.target! < (st?.start ?? st?.now ?? m.goal.start ?? m.goal.target!)) || (!goals.length && d.settings.profile?.goal === 'fatloss');
   if (!cutting) return undefined;
   const k = (x: number) => fmtNum(Math.round(x / 10) * 10, lang, 0);
   const wd = (day: string) => fmtDate(day, lang, { weekday: 'short' }).replace(/\.$/, '');
   // the Coach's own MUST SAY case (lib/goals.ts goalLines): behind, with big days since the goal started
-  const must = goals.map((m) => ({ m, st: goalState(d, m, today) })).find(({ m, st }) => st?.pace === 'behind' && m.goal.startDate && bigDays(d, m.goal.startDate, today, tk).length >= 2);
+  const must = goals.find(({ m, st }) => st?.pace === 'behind' && m.goal.startDate && bigDays(d, m.goal.startDate, today, tk).length >= 2);
   const priority = must ? 72 : 58;
   const base = { id: `over:${weekOf(today)}`, kind: 'warning' as const, icon: 'food' as IconName, priority };
   const ask = (what: string) => ({ label: t('Ask the Coach'), run: { type: 'coach' as const, prompt: t('{what} Help me with those days. Be honest.', { what }) } });
+  // A and B only when heavy days are on: Quiet means he hears about them only when he asks (lib/eating.ts); C still speaks,
+  // as the Coach says it anyway
   // A
-  const heavy = heavyDays(d, today, 7);
+  const heavy = mode === 'on' ? heavyDays(d, today, 7) : [];
   if (heavy.length >= 2) {
     const tgts = heavy.map((x) => targetOn(d, x.date));
     const one = tgts.every((x) => x === tgts[0]) ? tgts[0] : undefined;
@@ -309,7 +314,7 @@ export function overNote(d: AppData, today: string, t: T, lang: Lang): Nudge | u
   // B
   const week = foodDays(d, addDays(today, -7), today);
   const avgK = week.length ? week.reduce((a, x) => a + x.kcal, 0) / week.length : 0;
-  if (week.length >= 4 && avgK >= tk + 150) {
+  if (mode === 'on' && week.length >= 4 && avgK >= tk + 150) {
     const x = `${k(avgK)} kcal`;
     const tpl = week.length === 7 ? t('Your last 7 days averaged {x}, about {over} over your {target} target.', { over: k(avgK - tk), target: k(tk) }) : t('Your {n} fully logged days of the last 7 averaged {x}, about {over} over your {target} target.', { n: week.length, over: k(avgK - tk), target: k(tk) });
     return { ...base, title: t('About {over} kcal a day over your target', { over: k(avgK - tk) }), body: t('{n} fully logged days of the last 7.', { n: week.length }), say: { tpl, x }, action: ask(tpl.replace('{x}', x)) };

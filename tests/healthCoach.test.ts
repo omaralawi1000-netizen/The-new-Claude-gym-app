@@ -61,6 +61,14 @@ describe('overeating on a cut, said with its days', () => {
     expect(overNote(data(), today, t, 'en')).toBeUndefined();
   });
 
+  it('quiet heavy days stay quiet, and a bulk with no start weight is never read as a cut', () => {
+    useStore.setState({ entries: week([2250, 3150, 3400, 2900, 2200, 2300, 2280]) });
+    useStore.setState((s) => ({ settings: { ...s.settings, heavyDays: 'quiet' } }));
+    expect(overNote(data(), today, t, 'en')).toBeUndefined();
+    useStore.setState((s) => ({ settings: { ...s.settings, heavyDays: undefined }, weights: [{ id: 'w', date: addDays(today, -1), kg: 70, at: 0 }], memory: [goal({ target: 74, startDate: addDays(today, -10), by: addDays(today, 60) })] }));
+    expect(overNote(data(), today, t, 'en')).toBeUndefined();
+  });
+
   it('wins over protein, and over a stall, exactly when the Coach must say it (a weight goal behind, with big days)', () => {
     const weights = Array.from({ length: 29 }, (_, i) => ({ id: `w${i}`, date: addDays(today, i - 28), kg: 82.1, at: 0 }));
     useStore.setState({ weights, entries: week([2250, 3150, 3400, 2900, 2200, 2300, 2280], 120), memory: [goal({ start: 83.3, startDate: addDays(today, -28), by: addDays(today, 27) })] });
