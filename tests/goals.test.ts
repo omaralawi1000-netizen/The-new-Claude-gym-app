@@ -490,7 +490,7 @@ describe('judge round 7 (26 Oct)', () => {
     useStore.setState({ weights: weighIns(20, 63, 0), memory: [{ id: 'm', kind: 'other', text: 'In 9th grade.', at: 0 }] });
     expect(goalWatchLines(data(), today, name)).toEqual([]);
     useStore.setState({ memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 81 kg', at: 0, goal: { metric: 'weight', target: 81, startDate: addDays(today, -20), status: 'done', endedOn: today } }] });
-    expect(findNudges(data(), today, 9, t, 'en', name).find((x) => x.id === 'goal:g:done')!.title).toBe('Goal reached: 82 → 81 kg');
+    expect(findNudges(data(), today, 9, t, 'en', name).find((x) => x.id === 'goal:g:done')!.title).toBe('Goal reached: 81 kg');
     const kgs = [70, 72.5, 75, 77.5, 77.5, 77.5, 77.5, 77.5, 77.5];
     useStore.setState({ sessions: kgs.map((kg, i) => session(addDays(today, -40 + i * 5), [['bench-press', kg, 5]])), memory: [{ id: 'b', kind: 'goal', text: 'Goal: bench 100', at: 0, exerciseIds: ['bench-press'], goal: { metric: 'lift', target: 100, reps: 1, by: addDays(today, 200), startDate: addDays(today, -12) } }] });
     expect(goalLines(data(), today, name).join('\n')).toMatch(/When you change its plan: save it in the same answer \(remember with memory = 1 and goal\.plan/);

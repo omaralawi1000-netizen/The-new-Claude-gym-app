@@ -197,7 +197,9 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
   // a goal reached in the last 2 days (closed in the chat, so no longer running): said on Today too
   for (const m of d.memory ?? []) if (m.kind === 'goal' && m.goal?.status === 'done' && m.goal.endedOn && diffDays(today, m.goal.endedOn) <= 1 && m.goal.metric !== 'other') {
     const name = m.text.replace(/^(goal|mål)\s*:\s*/i, '');
-    add({ id: `goal:${m.id}:done`, kind: 'insight', icon: m.goal.metric === 'lift' ? 'bolt' : 'scale', priority: 80, title: t('Goal reached: {goal}', { goal: name.replace(/\s*\(.*\)\s*\.?$/, '') }),
+    // (the title from its numbers, as for a running goal: "Goal reached: 81 kg")
+    const what = m.goal.target === undefined ? name : m.goal.metric === 'lift' ? `${m.exerciseIds?.[0] ? `${exName(m.exerciseIds[0])} ` : ''}${kg(m.goal.target)}${(m.goal.reps ?? 1) > 1 ? ` × ${m.goal.reps}` : ''}` : kg(m.goal.target);
+    add({ id: `goal:${m.id}:done`, kind: 'insight', icon: m.goal.metric === 'lift' ? 'bolt' : 'scale', priority: 80, title: t('Goal reached: {goal}', { goal: what }),
       action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I reached my goal “{goal}”. What’s next?', { goal: name }) } } });
   }
   // a cut with no lifting for 2 weeks: a good part of what comes off is muscle (the Coach can make the routine)
