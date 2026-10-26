@@ -48,7 +48,7 @@ void main() {
   }
   // your voice: the dust swells where your voice is (low voice low in it, high voice high), shimmering
   float bv = band((lat + 1.0) * 0.5) * uListen;
-  r *= 1.0 + (bv * 0.16 * (0.55 + 0.45 * sin(uT * 7.0 + aRnd.y * 30.0)) + uIn * uListen * 0.03) * (1.0 - uReduce * 0.7);
+  r *= 1.0 + (bv * 0.16 * (0.55 + 0.45 * sin(uT * 7.0 + aRnd.y * 30.0)) + uIn * uListen * 0.03) * (1.0 - uReduce);
   // its voice: a wave of light running out through the dust with each syllable
   float hot = 0.0;
   for (int i = 0; i < 4; i++) { float age = uSyl[i]; if (age < 0.0 || age > 1.4) continue; float d = shell - age * 1.1; float w = exp(-d * d * 60.0) * uSylA[i] * (1.0 - age / 1.4) * uSpeak; r *= 1.0 + w * 0.06 * (1.0 - uReduce); hot += w; }
@@ -91,7 +91,7 @@ void main() {
   // a few specks twinkle, the larger ones most
   float tw = pow(0.5 + 0.5 * sin(uT * (1.3 + aRnd.y * 2.6) + aRnd.x * 40.0), 14.0) * (aRnd.w > 2.4 ? 1.0 : 0.35) * (1.0 - uReduce);
   // the far side small and faint, the near side crisp: depth
-  gl_PointSize = max(1.0, aRnd.w * uSz * mix(mix(0.55, 1.05, depth), 1.0, wr) * (1.0 + hot * 0.5 + tw * 0.6) * (1.0 + bv * 0.4));
+  gl_PointSize = max(1.0, aRnd.w * uSz * mix(mix(0.55, 1.05, depth), 1.0, wr) * (1.0 + hot * 0.5 + tw * 0.6) * (1.0 + bv * 0.4 * (1.0 - uReduce)));
   float a0 = mix(0.1, 1.0, pow(depth, 1.6)) * (0.32 + 0.68 * lit);
   // (once the words are written in crisp text, their dust steps back to a faint shimmer behind them)
   vA = mix(a0, mix(0.95, 0.22, uCrisp), wr) * ap * (1.0 + bv * 0.8 + uIn * uListen * 0.3 + gk * 0.9 + uAttn * 0.35 + tw * 0.8) * (1.0 - 0.45 * uQuiet);

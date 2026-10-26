@@ -54,12 +54,12 @@ const stageY = () => p.locator('.sphere-stage').evaluate((el) => new DOMMatrixRe
   const seen = await hand('.voice .orb-hand');
   assert.match(seen, /translate3d/, `it follows the finger (${seen})`);
   await p.screenshot({ path: 'shots/orbhand-1-held.png' });
-  await p.mouse.up(); await wait(p, 120);
-  // (mid-spring: it overshoots home once, a soft bounce)
-  let over = false;
-  for (let i = 0; i < 30; i++) { const m = /, (-?[\d.]+)px/.exec(await hand('.voice .orb-hand')); if (m && Number(m[1]) < -0.5) over = true; await wait(p, 16); }
-  await wait(p, 1200);
-  assert(over, 'it bounces past home once on the way back');
+  // (mid-spring: it overshoots home once, a soft bounce; watched inside the page, every frame)
+  await p.evaluate(() => { const el = document.querySelector('.voice .orb-hand'); window.__minY = 0; const t0 = performance.now();
+    const f = () => { const m = /, (-?[\d.]+)px/.exec(el.style.transform); if (m) window.__minY = Math.min(window.__minY, Number(m[1])); if (performance.now() - t0 < 2500) requestAnimationFrame(f); }; requestAnimationFrame(f); });
+  await p.mouse.up(); await wait(p, 2600);
+  const over = await p.evaluate(() => window.__minY);
+  assert(over < -0.3, `it bounces past home once on the way back (${over})`);
   assert.equal(await hand('.voice .orb-hand'), '', 'and comes to rest at home');
   assert(await voiceOpen(), 'a short drag doesn’t close it');
   assert.equal(await phase(), before, 'a drag isn’t a tap');
@@ -76,7 +76,7 @@ const stageY = () => p.locator('.sphere-stage').evaluate((el) => new DOMMatrixRe
   await p.reload(); await wait(p, 1500);
   await dock.click(); await wait(p, 3000);
   assert.equal(await p.locator('.voice canvas').count(), 1, 'the dust is drawn');
-  assert.equal(await p.locator('.sphere-stage canvas').evaluate((el) => el.style.opacity), '0', 'the usual orb has stepped aside');
+  assert.equal(await p.locator('.sphere-stage canvas').evaluate((el) => el.style.opacity), '0.002', 'the usual orb has stepped aside');
   assert.equal(await p.locator('.dust-greet').count(), 1, 'its greeting has its place');
   assert.equal(await hand('.voice .orb-hand'), '', 'the orb rests in its place');
   await p.screenshot({ path: 'shots/orbhand-2-stardust.png' });

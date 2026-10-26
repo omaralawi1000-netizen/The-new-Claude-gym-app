@@ -258,6 +258,8 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
 - **Danger:** workout and food data is precious. No destructive migration without asking. Backups keep working.
 - **API keys** are typed into Settings and stay on the phone: never in code, commits, logs or backups. No paid services.
 - **Orb:** never changes shape; it moves, glows, breathes. It tucks under nothing (the v0.1.77 tuck was a regression).
+- **Stardust** (the orb screen's orb while talking live, Omar 26 Oct): its dust may fold into a galaxy, swell with a voice,
+  scatter from a finger and fly out to write words; that is the design he chose. The usual orb keeps its shape everywhere.
 - **Focus view / workout:** the live workout is a full page; Focus (one exercise per page) is a view of it. Rest bar is
   floating frost, never a solid block.
 - **Tab-screen buttons/chips** stay without blur (section 1).

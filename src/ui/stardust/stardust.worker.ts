@@ -14,7 +14,12 @@ let scheduled = false;
 self.onmessage = (e: MessageEvent) => {
   const d = e.data;
   if (d.canvas) {
-    try { eng = new DustEngine(d.canvas as OffscreenCanvas); eng.onCrisp = (on) => self.postMessage({ crisp: on }); self.postMessage({ ready: true }); }
+    try {
+      const cv = d.canvas as OffscreenCanvas;
+      // (the graphics chip reset: tell the page, which brings the usual orb back)
+      cv.addEventListener('webglcontextlost', (ev) => { ev.preventDefault(); eng = null; self.postMessage({ failed: true }); });
+      eng = new DustEngine(cv); eng.onCrisp = (on) => self.postMessage({ crisp: on }); self.postMessage({ ready: true });
+    }
     catch (err) { self.postMessage({ failed: true, why: String(err) }); }
   }
   if (d.text && eng) eng.setText(d.text as Float32Array);

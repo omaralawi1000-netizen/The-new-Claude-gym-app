@@ -675,8 +675,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const [heard, setHeard] = useState(false); // your voice was heard this visit: the greeting has gone back into the orb
   const dustWanted = liveUi && present;
   useEffect(() => { if (!dustWanted) { setDustOn(false); return; } const id = setTimeout(() => setDustOn(true), calm ? 0 : 480); return () => clearTimeout(id); }, [dustWanted]); // eslint-disable-line
-  useEffect(() => { orbHide(dustOn && dustOk); }, [dustOn, dustOk]);
-  useEffect(() => () => orbHide(false), []);
+  useEffect(() => { orbHide(dustOn && dustOk, calm); }, [dustOn, dustOk]); // eslint-disable-line
+  useEffect(() => () => orbHide(false, true), []);
   const greetRef = useRef<HTMLDivElement>(null);
   const touch = useRef({ hold: null as [number, number] | null, tap: { n: 0, x: 0, y: 0 }, at: [0, 0] as [number, number] });
   // where a finger is on the sphere, in its own units (its middle 0, its edge 1, y up)
@@ -720,7 +720,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   useLayoutEffect(follow, [last?.done, last?.results.length, turns.length, final]); // eslint-disable-line
 
   return (
-    <motion.div ref={rootRef} className="voice" style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column', paddingBottom: kbPad }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
+    <motion.div ref={rootRef} className={liveUi ? 'voice live' : 'voice'} style={{ position: 'fixed', inset: 0, zIndex: z, display: 'flex', flexDirection: 'column', paddingBottom: kbPad }} role="dialog" aria-modal="true" aria-label={t('Dictation')}>
       {/* The frost behind builds up gradually with the screen's progress (one blur layer and a tint, fading in with it).
           Nothing above it fades as a whole: a fading parent switched the blur off until the fade ended, then it snapped on. */}
       <Veil e={veilE} z={0} layers={VOICE_VEIL} className="veil-abs" elRef={veilRef} />
@@ -729,7 +729,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       {/* your voice flowing in: a warm light rising from the bottom (where the microphone is) with how loud you are; it pulls
           up into the orb while it thinks and stays low while it speaks (the orb's own light answers then) */}
       {liveUi && <LiveAura session={liveRef} mode={!liveActive || muted ? 'off' : speaking ? 'speak' : phase === 'processing' ? 'think' : 'listen'} />}
-      {liveUi && <motion.div aria-hidden style={{ position: 'absolute', inset: 0, opacity: contentO, pointerEvents: 'none' }}>
+      {/* (kept for the whole live visit: when it isn't wanted any more, typing or Live failing, the dust fades out as the
+          usual orb fades back in, never a frame with neither) */}
+      {liveWanted && <motion.div aria-hidden style={{ position: 'absolute', inset: 0, opacity: contentO, pointerEvents: 'none' }}>
         <Stardust orbEl={handEl} greetEl={greetRef} greet={t('What can I do for you?')} live={dustLive} onCrisp={setCrisp} ready={setDustOk} />
       </motion.div>}
       <motion.div ref={contentRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
@@ -763,8 +765,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           </div>}
           {/* its greeting, written in its dust first; the crisp words fade in over the dust once it has written them, and
               go the moment you start talking (the dust takes them back into the orb). Its room is kept: nothing jumps. */}
-          {liveUi && !chatting && <div ref={greetRef} className="dust-greet" style={{ opacity: crisp && dustOk ? 1 : 0, transition: `opacity ${crisp ? '.5s' : '.15s'} var(--ease-out)` }}>
-            {dustOk ? t('What can I do for you?') : ''}
+          {liveUi && !chatting && dustOk && <div ref={greetRef} className="dust-greet" style={{ opacity: crisp ? 1 : 0, transition: calm ? 'none' : `opacity ${crisp ? '.5s' : '.15s'} var(--ease-out)` }}>
+            {t('What can I do for you?')}
           </div>}
         </div>
         {!liveUi && <div style={{ textAlign: 'center', marginTop: big ? 14 : 8 }}>

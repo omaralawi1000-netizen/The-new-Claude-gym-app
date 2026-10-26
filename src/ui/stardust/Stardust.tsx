@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { DustEngine, type DustState, type RGB } from './engine';
 
 /** What the orb screen tells Stardust every frame (read when it draws, not on render). */
@@ -24,18 +24,25 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
 }) {
   const box = useRef<HTMLDivElement>(null);
   const cb = useRef({ onCrisp, ready }); cb.current = { onCrisp, ready };
-  useEffect(() => {
-    // (a fresh canvas each time: a canvas handed to a worker can't be drawn on again, and React may set this up twice)
+  useLayoutEffect(() => {
+    // (a fresh canvas each time: a canvas handed to a worker can't be drawn on again, and React may set this up twice; it
+    // gets its full size before its first frame, never a small one stretched)
     const holder = box.current; if (!holder) return;
     const canvas = document.createElement('canvas');
     canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
+    const dpr0 = Math.min(2.5, window.devicePixelRatio || 1);
+    canvas.width = Math.round(window.innerWidth * dpr0); canvas.height = Math.round(window.innerHeight * dpr0);
     holder.appendChild(canvas);
     let worker: Worker | null = null, eng: DustEngine | null = null, raf = 0, stopped = false;
+    let gone = true; // nothing drawn (yet, or any more): no frames are sent until there is something to draw
+    const fail = () => { cb.current.ready(false); worker?.terminate(); worker = null; eng = null; };
     // where it can, the dust is drawn off the page (the screen's full refresh rate, never waiting for the page)
     const post = (m: unknown, transfer?: Transferable[]) => worker?.postMessage(m, transfer ?? []);
     const startPage = () => {
       try { eng = new DustEngine(canvas); eng.onCrisp = (on) => cb.current.onCrisp(on); cb.current.ready(true); }
-      catch { cb.current.ready(false); }
+      catch { fail(); }
+      // (the graphics chip reset: the usual orb comes back until it can draw again)
+      canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); fail(); });
     };
     if ('transferControlToOffscreen' in canvas && typeof Worker !== 'undefined') {
       try {
@@ -43,26 +50,30 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
         const off = canvas.transferControlToOffscreen();
         worker.onmessage = (e) => {
           if (e.data.ready) cb.current.ready(true);
-          if (e.data.failed) { cb.current.ready(false); worker?.terminate(); worker = null; }
+          if (e.data.failed) fail();
+          if (e.data.gone) gone = true;
           if ('crisp' in e.data) cb.current.onCrisp(e.data.crisp);
         };
-        worker.onerror = (e) => { console.warn('Stardust: the worker could not start', e.message); cb.current.ready(false); worker?.terminate(); worker = null; };
+        worker.onerror = (e) => { console.warn('Stardust: the worker could not start', e.message); fail(); };
         post({ canvas: off }, [off]);
       } catch { worker = null; startPage(); }
     } else startPage();
 
-    // the palette's colours, read where the orb screen is (its tab's accent), again when the theme or palette changes
-    const probe = (v: string) => { const d = document.createElement('i'); d.style.cssText = `position:absolute;width:0;height:0;color:var(${v})`; canvas.parentElement!.appendChild(d); const c = getComputedStyle(d).color; d.remove(); const n = (c.match(/-?\d*\.?\d+/g) ?? ['1', '1', '1']).slice(0, 3).map(Number); return (c.startsWith('color(') ? n : n.map((x) => x / 255)) as RGB; };
+    // the palette's colours, read where the orb screen is (its tab's accent), again when the theme or palette changes (from
+    // probes kept in place, so a theme switch adds or removes nothing)
+    const probes = new Map<string, HTMLElement>();
+    for (const v of ['--ac', '--ac-2', '--h1']) { const d = document.createElement('i'); d.style.cssText = `position:absolute;width:0;height:0;color:var(${v})`; holder.appendChild(d); probes.set(v, d); }
+    const probe = (v: string) => { const c = getComputedStyle(probes.get(v)!).color; const n = (c.match(/-?\d*\.?\d+/g) ?? ['1', '1', '1']).slice(0, 3).map(Number); return (c.startsWith('color(') ? n : n.map((x) => x / 255)) as RGB; };
     let colors: DustState['colors'];
     const readColors = () => {
       const dark = document.documentElement.dataset.theme !== 'light';
       // (light theme: deeper colours laid over the page, light can't be added to white)
       const deep = (c: RGB, k: number) => c.map((x) => x * k) as RGB;
-      colors = dark ? { ac: probe('--ac-2'), alt: probe('--h1'), ok: [0.43, 0.87, 0.59], dark } : { ac: deep(probe('--ac'), 0.62), alt: deep(probe('--h1'), 0.75), ok: [0.1, 0.5, 0.3], dark };
+      colors = dark ? { ac: probe('--ac-2'), alt: probe('--h1'), ok: [0.43, 0.87, 0.59], dark } : { ac: deep(probe('--ac'), 0.62), alt: deep(probe('--h1'), 0.75), ok: [0.12, 0.63, 0.37], dark };
     };
     readColors();
     const mo = new MutationObserver(readColors);
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-palette', 'class'] });
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-palette'] });
     const reducedQ = matchMedia('(prefers-reduced-motion: reduce)');
 
     // the greeting's shape: its text drawn where the crisp text sits, sampled into points (once its place and font are known)
@@ -87,9 +98,12 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
     const bands: number[] = new Array(16).fill(0);
     let voiceFor = 0;
     const tick = () => {
+      if (stopped || (!worker && !eng)) return; // (it couldn't draw: nothing more to do)
       raf = requestAnimationFrame(tick);
-      if (stopped) return;
       const L = live.current, el = orbEl.current; if (!L || !el) return;
+      // (only while there is dust to draw: before it starts and once it has gone, no frames)
+      if (!L.on && gone) return;
+      if (L.on) gone = false;
       const r = el.getBoundingClientRect();
       const lv = L.levels();
       if (lv) for (let i = 0; i < 16; i++) bands[i] = lv.bands[i] ?? 0;
@@ -107,8 +121,8 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
       if (worker) post({ state: st }); else eng?.frame(performance.now(), st);
     };
     raf = requestAnimationFrame(tick);
-    // (off screen: the page's frames stop by themselves; the worker's stop with them, as no new state arrives)
-    return () => { stopped = true; cancelAnimationFrame(raf); mo.disconnect(); worker?.terminate(); worker = null; eng = null; canvas.remove(); };
+    // (off screen the page's frames stop; the worker draws only while the dust moves and stops once it has gone)
+    return () => { stopped = true; cancelAnimationFrame(raf); mo.disconnect(); worker?.terminate(); worker = null; eng = null; canvas.remove(); probes.forEach((d) => d.remove()); };
   }, [greet]); // eslint-disable-line
   return <div ref={box} aria-hidden className={className} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />;
 }

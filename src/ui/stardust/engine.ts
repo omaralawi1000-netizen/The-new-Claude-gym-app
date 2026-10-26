@@ -46,6 +46,10 @@ export interface DustState {
 }
 
 const N = 16000, WRITERS = 3400;
+// the app's shared springs (ui/motion.ts, written out here so the worker needs nothing from the app): SMOOTH = apple(0.36)
+// for its breath and size, BOUNCY = apple(0.5, 0.3) for the dust trailing a drag
+const SMOOTH_K = (2 * Math.PI / 0.36) ** 2, SMOOTH_C = (4 * Math.PI) / 0.36;
+const BOUNCY_K = (2 * Math.PI / 0.5) ** 2, BOUNCY_C = (4 * Math.PI * 0.7) / 0.5;
 
 export class DustEngine {
   private gl: WebGL2RenderingContext;
@@ -62,6 +66,7 @@ export class DustEngine {
   /** called when the words are fully written (true) or start leaving (false): the page shows or hides the crisp text */
   onCrisp: (on: boolean) => void = () => {};
   private crispOn = false;
+  private drewLast = false;
 
   constructor(private canvas: HTMLCanvasElement | OffscreenCanvas) {
     const gl = canvas.getContext('webgl2', { premultipliedAlpha: true, antialias: false, alpha: true }) as WebGL2RenderingContext | null;
@@ -130,12 +135,12 @@ export class DustEngine {
     s.attn *= Math.exp(-dt * 1.4);
     // its breath and size: one slow breath, a breath in when it notices you, a press sinks it in a touch (a spring)
     const scTo = red ? 1 : 1 + 0.012 * Math.sin(this.t * 1.05) + 0.035 * s.attn - 0.04 * st.press;
-    for (let rem = dt; rem > 1e-6; rem -= 1 / 240) { const h = Math.min(rem, 1 / 240); s.scaleV += (-160 * (s.scale - scTo) - 19 * s.scaleV) * h; s.scale += s.scaleV * h; }
+    for (let rem = dt; rem > 1e-6; rem -= 1 / 240) { const h = Math.min(rem, 1 / 240); s.scaleV += (-SMOOTH_K * (s.scale - scTo) - SMOOTH_C * s.scaleV) * h; s.scale += s.scaleV * h; }
     if (!red) s.rot += dt * (0.16 + s.vin * 0.25 + s.vout * 0.15);
     // a drag: the inside follows the finger's move on a soft spring, so it lags and sloshes, then settles
     const [lx, ly] = st.lean;
     for (let rem = dt; rem > 1e-6; rem -= 1 / 240) { const h = Math.min(rem, 1 / 240);
-      s.lvx += (-60 * (s.lx - lx) - 9 * s.lvx) * h; s.lx += s.lvx * h; s.lvy += (-60 * (s.ly - ly) - 9 * s.lvy) * h; s.ly += s.lvy * h; }
+      s.lvx += (-BOUNCY_K * (s.lx - lx) - BOUNCY_C * s.lvx) * h; s.lx += s.lvx * h; s.lvy += (-BOUNCY_K * (s.ly - ly) - BOUNCY_C * s.lvy) * h; s.ly += s.lvy * h; }
     if (red) { s.lx = lx; s.ly = ly; }
     // a finger held; a tap; a log done
     s.hold += ((st.hold ? 1 : 0) - s.hold) * k(st.hold ? 8 : 4);
@@ -152,8 +157,8 @@ export class DustEngine {
     const gl = this.gl, dpr = st.dpr, W = Math.max(1, Math.round(st.w * dpr)), H = Math.max(1, Math.round(st.h * dpr));
     if (this.canvas.width !== W || this.canvas.height !== H) { this.canvas.width = W; this.canvas.height = H; }
     gl.viewport(0, 0, W, H);
-    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-    if (s.appear <= 0 && !st.on) return false;
+    if (s.appear <= 0 && !st.on) { if (this.drewLast) { gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); this.drewLast = false; } return false; }
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); this.drewLast = true;
     gl.enable(gl.BLEND);
     if (st.colors.dark) gl.blendFunc(gl.ONE, gl.ONE); else gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     const U = (n: string) => { if (!this.u.has(n)) this.u.set(n, gl.getUniformLocation(this.prog, n)); return this.u.get(n)!; };
