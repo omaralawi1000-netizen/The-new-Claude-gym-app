@@ -3,7 +3,7 @@ import { edFromMemory, frequentHeavy, justNoticed, markCoachTold } from './eatin
 import { trueMaintenance } from './maintenance';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
-import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, dedupeSources, geminiSearch, plainModels, type Brain, type Photo, type Turn, type WebSource } from './gemini';
+import { AiError, COACH_MODEL, FALLBACK_MODELS, aiAgent, aiAgentStream, dedupeSources, geminiSearch, plainModels, type Brain, type Photo, type Turn, type WebSource } from './gemini';
 import { quickFor, refreshSolModel, solAgent, solJson, solModel, solSearch, type Effort } from './openai';
 import { solThenGemini } from './brain';
 import { overLimit } from './spend';
@@ -18,10 +18,11 @@ import { dayKey } from './dates';
 import { noteTrouble } from './trouble';
 import type { AppData, Exercise, Lang } from './types';
 
-/** Gemini models to try, best first: the strong one for understanding, the fast one for small jobs (estimates). */
-export function agentModels(brain: boolean): string[] {
+/** Gemini models to try, best first: the strong one for understanding, the fast one for small jobs (estimates); the Coach's own
+ *  thinking starts with Argon. */
+export function agentModels(brain: boolean, coach = false): string[] {
   const m = useAi.getState().models;
-  return [...new Set((brain ? [m.brain || FALLBACK_MODELS.brain, m.brainAlt, m.fast || FALLBACK_MODELS.fast] : [m.fast || FALLBACK_MODELS.fast, m.fastAlt, m.brain || FALLBACK_MODELS.brain]).filter(Boolean))];
+  return [...new Set((brain ? [coach ? COACH_MODEL : '', m.brain || FALLBACK_MODELS.brain, m.brainAlt, m.fast || FALLBACK_MODELS.fast] : [m.fast || FALLBACK_MODELS.fast, m.fastAlt, m.brain || FALLBACK_MODELS.brain]).filter(Boolean))];
 }
 
 /**
@@ -34,7 +35,7 @@ export function brainFor(o: { big: boolean; surface: 'orb' | 'coach'; signal?: A
   const sol = solOn(g) && !overLimit(g.solLimitKr) ? { key: getKey('openai'), effort: o.surface === 'coach' ? g.effortCoach : g.effortOrb } : undefined;
   if (sol?.key) void refreshSolModel(sol.key); // a newer model on the account is picked up (at most one look a day)
   if (!sol && !g.hasGemini) return null;
-  return { key: g.hasGemini ? getKey('gemini') : '', models: agentModels(o.big), signal: o.signal, sol };
+  return { key: g.hasGemini ? getKey('gemini') : '', models: agentModels(o.big, o.surface === 'coach'), signal: o.signal, sol };
 }
 
 /**

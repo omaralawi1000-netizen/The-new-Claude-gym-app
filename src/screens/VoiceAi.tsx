@@ -5,7 +5,7 @@ import { Icon } from '../ui/Icon';
 import { useAi } from '../state/ai';
 import { getKey, setKey, mask } from '../lib/keys';
 import { testGroqKey } from '../lib/groq';
-import { listModels, pickTextModels } from '../lib/gemini';
+import { COACH_MODEL, listModels, pickTextModels } from '../lib/gemini';
 import { OPENAI_MODEL, QUICK_MODEL, solLabel, testOpenaiKey } from '../lib/openai';
 import { spendSnapshot, subscribeSpend } from '../lib/spend';
 import { fmtNum } from '../lib/units';
@@ -66,7 +66,7 @@ export function VoiceAiSettings() {
     if (r.status === 'ok') {
       const p = pickTextModels((r as any).models);
       useAi.getState().patch({ models: { ...useAi.getState().models, fast: p.fast, brain: p.brain, fastAlt: p.fastAlt, brainAlt: p.brainAlt, tts: p.tts || FALLBACK_TTS } });
-      setM({ state: 'ok', text: t('Gemini key works. Using {a} for dictation and {b} for the Coach.', { a: p.fast || 'flash-lite', b: p.brain || 'flash' }) });
+      setM({ state: 'ok', text: t('Gemini key works. Using {a} for dictation and {b} for the Coach.', { a: p.fast || 'flash-lite', b: (r as any).models.some((x: any) => String(x?.name).endsWith(`/${COACH_MODEL}`)) ? COACH_MODEL : p.brain || 'flash' }) });
     } else setM({ state: 'bad', text: r.status === 'bad' ? t('Gemini rejected this key.') : r.status === 'offline' ? t('Couldn’t reach Gemini. Check your connection — the key was saved anyway.') : t('Gemini couldn’t be checked right now ({c}).', { c: r.status }) });
   };
 
