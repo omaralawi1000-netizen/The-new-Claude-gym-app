@@ -10,7 +10,7 @@
  *  - Logging uses the same food/exercise matching as the rest of the app, and says plainly what it matched.
  *  - Without a Gemini key (or when Gemini is down) simple commands still work through the local parsers.
  */
-import { catchUpFloor, catchUpWords, dayKcal, isDecided, targetOn } from './eating';
+import { ageFromMemory, catchUpFloor, catchUpWords, dayKcal, isDecided, targetOn } from './eating';
 import { clampVerdict, trimAllowed, trimLimits, type NoTrim } from './verdict';
 import { useStore, foodPool, allExercises, plannedFor } from '../state/store';
 import { useUI } from '../state/ui';
@@ -1560,7 +1560,7 @@ function goalPlan(g: GoalArg, ex: Exercise | undefined, old: MemoryNote | undefi
   // (a weigh-in two weeks away or less that can't be made safely: more than 2.5 % over, or under 18, or age not known.
   // Kept as the event, not tracked as a countdown to a weight that would take a water cut; judge round 4, 26 Oct)
   const birth = st.settings.body?.birthYear;
-  const age = birth ? Number(ctx.today.slice(0, 4)) - birth : undefined;
+  const age = ageFromMemory(st.memory, ctx.today) ?? (birth ? Number(ctx.today.slice(0, 4)) - birth : undefined);
   if (metric === 'weight' && g.target !== undefined && now !== undefined && g.target < now && by && diffDays(by, ctx.today) <= 14 && WEIGH_IN.test(text)
     && ((now - g.target) / now > 0.025 || age === undefined || age < 18)) metric = 'other';
   const same = prev && !prev.status && prev.metric === metric && (metric !== 'lift' || old?.exerciseIds?.[0] === exId);

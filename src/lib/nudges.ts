@@ -157,9 +157,9 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
   for (const m of goals) {
     const st = goalState(d, m, today);
     if (!st) continue;
-    // (a weigh-in days away that can't be made safely: no countdown to a weight that would take a water cut; the Coach
-    // plans it honestly instead)
-    if (st.short && st.dateUnsafe) continue;
+    // (a weigh-in days away and more than 2.5 % over: no countdown to a weight that would take a water cut; the Coach
+    // plans it honestly instead. A little over is made with food and is counted down.)
+    if (st.short && st.dateUnsafe && st.now !== undefined && st.target !== undefined && (st.now - st.target) / st.now > 0.025) continue;
     const name = m.text.replace(/^(goal|mål)\s*:\s*/i, '');
     const lift = st.metric === 'lift';
     const by = m.goal.by ? fmtDay(m.goal.by, lang) : undefined;

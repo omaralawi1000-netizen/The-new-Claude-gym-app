@@ -436,3 +436,14 @@ describe('goal words, judge round 4', () => {
     expect(goalFromText('Goal: 82 → 80 kg, weighing in 5 days in a row', undefined, undefined, 'en')).toMatchObject({ metric: 'weight', target: 80 });
   });
 });
+
+describe('weigh-ins, judge round 4 second pass', () => {
+  it('the age the Coach remembered counts; an adult a little over gets the countdown on Today, more than 2.5 % does not', async () => {
+    useStore.setState({ weights: weighIns(20, 82, 0), memory: [{ id: 'a', kind: 'other', text: 'Age: 24 (as of 2026-10-01)', at: 0 }] });
+    await act({ type: 'remember', kind: 'goal', text: `Weigh-in: 80 kg class on ${addDays(today, 5)}`, goal: { metric: 'weight', target: 80, by: addDays(today, 5) } });
+    expect(data().memory[1].goal).toMatchObject({ metric: 'weight', target: 80 });
+    expect(findNudges(data(), today, 9, t, 'en', name).find((x) => x.id.startsWith('goal:'))!.title).toMatch(/^Coming up: 80 kg by /);
+    useStore.setState({ memory: [data().memory[0], { ...data().memory[1], goal: { ...data().memory[1].goal!, target: 79 } }] });
+    expect(findNudges(data(), today, 9, t, 'en', name).find((x) => x.id.startsWith('goal:'))).toBeUndefined();
+  });
+});
