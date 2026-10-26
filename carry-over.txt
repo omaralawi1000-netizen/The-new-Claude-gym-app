@@ -1,0 +1,45 @@
+10-26 10:17:47.365  4054  4054 I AvenRest:   → sent to Chrome
+10-26 10:17:47.384  4054  4054 I AvenRest:   → Chrome got it (0)
+10-26 10:18:13.081  4054  4062 I AvenRest: Chrome took its notification away
+10-26 10:18:13.082  4054  4062 I AvenRest: stop all, alert too
+10-26 10:18:13.083   642  1383 W ForegroundServiceTypeLoggerModule: FGS stop call for: 10217 has no types!
+10-26 10:18:13.088  4054  4054 I AvenRest: ticking stopped
+10-26 10:18:16.116  4054  4062 I AvenRest: from Chrome: rest 29 s left, 2 Chrome buttons, done yes
+10-26 10:18:16.118  4054  4062 I AvenRest:   Chrome's Skip: a message, from com.android.chrome
+10-26 10:18:16.125   642  2073 I ActivityManager: Background started FGS: Allowed [callingPackage: app.aven.android; callingUid: 10217; uidState: BTOP; uidBFSL: [BFSL]; intent: Intent { xflg=0x4 cmp=app.aven.android/.RestTimerService }; code:ACTIVITY_STARTER; tempAllowListReason:<setPendingIntentAllowlistDuration,reason:NotificationManagerService,pendingintent:u0a185:app.aven.android.REST_MORE,reasonCode:NOTIFICATION_SERVICE,duration:30000,callingUid:10185>; allowWiu:52; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-26 10:18:16.131   642  2073 W ForegroundServiceTypeLoggerModule: Foreground service start for UID: 10217 does not have any types
+10-26 10:18:32.533   642   734 W ForegroundServiceTypeLoggerModule: FGS stop call for: 10217 has no types!
+10-26 10:18:45.508  3164  3164 I TWAConnectionPool: Found app.aven.android.RestDelegationService to handle request for https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app-rest/
+10-26 10:18:45.516  5671  5681 I AvenRest: website's back-up alert (rest over 0 s ago)
+10-26 10:18:45.517  5671  5681 I AvenRest: ring: fetching Chrome's buttons from the alarm
+10-26 10:18:45.518  5671  5671 I AvenRest: ring: Time for set 2, Done shown, Chrome's Skip here
+10-26 10:18:45.543  5671  5671 I AvenRest: clicks: alarm volume 6 of 7, ringer mode 1
+10-26 10:18:46.189  5671  5671 I AvenRest: clicks played
+10-26 10:18:59.012  5671  5681 I AvenRest: website's back-up alert (rest over 12 s ago)
+10-26 10:19:07.349  5671  5671 I AvenRest: button: app.aven.android.REST_DONE
+10-26 10:19:07.349  5671  5671 I AvenRest:   kept for Aven (1 waiting)
+10-26 10:19:07.349  5671  5671 I AvenRest: done: next rest 15 s, then Time for set 3
+10-26 10:19:07.367   642  1226 I ActivityManager: Background started FGS: Allowed [callingPackage: app.aven.android; callingUid: 10217; uidState: TOP ; uidBFSL: [BFSL]; intent: Intent { xflg=0x4 cmp=app.aven.android/.RestTimerService }; code:PROC_STATE_TOP; tempAllowListReason:<setPendingIntentAllowlistDuration,reason:NotificationManagerService,pendingintent:u0a185:app.aven.android.REST_DONE,reasonCode:NOTIFICATION_SERVICE,duration:30000,callingUid:10185>; allowWiu:12; targetSdkVersion:36; callerTargetSdkVersion:36; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-26 10:19:07.398  5671  5671 I AvenRest:   Chrome's button inside: a message, from com.android.chrome
+10-26 10:19:07.400  5671  5671 I AvenRest:   → sent to Chrome
+10-26 10:19:07.416   642  2073 W ForegroundServiceTypeLoggerModule: Foreground service start for UID: 10217 does not have any types
+10-26 10:19:07.497  5671  5671 I AvenRest:   → Chrome got it (0)
+10-26 10:19:22.350  5671  5671 I AvenRest: ring: Time for set 3, Done shown, Chrome's Skip here
+10-26 10:19:22.351   642  1226 W ForegroundServiceTypeLoggerModule: FGS stop call for: 10217 has no types!
+10-26 10:19:22.361  5671  5671 I AvenRest: clicks: alarm volume 6 of 7, ringer mode 2
+10-26 10:19:22.361  5671  5671 I AvenRest: ticking stopped
+10-26 10:19:23.007  5671  5671 I AvenRest: clicks played
+10-26 10:19:37.486  5671  5671 I AvenRest: button: app.aven.android.REST_DONE
+10-26 10:19:37.503  5671  5671 I AvenRest:   kept for Aven (2 waiting)
+10-26 10:19:37.504  5671  5671 I AvenRest: done: the last set
+10-26 10:19:37.504  5671  5671 I AvenRest: stop all
+10-26 10:19:37.519  5671  5671 I AvenRest:   Chrome's button inside: a message, from com.android.chrome
+10-26 10:19:37.525  5671  5671 I AvenRest:   → sent to Chrome
+10-26 10:19:37.608  5671  5671 I AvenRest:   → Chrome got it (0)
+10-26 10:19:42.698  5671  5932 I AvenRest: Chrome took its notification away (an older one)
+10-26 10:19:42.699  5671  5932 I AvenRest: Chrome took its notification away (an older one)
+pages: [('page', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/'), ('page', 'chrome-native://newtab/'), ('service_worker', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app-rest/sw.js'), ('service_worker', 'https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/sw.js'), ('worker', ''), ('worker', ''), ('worker', '')]
+get: {"mark":"saved in Chrome 2026-10-26T10:17:07.322Z","keys":9,"standalone":true,"url":"https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/"}
+CARRY-OVER OK
+    topResumedActivity=ActivityRecord{161133742 u0 com.android.chrome/org.chromium.chrome.browser.customtabs.TranslucentCustomTabActivity t10}
+  ResumedActivity: ActivityRecord{161133742 u0 com.android.chrome/org.chromium.chrome.browser.customtabs.TranslucentCustomTabActivity t10}
