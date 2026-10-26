@@ -3099,3 +3099,5 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 
 /* (the orb's hand-moved wrapper keeps its layer: none added or dropped as a drag or the float starts and stops) */
 .voice .orb-hand { will-change: transform; }
+/* Stardust's greeting (Voice.tsx): written in its dust first, then these crisp words fade in over it */
+.voice .dust-greet { font-family: var(--f-display); font-style: italic; font-weight: 400; font-size: 27px; line-height: 1.2; color: var(--tx); text-align: center; margin-top: 22px; min-height: 34px; text-wrap: balance; }

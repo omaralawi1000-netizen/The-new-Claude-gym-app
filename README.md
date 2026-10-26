@@ -3265,3 +3265,34 @@ tone or message counts, no rules per topic, going over the calories said once li
   out, and they are named.
 - Exam round 3 adds `honest-praise` (praise must be counted exactly). Before/after: live main in a git worktree vs the
   branch, on Gemini through `scripts/exam/_ba.test.ts` (a local scratch file, never committed; see the plan doc).
+
+## Stardust: the live orb as dust that writes its words (26 Oct 2026, Beta)
+Omar: the dotted orb "looks very childish… I want it to be beautiful… unique… mind-blowing… alive", then, of six GPU designs
+filmed in a lab (Silk, Nebula, Liquid glass, Eclipse, Threads, Stardust; `scripts/orb-lab`, `scripts/dust-lab`, films with
+`scripts/film-orb-lab.mjs` / `film-dust-lab.mjs` on the no-reload server `scripts/vite.film.config.ts`): "I want the Stardust
+one… ultra premium with everything, like spoken, interactive, alive". The dots had to *be* the orb so its words could be
+made of it ("that would have to be the orb, the dots").
+- **What it is** (`src/ui/stardust`): 16,000 specks of light (mostly tiny, a few brighter, shuffled so a small orb draws an
+  even fraction) placed by one vertex shader from a few numbers a frame, drawn by a worker on an OffscreenCanvas (the page
+  falls back to drawing it itself; if WebGL2 isn't there, the usual orb simply stays). A see-through full-screen canvas in
+  the orb screen; it follows the orb's place every frame (so it glides to the top with the conversation and moves with a
+  finger).
+- **Alive:** a slow breath (~6 s), a slow turn, light drifting over the dust in clouds, a few specks twinkling; it notices
+  you (the first sound after a quiet spell: it brightens and draws in a breath, on a spring); your voice's 16 pitches swell
+  their own heights of the dust; thinking folds the dust into a spinning galaxy, each speck in its turn, and it opens back
+  into the sphere to answer; each syllable of its voice sends a wave of light through it; a log done runs the success
+  colour up through it; muted or reconnecting it dims.
+- **Words:** "What can I do for you?" / "Hvad kan jeg gøre for dig?" is written by its dust under the orb, left to right,
+  then the crisp words (`.dust-greet`, Newsreader italic) fade in over the dust, which steps back to a shimmer. Your voice
+  for a moment (not a click) sends the words back into the orb.
+- **Touch:** held, the dust nearby leans to your finger; a tap scatters it and it swirls back; dragged, the outer dust lags
+  and sloshes, then settles; the swipe down to close and the iOS bounce stay (`ui/orbHand.ts`).
+- **One orb:** the usual orb still flies up from the dock; once it has landed it fades (`orbHide`, opacity on its own
+  canvas) as the dust condenses in its place, and comes back to fly home when you close.
+- Light theme: deeper colours laid over the page (light can't be added to white). Reduce motion: no turn, fold, swell or
+  scatter; light only, the words appear without flying.
+- Orbit (the ring) and its larger canvas are gone. Checks: `scripts/journey-orbhand.mjs` (dust drawn, usual orb steps
+  aside and comes back), the live journeys.
+- **Volume (same day):** the live mic no longer uses Chrome's echo cancelling, which on Android puts the app in "phone call"
+  mode (call volume; Chromium issue 443255997). Answers play at media volume; our own echo gate keeps it from hearing itself
+  (lib/live.ts `echoGate`).

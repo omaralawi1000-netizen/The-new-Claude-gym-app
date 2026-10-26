@@ -39,6 +39,15 @@ export function orbPress(down: boolean) { pressTarget = down ? 1 : 0; wakeOrb();
  *  have gone to sleep), and Orbit's ring trails the move. */
 let lean: [number, number] = [0, 0];
 export function orbMoved(x = 0, y = 0) { lean = [Math.round(x * 4) / 4, Math.round(y * 4) / 4]; wakeOrb(); }
+/** Stardust (ui/stardust) takes the orb's place on the orb screen while you talk live: the orb fades out where it landed
+ *  as the dust condenses there, and fades back in to fly home. Opacity only, on the orb's own canvas. */
+let stageCanvas: HTMLCanvasElement | null = null, orbHidden = false;
+export function orbHide(hidden: boolean) {
+  orbHidden = hidden;
+  if (!stageCanvas) return;
+  stageCanvas.style.transition = hidden ? 'opacity .6s var(--ease-out)' : 'opacity .25s var(--ease-out)';
+  stageCanvas.style.opacity = hidden ? '0' : '1';
+}
 let orbitOn = 0;
 /** Orbit (sphereRender.ts): the ring of beads round the orb, on the orb screen while talking live. */
 export function orbOrbit(on: number) { orbitOn = on; wakeOrb(); } // (1 there, a dimmer 0.4 while muted, 0 gone)
@@ -296,6 +305,7 @@ export function SphereStage() {
 
   useEffect(() => {
     const el = root.current!, cv = canvas.current!;
+    stageCanvas = cv; if (orbHidden) cv.style.opacity = '0';
     // High refresh rate: the orb is drawn in a worker, on its own frame clock. Some browsers (Samsung Internet) run the
     // page's script animation at 60 fps on a 120 Hz screen; a worker drawing into an OffscreenCanvas is not tied to the
     // page's frames. Position and size still come from here (the page's layout), the drawing itself from there.

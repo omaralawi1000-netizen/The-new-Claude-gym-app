@@ -1,6 +1,6 @@
 // The orb in your hand (Omar, 26 Oct): pulled up out of the dock it comes with your finger and springs back with a bounce,
 // or opens when pulled high enough; on its own screen it follows your finger, a short drag springs back, a swipe down puts
-// it away; a tap still works; talking live it wears Orbit (its ring, drawn by the orb itself). The orb drawn on the stage
+// it away; a tap still works; talking live it becomes Stardust. The orb drawn on the stage
 // follows its moved slot. Gemini Live is faked at the WebSocket (see journey-live.mjs).
 import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
 import assert from 'node:assert/strict';
@@ -49,7 +49,7 @@ const stageY = () => p.locator('.sphere-stage').evaluate((el) => new DOMMatrixRe
   await wait(p, 1500); const before = await phase();
   let c = await centre(orb);
   await p.mouse.move(c.x, c.y); await p.mouse.down();
-  for (let i = 1; i <= 5; i++) { await p.mouse.move(c.x + i * 3, c.y + i * 10); await wait(p, 16); }
+  for (let i = 1; i <= 8; i++) { await p.mouse.move(c.x + i * 2, c.y + i * 6); await wait(p, 30); }
   await wait(p, 150);
   const seen = await hand('.voice .orb-hand');
   assert.match(seen, /translate3d/, `it follows the finger (${seen})`);
@@ -69,15 +69,19 @@ const stageY = () => p.locator('.sphere-stage').evaluate((el) => new DOMMatrixRe
   await p.mouse.up(); await wait(p, 1500);
   assert(!(await voiceOpen()), 'a swipe down puts it away');
 }
-// 4. talking live: the ring is the orb's own drawing (sphereRender.ts Orbit); the screen adds no layer of its own for it, and
-// the orb stays where it is until a finger moves it
+// 4. talking live: Stardust takes the orb's place (ui/stardust): its dust canvas is there, the usual orb fades out where it
+// landed, the greeting's crisp words are waiting under it; leaving, the usual orb comes back to fly home
 {
   await p.evaluate(() => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); localStorage.setItem('aven.ai', JSON.stringify({ liveOrb: true })); });
   await p.reload(); await wait(p, 1500);
-  await dock.click(); await wait(p, 2500);
-  assert.equal(await p.locator('.live-horizon').count(), 0, 'no extra layer for it');
+  await dock.click(); await wait(p, 3000);
+  assert.equal(await p.locator('.voice canvas').count(), 1, 'the dust is drawn');
+  assert.equal(await p.locator('.sphere-stage canvas').evaluate((el) => el.style.opacity), '0', 'the usual orb has stepped aside');
+  assert.equal(await p.locator('.dust-greet').count(), 1, 'its greeting has its place');
   assert.equal(await hand('.voice .orb-hand'), '', 'the orb rests in its place');
-  await p.screenshot({ path: 'shots/orbhand-2-orbit.png' });
+  await p.screenshot({ path: 'shots/orbhand-2-stardust.png' });
+  await p.getByRole('button', { name: 'End', exact: true }).click(); await wait(p, 900);
+  assert.equal(await p.locator('.sphere-stage canvas').evaluate((el) => el.style.opacity), '1', 'leaving: the usual orb is back to fly home');
 }
 const real = errors.filter((e) => !/Failed to load resource|429|WebSocket/.test(e));
 assert.deepEqual(real, [], 'no page errors');

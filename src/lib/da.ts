@@ -1,5 +1,6 @@
 /** Danish strings. Keys are the English UI strings. Missing keys fall back to English (see scripts/i18n-keys.mjs --missing). */
 export const da: Record<string, string> = {
+ "What can I do for you?": "Hvad kan jeg gøre for dig?",
  "Looking at your food…": "Kigger på din mad…",
  "Looking at your training…": "Kigger på din træning…",
  "Looking at your weight…": "Kigger på din vægt…",

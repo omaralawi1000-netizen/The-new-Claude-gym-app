@@ -20,7 +20,8 @@ import { runLookups, validateLookups } from '../lib/agentLookup';
 import { dayKey } from '../lib/dates';
 import { uid } from '../lib/nutrition';
 import { appendExchange, dropFailed, markInThread, readThread, threadSaid, threadTurns } from '../lib/thread';
-import { SphereSlot, mirrorOrb, orbPress, orbTap, holdOrbSize, orbVoiceSource, orbBeat, orbOrbit } from '../ui/Sphere';
+import { SphereSlot, mirrorOrb, orbPress, orbTap, holdOrbSize, orbVoiceSource, orbBeat, orbHide } from '../ui/Sphere';
+import { Stardust, type DustLive } from '../ui/stardust/Stardust';
 import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
@@ -276,6 +277,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const [renewing, setRenewing] = useState(false);
   // what it is doing while it thinks, in a few words (Omar's reference, 26 Oct: the assistant says live what it is working on)
   const [doing, setDoing] = useState('');
+  const dustBeat = useRef(0); // a log done, for Stardust's sweep of the success colour
   const liveTurn = useRef<{ id: string | null; said: string }>({ id: null, said: '' });
   const blobRef = useRef<Blob | null>(null);
   const handle = useRef<SpeechHandle | null>(null);
@@ -414,7 +416,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           const results = v?.actions.length ? await runActions(v.actions, { t, lang, today, brain: brainFor({ big: false, surface: 'orb' }), date: props.date, mealId: props.mealId }) : [];
           const id = lt.id;
           if (id && alive.current) setTurns((all) => all.map((x) => (x.id === id ? { ...x, results: [...x.results, ...results] } : x)));
-          if (results.some((r) => r.kind !== 'miss' && r.kind !== 'nav' && !r.pending)) { haptic('success'); orbBeat(1); } // (one heartbeat of light: done)
+          if (results.some((r) => r.kind !== 'miss' && r.kind !== 'nav' && !r.pending)) { haptic('success'); orbBeat(1); dustBeat.current++; } // (one heartbeat of light: done)
           // (with each item's ref, so "change that" can find it; and what couldn't be read)
           return [results.map((r) => `${r.title}: ${r.lines.map((l) => [l.text, l.sub, l.ref ? `[ref ${l.ref}]` : ''].filter(Boolean).join(' ')).join(', ')}${r.button ? ' (waits for their Apply)' : ''}`).join('; ') || 'Nothing was changed.', v.dropped ? `${v.dropped} action(s) could not be read and were not done.` : ''].filter(Boolean).join(' ');
         },
@@ -650,8 +652,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // (Aven's own Reduce motion too, not only the phone's: the glide and the fade are instant then)
   const calm = useReducedMotion() || document.documentElement.dataset.motion === 'reduce';
   // the orb in your hand (Omar, 26 Oct): it follows your finger; swiped down far enough (or flicked down) it goes away,
-  // otherwise it springs back with one soft bounce. Talking live it wears Orbit, a ring of its own beads (sphereRender.ts),
-  // which trails your finger's move like a gyroscope. Only a wrapper's transform moves; the orb never changes shape.
+  // otherwise it springs back with one soft bounce. Only a wrapper's transform moves.
   const handEl = useRef<HTMLSpanElement>(null);
   const calmRef = useRef(calm); calmRef.current = calm;
   const hand = useMemo(() => new OrbHand(() => handEl.current, {
@@ -663,19 +664,38 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     },
   }), []); // eslint-disable-line
   useEffect(() => () => hand.stop(), [hand]);
-  // Orbit: while you talk live on this screen (it drifts away as the orb leaves)
-  // (muted or reconnecting, the ring dims and quietens: it isn't hearing you)
-  useEffect(() => { orbOrbit(!liveUi || !present ? 0 : muted || renewing ? 0.4 : 1); }, [liveUi, present, muted, renewing]);
-  useEffect(() => () => orbOrbit(0), []);
   const dragged = useRef(false);
+  // Stardust (Omar, 26 Oct, ui/stardust): talking live, the orb becomes thousands of specks of light. The orb flies up from
+  // the dock as always; once it has landed it fades as the dust condenses in its place (and comes back to fly home). The dust
+  // writes its greeting, notices your voice, folds into a galaxy while it thinks, and answers your finger (held, tapped,
+  // dragged). If the phone can't draw it, the usual orb simply stays.
+  const [dustOk, setDustOk] = useState(false);
+  const [dustOn, setDustOn] = useState(false);
+  const [crisp, setCrisp] = useState(false);
+  const [heard, setHeard] = useState(false); // your voice was heard this visit: the greeting has gone back into the orb
+  const dustWanted = liveUi && present;
+  useEffect(() => { if (!dustWanted) { setDustOn(false); return; } const id = setTimeout(() => setDustOn(true), calm ? 0 : 480); return () => clearTimeout(id); }, [dustWanted]); // eslint-disable-line
+  useEffect(() => { orbHide(dustOn && dustOk); }, [dustOn, dustOk]);
+  useEffect(() => () => orbHide(false), []);
+  const greetRef = useRef<HTMLDivElement>(null);
+  const touch = useRef({ hold: null as [number, number] | null, tap: { n: 0, x: 0, y: 0 }, at: [0, 0] as [number, number] });
+  // where a finger is on the sphere, in its own units (its middle 0, its edge 1, y up)
+  const orbUnits = (e: React.PointerEvent): [number, number] => { const r = handEl.current?.getBoundingClientRect(); if (!r) return [0, 0]; const R = (r.width / 2) * 0.66 || 1; return [(e.clientX - r.left - r.width / 2) / R, -(e.clientY - r.top - r.height / 2) / R]; };
+  const dustLive = useRef<DustLive>(null as unknown as DustLive);
+  // (what moves is read when the dust draws, through getters, not when the screen renders)
+  dustLive.current = {
+    on: dustOn, listen: liveActive && phase === 'listening' && !speaking, think: phase === 'processing' && !speaking, speak: speaking, quiet: muted || renewing,
+    levels: () => liveRef.current?.levels() ?? null,
+    get hold() { return touch.current.hold; }, get press() { return touch.current.hold ? 1 : 0; }, get tap() { return touch.current.tap; },
+    get lean(): [number, number] { return [hand.x, hand.y]; }, get beat() { return dustBeat.current; },
+    greet: dustOn && liveActive && !chatting && !heard, onVoice: () => setHeard(true),
+  };
   // what it's doing, in a word (the orb says it too, in light): listening, thinking, speaking
   const liveLabel = renewing ? t('Reconnecting…') : muted ? t('Muted') : !liveActive ? '' : speaking ? t('Speaking') : phase === 'processing' ? doing || t('Thinking…') : phase === 'listening' ? t('Listening') : '';
   // the sphere is about to grow or shrink (the .45 s transition below): its canvas holds the big size meanwhile
-  // (talking live the orb's canvas is 1/0.66 bigger, so Orbit's ring has room round it: the sphere looks the same size; the
-  // ring is wide, not tall, so the room above and below it is taken back with negative margins)
-  const orbSize = liveUi ? (big ? 'min(94vw, 380px)' : 146) : big ? 'min(62vw, 250px)' : 96;
+  const orbSize = big ? 'min(62vw, 250px)' : 96;
   const wasBig = useRef(big);
-  useLayoutEffect(() => { if (wasBig.current !== big) { wasBig.current = big; holdOrbSize(liveUi ? Math.min(window.innerWidth * 0.94, 380) : Math.min(window.innerWidth * 0.62, 250), 520); } }, [big]); // eslint-disable-line
+  useLayoutEffect(() => { if (wasBig.current !== big) { wasBig.current = big; holdOrbSize(Math.min(window.innerWidth * 0.62, 250), 520); } }, [big]);
   // the keyboard overlays the page: the whole screen rides above it, so the box you type in and the Send button stay in sight
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => (rootRef.current ? watchFocus(rootRef.current, (el) => el.closest<HTMLElement>('.hide-scroll')) : undefined), []);
@@ -709,6 +729,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       {/* your voice flowing in: a warm light rising from the bottom (where the microphone is) with how loud you are; it pulls
           up into the orb while it thinks and stays low while it speaks (the orb's own light answers then) */}
       {liveUi && <LiveAura session={liveRef} mode={!liveActive || muted ? 'off' : speaking ? 'speak' : phase === 'processing' ? 'think' : 'listen'} />}
+      {liveUi && <motion.div aria-hidden style={{ position: 'absolute', inset: 0, opacity: contentO, pointerEvents: 'none' }}>
+        <Stardust orbEl={handEl} greetEl={greetRef} greet={t('What can I do for you?')} live={dustLive} onCrisp={setCrisp} ready={setDustOk} />
+      </motion.div>}
       <motion.div ref={contentRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
         <div className="row-flex between">
           {liveUi ? <span /> : <button className="icon-btn press" aria-label={t('Close')} onClick={() => useUI.getState().pop()}><Icon name="close" /></button>}
@@ -720,13 +743,16 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: big ? 26 : 6, transition: 'margin .45s cubic-bezier(.22,1,.36,1)', ...(liveUi && !chatting ? { flex: 1, marginTop: 6, paddingBottom: 24 } : {}) }}>
           {/* (it glides from the middle to the top when the conversation starts: position by transform, the size as before) */}
           <motion.button layout={calm ? false : 'position'} layoutDependency={chatting} transition={{ layout: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }} aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={() => { if (dragged.current) { dragged.current = false; return; } tapSphere(); }} disabled={thinking && !liveActive} className="voice-orb"
-            onPointerDown={(e) => { orbPress(true); dragged.current = false; hand.down(e); }} onPointerMove={(e) => { if (hand.move(e)) dragged.current = true; }}
-            onPointerUp={() => { orbPress(false); hand.up(); }} onPointerCancel={() => { orbPress(false); hand.up(); }}
-            style={{ position: 'relative', borderRadius: 999, touchAction: 'none', width: orbSize, height: orbSize, margin: liveUi ? (big ? '-40px 0 -78px' : '-26px 0 -34px') : undefined, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
+            // (a finger on it: the dust nearby leans towards it while held; a tap scatters it, and it swirls back)
+            onPointerDown={(e) => { orbPress(true); dragged.current = false; hand.down(e); const u = orbUnits(e); touch.current.at = u; touch.current.hold = u; }}
+            onPointerMove={(e) => { if (hand.move(e)) { dragged.current = true; touch.current.hold = null; } else if (touch.current.hold) touch.current.hold = orbUnits(e); }}
+            onPointerUp={() => { orbPress(false); if (touch.current.hold) { const [x, y] = touch.current.at; touch.current.tap = { n: touch.current.tap.n + 1, x, y }; } touch.current.hold = null; hand.up(); }}
+            onPointerCancel={() => { orbPress(false); touch.current.hold = null; hand.up(); }}
+            style={{ position: 'relative', borderRadius: 999, touchAction: 'none', width: orbSize, height: orbSize, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
             {/* its light: a close halo and a soft pool just under it, as if it hovers over glass (gradients only: no blur,
                 nothing animated but its fade in) */}
             <span ref={handEl} className="orb-hand" style={{ position: 'absolute', inset: 0 }}>
-              <span className="voice-glow" aria-hidden style={liveUi ? { inset: '17%' } : undefined}><SelfGlow /></span>
+              <span className="voice-glow" aria-hidden><SelfGlow /></span>
               <SphereSlot id="voice" priority={10} engage={engage} style={{ position: 'absolute', inset: 0 }} />
             </span>
           </motion.button>
@@ -734,6 +760,11 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           {liveUi && <div className="micro" aria-live="polite" style={{ marginTop: 10, minHeight: 14, color: 'var(--ac-text)' }}>
             {/* (each new line fades in over the last: it reads as one voice saying what it does next) */}
             <motion.span key={liveLabel} style={{ display: 'inline-block' }} initial={calm ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, ease: [0.2, 0.7, 0.2, 1] }}>{liveLabel}</motion.span>
+          </div>}
+          {/* its greeting, written in its dust first; the crisp words fade in over the dust once it has written them, and
+              go the moment you start talking (the dust takes them back into the orb). Its room is kept: nothing jumps. */}
+          {liveUi && !chatting && <div ref={greetRef} className="dust-greet" style={{ opacity: crisp && dustOk ? 1 : 0, transition: `opacity ${crisp ? '.5s' : '.15s'} var(--ease-out)` }}>
+            {dustOk ? t('What can I do for you?') : ''}
           </div>}
         </div>
         {!liveUi && <div style={{ textAlign: 'center', marginTop: big ? 14 : 8 }}>
