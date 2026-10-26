@@ -3298,3 +3298,25 @@ made of it ("that would have to be the orb, the dots").
 - **Volume (same day):** the live mic no longer uses Chrome's echo cancelling, which on Android puts the app in "phone call"
   mode (call volume; Chromium issue 443255997). Answers play at media volume; our own echo gate keeps it from hearing itself
   (lib/live.ts `echoGate`).
+
+### Stardust, round 2: only you, your words live, dust that flows (26 Oct 2026, Beta)
+Omar's recording: it heard itself (its own words came back as his bubbles: "watch", "I'm just make", "forever"), background
+music kept it listening, his words weren't live, the swipe wasn't smooth enough, and the dust read as grey static.
+- **Only you** (`src/lib/micGate.ts`, tests in `tests/micGate.test.ts`): the old echo gate never learned a loud phone
+  speaker (it threw away any echo louder than 3× its first guess, so the echo itself passed). Now: while its voice plays and
+  just after (tail 0.3 s + the speaker's delay) nothing goes up unless a voice is far above its own learned echo for 0.3 s
+  (tap to interrupt always works). Otherwise only a voice well above the room goes up: the room's level is the quietest
+  moment of the last 2 s (steady music never has the gaps a voice has), 0.2 s needed (not a click), 0.8 s hold through the
+  pauses between words, and the 0.2 s before is sent too so a first word isn't clipped. Silence goes up instead, so Gemini
+  hears that you stopped. Gemini's own turn detection is set to low start sensitivity. The orb's reaction to "your voice"
+  uses the same gate, so it no longer swells with its own echo or the music.
+- **Your words live** (`Voice.tsx` LiveSaid/Ear): the moment you're heard your bubble is there with three dots moving with
+  your voice; words come in one by one at a calm pace as they are understood (Gemini sends them in clumps), the dots trailing
+  while you keep talking. A sound that turns out to be no words takes its empty bubble away. Check: `scripts/journey-hear.mjs`.
+- **Smoother finger:** the hidden bead orb is no longer drawn behind the dust (two orbs at once), the dust reads the finger's
+  move live (never a frame late), and the dust worker carries the motion on for up to 33 ms when the page misses a frame.
+- **Dust that flows** (`shaders.ts`): bands of latitude flow at their own pace (currents shearing past each other, meandering),
+  light gathers in streams along them with fine faint dust between, edge-on specks glow (a sphere with depth), each syllable
+  you say is a ring of light drawn in from its skin to its heart (its own voice still runs out), and the small orb at the top
+  is brighter so it stays dust, not haze. It opens out of the bead orb from just inside its skin. Filmed with the real engine:
+  `scripts/dust-real` (`node scripts/film-dust-lab.mjs _ videos/x.mp4 --page=dust-real`).

@@ -41,11 +41,12 @@ let lean: [number, number] = [0, 0];
 export function orbMoved(x = 0, y = 0) { lean = [Math.round(x * 4) / 4, Math.round(y * 4) / 4]; wakeOrb(); }
 /** Stardust (ui/stardust) takes the orb's place on the orb screen while you talk live: the orb fades out where it landed
  *  as the dust condenses there, and fades back in to fly home. Opacity only, on the orb's own canvas. */
-let stageCanvas: HTMLCanvasElement | null = null, orbHidden = false;
+let stageCanvas: HTMLCanvasElement | null = null, orbHidden = false, hiddenAt = 0;
 export function orbHide(hidden: boolean, instant = false) {
-  orbHidden = hidden;
+  if (hidden && !orbHidden) hiddenAt = performance.now() + (instant ? 0 : 550);
+  orbHidden = hidden; wakeOrb();
   if (!stageCanvas) return;
-  stageCanvas.style.transition = instant ? 'none' : hidden ? 'opacity .6s var(--ease-out)' : 'opacity .25s var(--ease-out)';
+  stageCanvas.style.transition = instant ? 'none' : hidden ? 'opacity .45s var(--ease-out)' : 'opacity .25s var(--ease-out)';
   // (hidden, it rests at a hair above nothing, so it stays a drawn layer and comes back without a blink)
   stageCanvas.style.opacity = hidden ? '0.002' : '1';
 }
@@ -755,6 +756,9 @@ export function SphereStage() {
       const still = Math.abs(X - px) < 0.05 && Math.abs(Y - py) < 0.05 && Math.abs(S - ps) < 0.05;
       px = X; py = Y; ps = S;
       if (top === 0 && still && useUI.getState().overlays.length > 0 && drawn) { pause(); return; }
+      // (stepped aside for Stardust, its fade done: not drawn at all, so the phone draws one orb, not two; it is drawn again
+      // the frame it is asked back, while it is still a hair above nothing)
+      if (orbHidden && now > hiddenAt && drawn) { pause(); return; }
       // Drawn every frame — the slow turn included (it used to be drawn at ~30 fps when idle, which read as a stutter).
       // A flight only scales the drawn canvas (transform above); the canvas is redrawn at a new size only when its size
       // bucket changes.

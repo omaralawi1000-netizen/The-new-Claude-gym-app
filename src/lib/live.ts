@@ -6,11 +6,12 @@
  * back as text (transcripts), Danish or English only.
  *
  * Audio: the microphone at 16 kHz, 16-bit PCM, sent every ~100 ms; the answer at 24 kHz, played as it arrives and cut
- * the moment the server says it was interrupted. Echo cancellation keeps its own voice out of the microphone.
+ * the moment the server says it was interrupted. A gate (micGate.ts) keeps its own voice and the room's music out of the microphone.
  * Camera (optional): one picture a second, 640 px JPEG. The connection is renewed quietly when the server asks (goAway)
  * or drops, carrying the conversation over (session resumption); the context slides, so a visit has no time limit.
  */
 import { AGENT_SCHEMA } from './gemini';
+import { createMicGate } from './micGate';
 
 export const LIVE_MODEL = 'gemini-3.8-live-extended-thinking';
 
@@ -51,6 +52,8 @@ export interface LiveHandlers {
   onInterrupted?: () => void;
   /** the token counts for a finished turn (for the monthly spend) */
   onUsage?: (usage: unknown) => void;
+  /** you are being heard (true: you started talking, it's sending you) or not any more */
+  onHearing?: (on: boolean) => void;
   /** renewing the connection (true) / back (false) */
   onReconnecting?: (on: boolean) => void;
   onError: (code: 'denied' | 'nodevice' | 'connect' | 'closed') => void;
@@ -167,6 +170,9 @@ export async function startLive(o: { key: string; system: string; voice?: string
           // (and the words it will hear from you: your foods and lifts — it wrote "skyr" as "Skyler", 25 Oct)
           inputAudioTranscription: { languageCodes: o.lang === 'en' ? ['en-US', 'da-DK'] : ['da-DK', 'en-US'], ...(o.vocabulary?.length ? { customVocabulary: o.vocabulary.slice(0, 100) } : {}) },
           outputAudioTranscription: {},
+          // (only a clear voice starts your turn, not the room: music once kept it listening, 26 Oct; what goes up is already
+          // only you, see the gate below)
+          realtimeInputConfig: { automaticActivityDetection: { startOfSpeechSensitivity: 'START_SENSITIVITY_LOW' as any, prefixPaddingMs: 120 }, turnCoverage: 'TURN_INCLUDES_ONLY_ACTIVITY' as any },
           sessionResumption: handle ? { handle } : {},
           contextWindowCompression: { slidingWindow: {} },
           ...(o.voice ? { speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: o.voice } } } } : {}),
@@ -234,19 +240,16 @@ export async function startLive(o: { key: string; system: string; voice?: string
   };
   if (!(await connect())) { cleanupAudio(); if (!stopped) h.onError('connect'); return null; }
 
-  // How strongly its own voice comes back into the microphone (echo ÷ its loudness), learned while it speaks: the quieter
-  // half of what the microphone hears then is its echo, never you talking over it. Starts cautious (phone speaker, close).
-  let coupling = 0.6, tailUntil = 0;
-  const outRms = () => { outAn.getByteTimeDomainData(outBuf); let q = 0; for (let i = 0; i < outBuf.length; i++) { const v = (outBuf[i] - 128) / 128; q += v * v; } return Math.sqrt(q / outBuf.length); };
-  const echoGate = (mic: number): boolean => {
-    const now = outCtx.currentTime;
-    const talking = playing.size > 0 && now < playAt + 0.05;
-    if (talking) tailUntil = now + 0.35;
-    if (!talking && now > tailUntil) return false;
-    const o = outRms();
-    // (learns both ways, slowly up and a little quicker down; a burst far above it is you, and doesn't teach it)
-    if (o > 0.01) { const r = Math.min(4, mic / o); if (r < coupling * 3) coupling += (r - coupling) * (r > coupling ? 0.03 : 0.06); }
-    return mic < Math.max(0.012, Math.max(o, 0.02) * coupling * 2.4);
+  // Only you go up (lib/micGate.ts): not its own voice coming back through the speaker, not the room's music. What played
+  // is measured over ~85 ms each time (the loudest of the last three: the speaker and the microphone run a little late).
+  const gate = createMicGate();
+  const outGate = outCtx.createAnalyser(); outGate.fftSize = 2048; outAn.connect(outGate);
+  const outF = new Float32Array(outGate.fftSize), outLast = [0, 0, 0];
+  const TAIL = 0.3 + Math.min(0.3, (outCtx as any).outputLatency || 0.05); // (the room still rings, the speaker runs late)
+  let tailUntil = 0, wasHearing = false, heardK = 0.3;
+  const echoNow = () => {
+    outGate.getFloatTimeDomainData(outF); let q = 0; for (let i = 0; i < outF.length; i++) q += outF[i] * outF[i];
+    outLast.shift(); outLast.push(Math.sqrt(q / outF.length)); return Math.max(...outLast);
   };
 
   // ── the microphone into the connection: ~100 ms at a time ──
@@ -256,19 +259,28 @@ export async function startLive(o: { key: string; system: string; voice?: string
     const node = new AudioWorkletNode(inCtx, 'aven-pcm');
     const micSrc = inCtx.createMediaStreamSource(stream); micSrc.connect(node); micSrc.connect(inAn);
     let pending: Float32Array[] = [], count = 0;
+    const held: Int16Array[] = []; // the last 0.2 s, kept back: sent when you turn out to have started talking
+    const send = (pcm: Int16Array) => { try { session.sendRealtimeInput({ audio: { data: b64(new Uint8Array(pcm.buffer)), mimeType: 'audio/pcm;rate=16000' } }); } catch { /* renewing */ } };
     node.port.onmessage = (e) => {
       if (stopped) return;
-      if (muted || !ready) { pending = []; count = 0; return; }
+      if (muted || !ready) { pending = []; count = 0; held.length = 0; return; }
       pending.push(e.data as Float32Array); count += (e.data as Float32Array).length;
       if (count < 1600) return;
-      const out = new Int16Array(count); let k = 0, sq = 0;
-      for (const c of pending) for (let i = 0; i < c.length; i++) { sq += c[i] * c[i]; out[k++] = Math.max(-32768, Math.min(32767, Math.round(c[i] * 32767))); }
+      const out = new Int16Array(count), frames: number[] = []; let k = 0, sq = 0;
+      for (const c of pending) {
+        let fq = 0;
+        for (let i = 0; i < c.length; i++) { fq += c[i] * c[i]; out[k++] = Math.max(-32768, Math.min(32767, Math.round(c[i] * 32767))); }
+        sq += fq; frames.push(Math.sqrt(fq / Math.max(1, c.length)));
+      }
       pending = []; count = 0;
-      // the echo gate: while its voice plays (and a moment after, for the room's echo), what the microphone hears is sent only
-      // when it is clearly louder than its own voice coming back would be; otherwise silence goes up (the stream never stops,
-      // so it still knows you're there). Speaking over it gets through, so you can still interrupt by voice.
-      if (echoGate(Math.sqrt(sq / Math.max(1, k)))) out.fill(0);
-      try { session.sendRealtimeInput({ audio: { data: b64(new Uint8Array(out.buffer)), mimeType: 'audio/pcm;rate=16000' } }); } catch { /* renewing */ }
+      if (playing.size) tailUntil = outCtx.currentTime + TAIL;
+      const talking = playing.size > 0 || outCtx.currentTime < tailUntil;
+      const say = gate.step({ frames, rms: Math.sqrt(sq / Math.max(1, k)), echo: talking ? echoNow() : 0, talking });
+      // (silence goes up when it isn't you: the stream never stops, so it hears that you stopped)
+      if (say === 'open') { for (const c of held) send(c); held.length = 0; send(out); }
+      else if (say === 'send') send(out);
+      else { send(new Int16Array(out.length)); held.push(out); if (held.length > 2) held.shift(); }
+      if (gate.hearing !== wasHearing) { wasHearing = gate.hearing; h.onHearing?.(wasHearing); }
     };
   } catch {
     stopped = true; try { session.close(); } catch { /* gone */ } cleanupAudio(); h.onError('connect');
@@ -307,6 +319,10 @@ export async function startLive(o: { key: string; system: string; voice?: string
       const t = performance.now();
       if (t - lvAt < 6 && lvLast) return lvLast;
       lvAt = t;
+      // (the orb answers only you: a little of the room, almost none of its own voice coming back)
+      const talking = playing.size > 0 || outCtx.currentTime < tailUntil;
+      const want = gate.hearing ? 1 : talking ? 0.08 : 0.3;
+      heardK += (want - heardK) * (want > heardK ? 0.5 : 0.08);
       // yours: the speech range (≈80 Hz–4 kHz of 8 kHz) in 16 bands, a soft gate under room noise
       inAn.getByteFrequencyData(inBuf);
       let sum = 0;
@@ -314,7 +330,7 @@ export async function startLive(o: { key: string; system: string; voice?: string
         const a = 1 + i * 3, b = a + 3; let x = 0;
         for (let k = a; k < b; k++) x += inBuf[k];
         const v = Math.max(0, x / (3 * 255) - 0.12) / 0.88;
-        bands[i] = muted || stopped ? 0 : v; sum += bands[i];
+        bands[i] = muted || stopped ? 0 : v * heardK; sum += bands[i];
       }
       // its own: loudness of what plays
       outAn.getByteTimeDomainData(outBuf);

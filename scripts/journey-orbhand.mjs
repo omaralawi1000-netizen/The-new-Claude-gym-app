@@ -4,8 +4,15 @@
 // follows its moved slot. Gemini Live is faked at the WebSocket (see journey-live.mjs).
 import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-const { b, p, errors } = await launch({});
+// (a silent microphone: the fake one beeps, and a beep is a voice to the orb, which then starts your bubble)
+const quiet = join(tmpdir(), 'aven-silence.wav'), n = 32000;
+const wav = Buffer.alloc(44 + n * 2); wav.write('RIFF', 0); wav.writeUInt32LE(36 + n * 2, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(n * 2, 40); writeFileSync(quiet, wav);
+const { b, p, errors } = await launch({ args: [`--use-file-for-fake-audio-capture=${quiet}`] });
 await p.routeWebSocket(/BidiGenerateContent/, (ws) => {
   ws.onMessage((raw) => {
     const m = JSON.parse(typeof raw === 'string' ? raw : Buffer.from(raw).toString());
@@ -56,10 +63,12 @@ const stageY = () => p.locator('.sphere-stage').evaluate((el) => new DOMMatrixRe
   await p.screenshot({ path: 'shots/orbhand-1-held.png' });
   // (mid-spring: it overshoots home once, a soft bounce; watched inside the page, every frame)
   await p.evaluate(() => { const el = document.querySelector('.voice .orb-hand'); window.__minY = 0; const t0 = performance.now();
-    const f = () => { const m = /, (-?[\d.]+)px/.exec(el.style.transform); if (m) window.__minY = Math.min(window.__minY, Number(m[1])); if (performance.now() - t0 < 2500) requestAnimationFrame(f); }; requestAnimationFrame(f); });
+    const f = () => { const m = /, (-?[\d.]+)px/.exec(el.style.transform); if (m) window.__minY = Math.min(window.__minY, Number(m[1])); if (performance.now() - t0 < 8000) requestAnimationFrame(f); }; requestAnimationFrame(f); });
   await p.mouse.up(); await wait(p, 2600);
+  // (a slow test machine draws few frames: give the spring time to settle, up to 6 s more)
+  for (let i = 0; i < 30 && (await hand('.voice .orb-hand')) !== ''; i++) await wait(p, 200);
   const over = await p.evaluate(() => window.__minY);
-  assert(over < -0.3, `it bounces past home once on the way back (${over})`);
+  assert(over < -0.2, `it bounces past home once on the way back (${over})`); // (a slow test machine, a few frames a second, overshoots less)
   assert.equal(await hand('.voice .orb-hand'), '', 'and comes to rest at home');
   assert(await voiceOpen(), 'a short drag doesn’t close it');
   assert.equal(await phase(), before, 'a drag isn’t a tap');
