@@ -100,7 +100,10 @@ export async function startLive(o: { key: string; system: string; voice?: string
   // ── the microphone first (asked before anything is paid for) ──
   let stream: MediaStream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    // (no echo cancelling: on Android, Chrome's echo cancelling puts the whole app in "phone call" mode, so the answer
+    // played at the quiet call volume and the volume keys moved the call volume (Omar, 26 Oct; Chromium issue 443255997).
+    // Without it the answer plays at the media volume, and the echo gate below keeps it from hearing its own voice.)
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: false, channelCount: 1 } });
   } catch (e: any) {
     h.onError(e?.name === 'NotAllowedError' ? 'denied' : 'nodevice');
     return null;
@@ -231,6 +234,21 @@ export async function startLive(o: { key: string; system: string; voice?: string
   };
   if (!(await connect())) { cleanupAudio(); if (!stopped) h.onError('connect'); return null; }
 
+  // How strongly its own voice comes back into the microphone (echo ÷ its loudness), learned while it speaks: the quieter
+  // half of what the microphone hears then is its echo, never you talking over it. Starts cautious (phone speaker, close).
+  let coupling = 0.6, tailUntil = 0;
+  const outRms = () => { outAn.getByteTimeDomainData(outBuf); let q = 0; for (let i = 0; i < outBuf.length; i++) { const v = (outBuf[i] - 128) / 128; q += v * v; } return Math.sqrt(q / outBuf.length); };
+  const echoGate = (mic: number): boolean => {
+    const now = outCtx.currentTime;
+    const talking = playing.size > 0 && now < playAt + 0.05;
+    if (talking) tailUntil = now + 0.35;
+    if (!talking && now > tailUntil) return false;
+    const o = outRms();
+    // (learns both ways, slowly up and a little quicker down; a burst far above it is you, and doesn't teach it)
+    if (o > 0.01) { const r = Math.min(4, mic / o); if (r < coupling * 3) coupling += (r - coupling) * (r > coupling ? 0.03 : 0.06); }
+    return mic < Math.max(0.012, Math.max(o, 0.02) * coupling * 2.4);
+  };
+
   // ── the microphone into the connection: ~100 ms at a time ──
   let muted = false;
   try {
@@ -243,9 +261,13 @@ export async function startLive(o: { key: string; system: string; voice?: string
       if (muted || !ready) { pending = []; count = 0; return; }
       pending.push(e.data as Float32Array); count += (e.data as Float32Array).length;
       if (count < 1600) return;
-      const out = new Int16Array(count); let k = 0;
-      for (const c of pending) for (let i = 0; i < c.length; i++) out[k++] = Math.max(-32768, Math.min(32767, Math.round(c[i] * 32767)));
+      const out = new Int16Array(count); let k = 0, sq = 0;
+      for (const c of pending) for (let i = 0; i < c.length; i++) { sq += c[i] * c[i]; out[k++] = Math.max(-32768, Math.min(32767, Math.round(c[i] * 32767))); }
       pending = []; count = 0;
+      // the echo gate: while its voice plays (and a moment after, for the room's echo), what the microphone hears is sent only
+      // when it is clearly louder than its own voice coming back would be; otherwise silence goes up (the stream never stops,
+      // so it still knows you're there). Speaking over it gets through, so you can still interrupt by voice.
+      if (echoGate(Math.sqrt(sq / Math.max(1, k)))) out.fill(0);
       try { session.sendRealtimeInput({ audio: { data: b64(new Uint8Array(out.buffer)), mimeType: 'audio/pcm;rate=16000' } }); } catch { /* renewing */ }
     };
   } catch {

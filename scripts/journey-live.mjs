@@ -60,12 +60,16 @@ await p.routeWebSocket(/BidiGenerateContent/, (ws) => {
     }
   });
 });
+// (what the microphone is opened with: never Chrome's echo cancelling, which puts Android in call volume, 26 Oct)
+await p.addInitScript(() => { const g = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices); window.__gum = []; navigator.mediaDevices.getUserMedia = (c) => { window.__gum.push(c); return g(c); }; });
 await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding(p); await loadDemo(p);
 await p.evaluate(() => { localStorage.setItem('aven.keys', JSON.stringify({ gemini: 'AIzaTESTKEY' })); localStorage.setItem('aven.ai', JSON.stringify({ liveOrb: true })); localStorage.removeItem('aven.solSpend'); });
 await p.reload(); await wait(p, 1500);
 const before = await p.evaluate(() => JSON.parse(localStorage.getItem('aven.v1') || '{}').entries?.length ?? 0);
 await p.getByRole('button', { name: 'Dictate' }).first().click(); await wait(p, 5000);
 
+const gum = await p.evaluate(() => window.__gum.filter((c) => c.audio));
+assert(gum.length && gum.every((c) => c.audio.echoCancellation === false), 'the microphone is opened without call mode (media volume)');
 const s0 = setups[0];
 assert(s0, 'connected and sent the setup');
 assert.match(s0.model, /gemini-3\.8-live-extended-thinking/, 'the extended-thinking live model');
