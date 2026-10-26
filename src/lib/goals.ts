@@ -16,6 +16,7 @@ import type { AppData, GoalPlan, MemoryNote } from './types';
 import { addDays, diffDays } from './dates';
 import { oddWeighIns, unfinishedDays, weighIns } from './dataQuality';
 import { trueMaintenance } from './maintenance';
+import { ageFromMemory } from './eating';
 import { weightTrend, nutritionByDay, stalledLifts, skippedSets } from './stats';
 import { exerciseMap } from '../state/store';
 import { historyOf, incrementFor, lastPerformance, repRange, setsFromItem, suggestProgression } from './workout';
@@ -377,7 +378,8 @@ function paceTable(d: Data, today: string, exName: (id: string) => string): stri
   // (where each pace lands by a date, and the main lifts as they are: a plan's concrete numbers, not made up; judge round 4)
   const lands = (wk: number) => `${fmtPace(wk)}: ${[4, 8, 12].map((n) => `${r1(kg + wk * n)} kg by ${addDays(today, n * 7)}`).join(', ')}`;
   const lifts = mainLifts(d, today).map((id) => ({ id, b: best(liftTops(d, id, addDays(today, -55), today)) })).filter((x) => x.b);
-  const habit = habitLine(d, today);
+  const cap = (wk: number) => fmtK(Math.max(floor, m.kcal + (wk * KCAL_PER_KG) / 7) + 300);
+  const habit = habitLine(d, today, [...loss.map((x) => `${cap(-x)} with a ${x} kg/week loss`), `${cap(0.25)} with a 0.25 kg/week gain`, ...(d.settings.goals.kcal ? [`${fmtK(d.settings.goals.kcal + 300)} at the current ${fmtK(d.settings.goals.kcal)} target`] : [])].join(', '));
   const liftL = lifts.length ? ` Main lifts, best set in the last 8 weeks (estimated max): ${lifts.map((x) => `${exName(x.id)} ${r1(x.b!.kg)} × ${x.b!.reps} (${r1(x.b!.e)} kg)`).join(', ')}.` : '';
   return `For planning a new goal or changing one (calories a day for each pace, from TRUE MAINTENANCE ${fmtK(m.kcal)} at ${r1(kg)} kg): ${[...loss.map((x) => row(-x)), row(0.25), row(0.4)].join(', ')}. Safe: losing up to ${r2(kg * 0.01)} kg/week (1 % of bodyweight), gaining up to ${r2(kg * 0.005)} kg/week; never under ${fmtK(floor)} kcal. Each kilo lost takes about ${Math.ceil(7 / Math.min(max, (m.kcal - floor) * 7 / KCAL_PER_KG))} days at the fastest safe pace (${fmtK(Math.max(floor, m.kcal - (max * KCAL_PER_KG) / 7))} kcal) and 14 at 0.5 kg/week: an ask that is too fast gets both, the fastest safe and the comfortable one, and which you'd pick. Where a pace lands: ${[lands(-0.25), lands(-0.5), lands(0.25)].join('; ')}. A new weight goal is tracked from ${r1(kg)} kg (the scale's line today, not one morning): its note starts from that number. Protein: on a cut 1.8–2.2 g/kg = ${Math.round(kg * 1.8)}–${Math.round(kg * 2.2)} g, on a gain 1.6–2.0 g/kg = ${Math.round(kg * 1.6)}–${Math.round(kg * 2)} g${d.settings.goals.protein && d.settings.goals.protein < Math.round(kg * 1.8) - 2 ? `; their ${d.settings.goals.protein} g target is under the cut range: a cut plan says at least ${Math.round(kg * 1.8)} g and offers to set it (set_setting proteinGoal)` : ''}.${liftL}${habit ? ` ${habit}` : ''}`;
 }
@@ -446,6 +448,7 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
       const k = ate.length >= 5 ? avg(ate.map((x) => x.kcal))! : undefined;
       if (mt && k !== undefined && k < mt.kcal - 250) parts.push(`They eat about ${fmtK(mt.kcal - k)} kcal a day under TRUE MAINTENANCE (last 2 weeks, ${ate.length} logged days): a lift climbs slower in a deficit.`);
     }
+    if (st.pace === 'stalled') parts.push(`When you change its plan: save it in the same answer (remember with memory = ${num(m)} and goal.plan = the new plan in a few words) and offer edit_routine to put it in their routine, so the workout screen asks for the same thing.`);
     if (st.rate !== undefined) parts.push(`Pace: ${fmtPace(st.rate)} (${st.rateBasis}).`);
     else if (st.rateBasis) parts.push(`(${st.rateBasis}.)`);
     if (st.eating && !st.rateBasis?.startsWith('what they eat')) parts.push(`What they eat points to ${fmtPace(st.eating.kgPerWeek)}: ${st.eating.days} logged days since the goal started averaging ${fmtK(st.eating.kcal)} kcal against TRUE MAINTENANCE ${fmtK(st.eating.maint)}${st.daysIn < 14 ? ' (the better guide in the first 2 weeks, while the scale swings with water)' : ''}.`);
@@ -480,7 +483,7 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
       const rOff = recovery(d, today).off.filter((x) => /^(sleep|HRV)/.test(x));
       if (down && st.pace === 'behind' && rOff.length) {
         hold = true;
-        parts.push(`RECOMMEND (recovery is off: ${rOff.join(', ')}): keep the current target${st.atTarget?.eta ? ` and accept landing around ${st.atTarget.eta}` : ''}, and fix the days far over it; eating less while sleep or HRV is down costs strength. Don't offer fewer calories now.`);
+        parts.push(`RECOMMEND (recovery is off: ${rOff.join(', ')}): keep the current target${st.atTarget?.eta ? ` and accept landing around ${st.atTarget.eta}` : ''}, and fix the days far over it; eating less while sleep or HRV is down costs strength. Don't offer fewer calories now.${st.atTarget?.eta ? ` Offer to move the date to ${st.atTarget.eta} (remember with memory = ${num(m)}, goal.by ${st.atTarget.eta}), so the app follows the same date.` : ''}`);
       }
     }
     if (st.metric === 'weight' && st.daysIn < 14 && st.pace !== 'reached') parts.push('(Under 2 weeks in: day-to-day weigh-ins swing 1–2 kg with water, salt and food; judge the trend, not one morning.)');
@@ -512,7 +515,7 @@ const wdOf = (date: string) => new Date(`${date}T12:00:00`).getDay();
 
 /** What most likely breaks a plan, from the last 4 weeks of food: the days of the week far over the rest, and protein
  *  days. Worked out here, so a plan names their real habit (judge round 5: the model borrowed the prompt's example). */
-function habitLine(d: Data, today: string): string | undefined {
+function habitLine(d: Data, today: string, caps?: string): string | undefined {
   const days = foodDays(d, addDays(today, -28), today);
   if (days.length < 10) return undefined;
   const all = avg(days.map((x) => x.kcal))!;
@@ -526,7 +529,7 @@ function habitLine(d: Data, today: string): string | undefined {
   const isHigh = (date: string) => high.some((h) => h.w === wdOf(date));
   const hiD = days.filter((x) => isHigh(x.date)).map((x) => x.date), loD = days.filter((x) => !isHigh(x.date)).map((x) => x.date);
   const what = high.length && loD.length ? habitSlot(d, hiD, loD) : undefined;
-  const pat = high.length && rest !== undefined ? `${high.map((h) => `${WEEKDAY[h.w]}s average ${fmtK(h.k)} kcal`).join(' and ')}, against ${fmtK(rest)} on the other days${what ? `, mostly ${what.label}: ${fmtK(what.hi)} kcal on those days vs ${fmtK(what.lo)} on the others` : ''}${g.kcal ? `; a cap for those days that still holds a plan: its daily target + 300 (now ${fmtK(g.kcal + 300)})` : ''}` : `no day of the week clearly over the others (all within 300 kcal of the ${fmtK(all)} average)`;
+  const pat = high.length && rest !== undefined ? `${high.map((h) => `${WEEKDAY[h.w]}s average ${fmtK(h.k)} kcal`).join(' and ')}, against ${fmtK(rest)} on the other days${what ? `, mostly ${what.label}: ${fmtK(what.hi)} kcal on those days vs ${fmtK(what.lo)} on the others` : ''}${caps ? `; a cap for those days that still holds a plan: its daily target + 300 (${caps})` : g.kcal ? `; a cap for those days that still holds a plan: its daily target + 300 (now ${fmtK(g.kcal + 300)})` : ''}` : `no day of the week clearly over the others (all within 300 kcal of the ${fmtK(all)} average)`;
   return `What most likely breaks a plan (last 4 weeks, ${days.length} finished logged days): ${pat}${hit !== undefined ? `; protein at or above ${g.protein} g on ${hit} of ${days.length} days` : ''}. A plan names this habit with these numbers, never another.`;
 }
 
@@ -585,13 +588,16 @@ const median = (xs: number[]) => { if (!xs.length) return undefined; const s = [
 export function goalWatchLines(d: Data, today: string, exName: (id: string) => string): string[] {
   const run = activeGoals(d, today).filter(tracked);
   const profile = d.settings.profile.goal;
-  if (!run.length && profile !== 'fatloss' && profile !== 'muscle') return [];
+  // (under 18, or a school grade in memory: no cut signs, and no watch for a fat-loss profile alone)
+  const age = ageFromMemory(d.memory ?? [], today);
+  const minor = (age !== undefined && age < 18) || (d.memory ?? []).some((m) => /\b(?:[1-9]|1[0-2])(?:st|nd|rd|th)\s+grade\b|\bgrade\s+(?:[1-9]|1[0-2])\b|\b[1-9]\.\s*klasse\b|\bfolkeskole/i.test(m.text));
+  if (!run.length && (minor || (profile !== 'fatloss' && profile !== 'muscle'))) return [];
   const startDate = run.map((m) => m.goal.startDate).sort()[0];
   const sinceGoal = !!startDate && diffDays(today, startDate) >= 10;
   const nowFrom = sinceGoal ? addDays(today, -13) < startDate ? startDate : addDays(today, -13) : addDays(today, -13);
   const beforeFrom = sinceGoal ? addDays(startDate, -28) : addDays(today, -41), beforeTo = sinceGoal ? addDays(startDate, -1) : addDays(today, -14);
   const losing = run.filter((m) => m.goal.metric === 'weight').map((m) => goalState(d, m, today)!).filter((st) => (st.start ?? st.now) !== undefined);
-  const cutting = losing.length ? losing.some((st) => st.target! < (st.start ?? st.now)!) : profile === 'fatloss';
+  const cutting = !minor && (losing.length ? losing.some((st) => st.target! < (st.start ?? st.now)!) : profile === 'fatloss');
   const L: string[] = [];
 
   const { rec, off } = recovery(d, today);
@@ -636,6 +642,9 @@ export function goalWatchLines(d: Data, today: string, exName: (id: string) => s
   const lift14 = d.sessions.filter((s) => s.status === 'done' && s.date > addDays(today, -14) && s.date <= today).length;
   if (cutting && lift14 === 0) L.push(`SIGN TO RAISE: no strength training in the last 2 weeks during a cut: without lifting, a good part of what comes off is muscle. Say it once in the plan or the follow-up and offer two full-body sessions a week (create_routine), never as a condition for the goal.`);
   L.push(`Training ${foodHead}: ${gym} gym workouts; planned working sets skipped in the last 14 days: ${sk.workouts ? `${sk.skipped} of ${sk.planned}` : 'no planned workouts to judge'}${stalls.length ? `; stalled: ${stalls.join(', ')}` : ''}.`);
+  // (a sign is said this turn, once, with the protein next to it: judge round 7, the protein was left out)
+  const prot = days.length ? `protein ${foodHead}: average ${Math.round(avg(days.map((x) => x.protein))!)} g${g.protein ? `, at or above ${g.protein} g on ${days.filter((x) => Math.round(x.protein) >= g.protein!).length} of ${days.length} days` : ''}` : undefined;
+  for (let i = 0; i < L.length; i++) if (L[i].startsWith('SIGN TO RAISE: ')) L[i] = `MUST SAY THIS TURN (once, with the numbers${prot && !/no strength training/.test(L[i]) ? `; ${prot}` : ''}): ${L[i].slice(15)}`;
   return [`GOAL WATCH (what a coach keeps an eye on while ${run.length ? 'a goal runs' : `their profile goal (${profile}) runs`}; bring up what is off without being asked, early, with the numbers; never by telling them to train lighter or do fewer sets):`, ...L.map((x) => `- ${x}`)];
 }
 

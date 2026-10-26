@@ -194,6 +194,16 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
         ? { label: t('Log weight'), run: { type: 'open', overlay: 'weight' } }
         : { label: t('Ask the Coach'), run: { type: 'coach', prompt: st.pace === 'reached' ? t('I reached my goal “{goal}”. What’s next?', { goal: name }) : t('How am I doing on my goal “{goal}”? Be honest.', { goal: name }) } } });
   }
+  // a goal reached in the last 2 days (closed in the chat, so no longer running): said on Today too
+  for (const m of d.memory ?? []) if (m.kind === 'goal' && m.goal?.status === 'done' && m.goal.endedOn && diffDays(today, m.goal.endedOn) <= 1 && m.goal.metric !== 'other') {
+    const name = m.text.replace(/^(goal|mål)\s*:\s*/i, '');
+    add({ id: `goal:${m.id}:done`, kind: 'insight', icon: m.goal.metric === 'lift' ? 'bolt' : 'scale', priority: 80, title: t('Goal reached: {goal}', { goal: name.replace(/\s*\(.*\)\s*\.?$/, '') }),
+      action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I reached my goal “{goal}”. What’s next?', { goal: name }) } } });
+  }
+  // a cut with no lifting for 2 weeks: a good part of what comes off is muscle (the Coach can make the routine)
+  if (goals.some((m) => m.goal.metric === 'weight' && m.goal.target! < (m.goal.start ?? Infinity)) && !d.sessions.some((s) => s.status === 'done' && s.date > addDays(today, -14) && s.date <= today) && d.sessions.length + d.entries.length > 0)
+    add({ id: `nolift:${today}`, kind: 'warning', icon: 'bolt', priority: 50, title: t('No lifting in 2 weeks'), body: t('On a cut, lifting is what keeps the muscle.'),
+      action: { label: t('Make a routine'), run: { type: 'coach', prompt: t('Make me a simple 2-day full-body routine to keep my muscle while I cut.') } } });
   // a promise to log every meal: how many days were full, while it runs
   for (const m of activeGoals(d, today)) {
     const c = loggingCount(d, m, today);
