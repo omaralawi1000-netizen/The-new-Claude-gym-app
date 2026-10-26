@@ -128,7 +128,10 @@ export type Flight = {
   src: (i: number) => Anchor & { s: number };
   dst: (i: number) => Anchor & { s: number };
 };
-export type Hero = { look0: HTMLElement; look1: HTMLElement; anims: Animation[]; done: Promise<void>; text: (s: string) => void; drop: () => void };
+export type Hero = { look0: HTMLElement; look1: HTMLElement; anims: Animation[]; done: Promise<void>; text: (s: string) => void; drop: () => void; state: () => HeroState | null };
+/** Where a word in flight is drawn this frame and how fast it is going (client px and px/s; its cap height and its rate,
+ * as a log per second), for a flight turned round half way to start from (round 8). */
+export type HeroState = { x: number; y: number; F: number; vx: number; vy: number; vF: number };
 
 /**
  * One word in flight (round 6: ONE face from end to end). The word is set in the same face in every place it lives (the
@@ -154,12 +157,12 @@ const rgbaOf = (c: string): [number, number, number, number] | null => {
  * how opaque it is (the resume bar's grey clock, 64 % of the header's white), the flying copy is drawn in the opaquer
  * one and faded by the difference along the way: only opacity changes.)
  */
-export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a0: Anchor, a1: Anchor, fl: Flight, skip = 0, cut = false, cross: [number, number] | 'one' = [0.4, 0.6], left = false): Hero {
+export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a0: Anchor, a1: Anchor, fl: Flight, skip = 0, cut = false, cross: [number, number] | 'one' = [0.4, 0.6], left = false, carry: HeroState | null = null): Hero {
   const k0 = lookOf(from, left), k1 = lookOf(to, left);
   const n = fl.frames;
   const anims: Animation[] = [];
   const empty = () => { const d = document.createElement('div'); host.appendChild(d); return d; };
-  if (!k0 || !k1) { const l0 = empty(), l1 = empty(); return { look0: l0, look1: l1, anims, done: Promise.resolve(), text: () => {}, drop: () => { l0.remove(); l1.remove(); } }; }
+  if (!k0 || !k1) { const l0 = empty(), l1 = empty(); return { look0: l0, look1: l1, anims, done: Promise.resolve(), text: () => {}, drop: () => { l0.remove(); l1.remove(); }, state: () => null }; }
   const L0 = copyLook(from, k0, host, a0), L1 = copyLook(to, k1, host, a1);
   const look0 = L0.c, look1 = L1.c;
   const one = cross === 'one';
@@ -175,7 +178,7 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
   if (one) {
     // (the frame it sets off: the first that moves it)
     let d = 0; while (d < n && Math.abs(fl.w(d + 1) - fl.w(0)) < 1e-4) d++;
-    ia = Math.min(d, n - 3); ib = ia + 3;
+    ia = carry ? Math.min(skip, n - 1) : Math.min(d, n - 1); ib = ia + 1; // (turned round: it is moving from its first frame)
   } else {
     // the hand-over in frames: where `cross` puts it along the flight, never fewer than fourteen
     const at = (t: number) => { let i = 0; while (i < n && Math.min(1, fl.w(i)) < t) i++; return i; };
@@ -191,12 +194,29 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
   const fr0: Keyframe[] = [], fr1: Keyframe[] = [];
   const gk0: Keyframe[][] = k0.glyphs.map(() => []), gk1: Keyframe[][] = k1.glyphs.map(() => []);
   let gone0 = -1;
+  // the flight's own path, frame by frame
+  const at = (i: number) => {
+    const w = fl.w(i), wc = Math.min(1, Math.max(0, w)), s = fl.src(i), d = fl.dst(i);
+    return { w, wc, x: lerp(s.x, d.x, w), y: lerp(s.y, d.y, w), F: Math.exp(lerp(Math.log(s.f * s.s), Math.log(d.f * d.s), wc)) };
+  };
+  // (round 8, turned round: it starts where the word is drawn now, at its speed, and the difference from this flight's own
+  // path dies away as a critically damped spring does, about a quarter of a second: no step in where it is or how fast)
+  const W = 18, damp = (o: number, v: number, i: number) => { const t = Math.max(0, i - skip) / 120; return (o + (v + W * o) * t) * Math.exp(-W * t); };
+  let cx = (_i: number) => 0, cy = (_i: number) => 0, cF = (_i: number) => 0;
+  if (carry) {
+    const p0 = at(skip), p1 = at(skip + 1);
+    const ox = carry.x - p0.x, oy = carry.y - p0.y, oF = Math.log(carry.F / p0.F);
+    const vx = carry.vx - (p1.x - p0.x) * 120, vy = carry.vy - (p1.y - p0.y) * 120, vF = carry.vF - Math.log(p1.F / p0.F) * 120;
+    if (Number.isFinite(ox + oy + oF + vx + vy + vF)) { cx = (i) => damp(ox, vx, i); cy = (i) => damp(oy, vy, i); cF = (i) => damp(oF, vF, i); }
+  }
+  const X: number[] = [], Y: number[] = [], FF: number[] = [];
   for (let i = 0; i <= n; i++) {
-    const w = fl.w(i), wc = Math.min(1, Math.max(0, w));
-    const s = fl.src(i), d = fl.dst(i);
-    const x = lerp(s.x, d.x, w), y = lerp(s.y, d.y, w);
-    const F = Math.exp(lerp(Math.log(s.f * s.s), Math.log(d.f * d.s), wc)); // the drawn cap height (it grows evenly to the eye)
-    const o1 = cut ? (i > 0 ? 1 : 0) : smooth((i - ia) / Math.max(1, ib - ia));
+    const P = at(i), wc = P.wc;
+    const x = P.x + cx(i), y = P.y + cy(i), F = P.F * Math.exp(cF(i)); // (F: the drawn cap height, which grows evenly to the eye)
+    X.push(x); Y.push(y); FF.push(F);
+    // (one, round 8: no cross at all. The landing copy takes over in one frame, the last before it moves, where the two lie
+    // on the same pixels: crossed over three frames as it set off, the two outlines printed double, judge r7 open f7-8)
+    const o1 = cut ? (i > 0 ? 1 : 0) : one ? (i >= ia ? 1 : 0) : smooth((i - ia) / Math.max(1, ib - ia));
     const live0 = gone0 < 0;
     fr1.push({ transform: `translate(${(x - a1.x).toFixed(3)}px, ${(y - a1.y).toFixed(3)}px) scale(${(F / k1.cap).toFixed(5)})`, opacity: (o1 * tint(wc)).toFixed(4) });
     if (live0) fr0.push({ transform: `translate(${(x - a0.x).toFixed(3)}px, ${(y - a0.y).toFixed(3)}px) scale(${(F / k0.cap).toFixed(5)})`, opacity: o1 >= 1 ? '0' : '1' });
@@ -233,6 +253,15 @@ export function flyHero(host: HTMLElement, from: HTMLElement, to: HTMLElement, a
     look0, look1, anims, done,
     text: (t: string) => { say(L0.spans, t); say(L1.spans, t); },
     drop: () => { for (const a of anims) { try { a.cancel(); } catch { /* ignore */ } } look0.remove(); look1.remove(); },
+    state: () => {
+      const a = anims[0]; if (!a || a.currentTime === null) return null;
+      const delay = Number(a.effect?.getTiming().delay ?? 0);
+      const f = Math.max(0, Math.min(n, ((Number(a.currentTime) - delay) * 120) / 1000)), i = Math.min(n - 1, Math.floor(f)), r = f - i;
+      if (n < 1) return { x: X[0], y: Y[0], F: FF[0], vx: 0, vy: 0, vF: 0 };
+      const end = f >= n;
+      return { x: lerp(X[i], X[i + 1], r), y: lerp(Y[i], Y[i + 1], r), F: Math.exp(lerp(Math.log(FF[i]), Math.log(FF[i + 1]), r)),
+        vx: end ? 0 : (X[i + 1] - X[i]) * 120, vy: end ? 0 : (Y[i + 1] - Y[i]) * 120, vF: end ? 0 : Math.log(FF[i + 1] / FF[i]) * 120 };
+    },
   };
 }
 

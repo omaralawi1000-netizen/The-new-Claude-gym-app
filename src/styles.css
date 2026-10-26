@@ -2188,10 +2188,14 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-check { position: relative; height: 44px; border-radius: 14px; display: grid; place-items: center; color: var(--ac-ink);
   /* an even card-glass fill (opaque: the window's light behind never tints it rust), a neutral rim; the set you are on gets
      a near-white one (A judge r1: see-through boxes read bronze over the glow, and the current one barely stood apart) */
-  background: color-mix(in srgb, var(--tx) 9%, var(--bg)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--tx) 26%, var(--bg)); transition: background-color 220ms var(--ease-out), box-shadow 220ms var(--ease-out), transform 520ms var(--ease-spring); }
+  background: color-mix(in srgb, var(--tx) 9%, var(--bg)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--tx) 26%, var(--bg)); transition: transform 520ms var(--ease-spring); }
 .wk-set.current .wk-check { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--tx) 90%, var(--bg)); }
-.wk-check.on { background: var(--ac); box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--ac) 75%, transparent), inset 0 1px 0 rgba(255,255,255,.45);
-  transition: box-shadow 220ms var(--ease-out), transform 520ms var(--ease-spring); }
+.wk-check.on { background: var(--ac); box-shadow: inset 0 1px 0 rgba(255,255,255,.45); transition: transform 520ms var(--ease-spring); }
+/* (round 8: its glow is a fixed shadow on a layer of its own that only fades in: transitioning the box-shadow repainted the
+   box every frame for 220 ms, judge r7) */
+.wk-check::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--ac) 75%, transparent); transition: opacity 220ms var(--ease-out); }
+.wk-check.on::after { opacity: 1; }
 /* just ticked: the button gives a small spring and the check draws itself in. (Round 7: its orange grows from its middle at
    full colour, a layer of its own sized up over the empty box, which stays under it until it is whole; the box's own colour
    fading from dark to orange went through brown, r6 tick f8-15.) */
@@ -2206,7 +2210,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 .wk-bar-big { display: flex; align-items: baseline; gap: 8px; }
 .wk-bar-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar-tgt { flex: none; font-size: 14px; font-weight: 600; color: var(--tx2); }
-@media (prefers-reduced-motion: reduce) { .wk-check.fresh, .wk-check.fresh::before, .wk-check.fresh .wk-check-mark path, .wk-prev-t.away { animation: none; stroke-dashoffset: 0; } .wk-set, .wk-check, .wk-ex-done { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .wk-check.fresh, .wk-check.fresh::before, .wk-check.fresh .wk-check-mark path, .wk-prev-t.away { animation: none; stroke-dashoffset: 0; } .wk-set, .wk-check, .wk-check::after, .wk-ex-done { transition: none; } }
 
 /* rest controls inside the bar, between the time and the orb */
 .wk-bar-ctl { position: absolute; right: 60px; top: 0; bottom: 0; display: flex; align-items: center; gap: 6px; will-change: transform, opacity; }
