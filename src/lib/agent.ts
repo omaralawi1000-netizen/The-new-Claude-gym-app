@@ -33,6 +33,7 @@ import { currentSetOf } from './currentSet';
 import { fixMisheard } from './setCommand';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
 import { muscleOf } from './agentLookup';
+import { claimsRoutine } from './answerCheck';
 import { detectRecords, workoutName, workoutSearchName } from './workout';
 import { buildDayPlan, pickForMuscles } from './planDay';
 import { specOf } from './settingSpec';
@@ -1156,21 +1157,29 @@ export function changeFromReply(reply: string, routine: { name: string; items: R
   const words = [...reply.matchAll(new RegExp(LIFT_WORDS.source, 'gi'))].map((m) => (idOf ? idOf(m[1]) : undefined));
   const named = routine.items.filter((i) => all.includes(fold(nameOf(i.exerciseId))) || words.includes(i.exerciseId));
   const only = named.length === 1 ? named[0] : undefined;
-  for (const sent of reply.split(/(?<=[.!?])\s+|\n+/)) {
+  const SETS = /(?<![\d.,])(\d{1,2})\s*(?:sets? of|sæt af|[×x])\s*(\d{1,2})(?:\s*[–-]\s*(\d{1,2}))?(?!\s*(?:kg|lbs?|[.,]\d))/gi;
+  const read = (sent: string): RoutineBit[] => {
     const f = fold(sent);
-    if (!f.includes(fold(routine.name)) && !/\b(routine|rutine)/.test(f)) continue;
     // (its full name, or a lift word for it: "In Push, bench is now set to 4 × 3–5")
     const word = sent.match(LIFT_WORDS)?.[1];
     const wid = word && idOf ? idOf(word) : undefined;
     const it = routine.items.find((i) => f.includes(fold(nameOf(i.exerciseId)))) ?? routine.items.find((i) => i.exerciseId === wid) ?? only;
-    if (!it) continue;
-    // (the new numbers: after the last "to"/"til", so "from 3×8–12 to 4×4–6" is read as 4×4–6)
+    if (!it) return [];
+    // (the new numbers: after the last "to"/"til", so "from 3×8–12 to 4×4–6" is read as 4×4–6; else the last sets × reps
+    // said, its reps spread over the others with the same sets: "a 4th set (4 × 5), then 4 × 6" → 4 × 5–6)
     const tail = sent.slice(Math.max(sent.toLowerCase().lastIndexOf(' to '), sent.toLowerCase().lastIndexOf(' til '), 0));
-    const m = tail.match(/\b(\d{1,2})\s*(?:sets? of|sæt af|[×x])\s*(\d{1,2})(?:\s*[–-]\s*(\d{1,2}))?(?!\s*(?:kg|lbs?|[.,]\d))/i);
-    if (!m) continue;
-    const sets = Number(m[1]), lo = Number(m[2]), hi = Number(m[3] ?? m[2]);
-    if (sets >= 1 && sets <= 10 && lo >= 1 && hi >= lo && hi <= 30) return [{ exercise: nameOf(it.exerciseId), sets, repMin: lo, repMax: hi }];
-  }
+    const ms = [...tail.matchAll(SETS)].length ? [...tail.matchAll(SETS)].slice(0, 1) : [...sent.matchAll(SETS)];
+    if (!ms.length) return [];
+    const sets = Number(ms[ms.length - 1][1]);
+    const same = ms.filter((m) => Number(m[1]) === sets);
+    const lo = Math.min(...same.map((m) => Number(m[2]))), hi = Math.max(...same.map((m) => Number(m[3] ?? m[2])));
+    return sets >= 1 && sets <= 10 && lo >= 1 && hi >= lo && hi <= 30 ? [{ exercise: nameOf(it.exerciseId), sets, repMin: lo, repMax: hi }] : [];
+  };
+  const sents = reply.split(/(?<=[.!?])\s+|\n+/);
+  // the sentence about the routine first; else one that says the change ("add a 4th working set (4 × 5)"), since the model
+  // did send an edit for this routine
+  for (const sent of sents) if (fold(sent).includes(fold(routine.name)) || /\b(routine|rutine)/.test(fold(sent))) { const r = read(sent); if (r.length) return r; }
+  for (const sent of sents) if (/\b(add|adding|move|change|switch|updated?|now|build|ændr\w*|tilføj\w*)\b/i.test(sent) && !/\?\s*$/.test(sent)) { const r = read(sent); if (r.length) return r; }
   return [];
 }
 
@@ -1183,7 +1192,9 @@ export function fillFromReply(reply: string, actions: AgentAction[], lang: 'en' 
     const r = findRoutine(a.routine);
     const change = r ? changeFromReply(reply, r, nameOf, (w) => findExercise(w, lang)?.id) : [];
     return change.length ? { ...a, change } : a;
-  });
+  // (still empty and the reply never says the routine changed: nothing to do and nothing claimed, so no "Couldn't change
+  // that routine" card about a change nobody mentioned; Flash, 26 Oct)
+  }).filter((a) => !(a.type === 'edit_routine' && !a.rename && !a.add?.length && !a.remove?.length && !a.change?.length && !claimsRoutine(reply)));
   // a goal note rewritten with no plan while the reply says the plan changed: the plan is the reply's sentence that
   // names it in sets and reps (GOALS reads it back as "Plan agreed" at the next follow-up)
   if (!PLAN_SAID.test(reply)) return out;

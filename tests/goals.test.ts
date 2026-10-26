@@ -646,3 +646,19 @@ describe('word dates only as deadlines (judge, 26 Oct)', () => {
     expect(goalFromText('Goal: power clean to 90 kg by 2027-01-01', undefined, undefined, 'en', today)?.metric).not.toBe('weight');
   });
 });
+
+describe('routine change from a change sentence; an unclaimed empty edit is dropped (Flash, 26 Oct)', () => {
+  it('"add a 4th working set (4 × 5), then push to 4 × 6" is 4 × 5–6; "77.5 × 6" is a weight, not sets', async () => {
+    const { changeFromReply } = await import('../src/lib/agent');
+    const push = { name: 'Push', items: [{ id: 'i1', exerciseId: 'bench-press', workingSets: 3, repMin: 8, repMax: 12 }] as any[] };
+    const nameOf = () => 'Barbell Bench Press';
+    const idOf = (w: string) => (/bench/i.test(w) ? 'bench-press' : undefined);
+    expect(changeFromReply('Your bench is stuck. I have updated your plan: stay at 77.5 kg and add a 4th working set (4 × 5), then push to 4 × 6 before stepping up to 80 kg.', push, nameOf, idOf)).toEqual([{ exercise: 'Barbell Bench Press', sets: 4, repMin: 5, repMax: 6 }]);
+    expect(changeFromReply('Your bench is stuck. Now aim for 77.5 × 6 next time.', push, nameOf, idOf)).toEqual([]);
+  });
+  it('an empty edit the reply never mentions makes no card', async () => {
+    const { fillFromReply } = await import('../src/lib/agent');
+    expect(fillFromReply('Keep going.', [{ type: 'edit_routine', routine: 'Push', add: [], change: [], remove: [] }])).toEqual([]);
+    expect(fillFromReply('I have updated your Push routine.', [{ type: 'edit_routine', routine: 'Push', add: [], change: [], remove: [] }])).toHaveLength(1);
+  });
+});

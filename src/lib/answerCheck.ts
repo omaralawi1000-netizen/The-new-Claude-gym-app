@@ -29,6 +29,9 @@ export function mustSays(system: string): string[] {
 /** The sentences that say something was done: not a question, an offer or an if ("If I set your target to …"). */
 const doneSentences = (reply: string) => reply.split(/(?<=[.!?])\s+|\n+/).filter((x) => !/\?\s*$/.test(x) && !/\b(?:if|would|could|can|shall|should|want me|when you|once you|after you|hvis|vil du|skal jeg|kan jeg|når du)\b/i.test(x)).join('\n');
 
+/** The reply says (as done, not offered) that a routine was made or changed. */
+export const claimsRoutine = (reply: string) => ROUTINE_CLAIM.test(doneSentences(reply));
+
 export function answerProblems(reply: string, actions: AgentAction[], system: string): string[] {
   const out: string[] = [];
   const done = doneSentences(reply);
