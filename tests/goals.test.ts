@@ -9,7 +9,7 @@ vi.mock('../src/lib/brain', () => ({ thinkJson: async () => null }));
 
 import { useStore } from '../src/state/store';
 import { defaultData } from '../src/state/defaults';
-import { runActions, validateAgent, type AgentCtx, type AgentResult } from '../src/lib/agent';
+import { runActions, validateAgent, goalFromText, type AgentCtx, type AgentResult } from '../src/lib/agent';
 import { buildCoachContext, memoryBlock, AGENT_SYSTEM } from '../src/lib/coachContext';
 import { goalLines, goalState, goalWatchLines, activeGoals } from '../src/lib/goals';
 import { findNudges } from '../src/lib/nudges';
@@ -124,7 +124,7 @@ describe('where a weight goal stands', () => {
     expect(st.pace).toBe('too early');
     expect(st.why).toMatch(/2 weigh-ins/);
     const nd = findNudges(data(), today, 9, t, 'en', name).find((x) => x.id.startsWith('goal:'))!;
-    expect(nd.title).toBe('Too early to tell: Goal');
+    expect(nd.title).toBe('Too early to tell: 80 kg by 4 Dec');
     expect(nd.action?.label).toBe('Log weight');
   });
 
@@ -151,7 +151,7 @@ describe('where a weight goal stands', () => {
     const c = buildCoachContext(data(), today, name);
     expect(c.indexOf('GOALS')).toBeLessThan(c.indexOf('Nutrition'));
     const nd = findNudges(data(), today, 9, t, 'en', name).find((x) => x.id.startsWith('goal:'))!;
-    expect(nd.title).toBe('Behind pace: Goal');
+    expect(nd.title).toBe('Behind pace: 78 kg by 15 Nov');
     expect(nd.body).toMatch(/now, 78 kg by/);
     expect(nd.body).toMatch(/The date needs/);
     // (the general "losing weight fast" card stays away while a weight goal speaks for itself)
@@ -275,3 +275,26 @@ describe('a goal in its first two weeks', () => {
     expect(goalLines(data(), today, name).join('\n')).not.toMatch(/Goal weight in their Profile/);
   });
 });
+
+describe('goal words read by the app (when the model leaves out the goal field)', () => {
+  const running = { id: 'g', kind: 'goal' as const, text: 'Goal: 82 → 80 kg', at: 0, goal: { metric: 'weight' as const, target: 80, startDate: today } };
+  it('pounds, a weight change named before a lift, and "reached" only when the goal is', () => {
+    expect(goalFromText('Goal: lose 10 lb by 2026-12-01', undefined, undefined, 'en')).toMatchObject({ metric: 'weight', delta: -4.5, by: '2026-12-01' });
+    expect(goalFromText('Goal: 82 → 80 kg by 2026-12-01, keeping my bench press strength', undefined, undefined, 'en')).toMatchObject({ metric: 'weight', target: 80 });
+    expect(goalFromText('Goal: bench press 100 kg by 2027-06-01', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100 });
+    expect(goalFromText('Goal: 82 → 80 kg, halfway reached', undefined, running, 'en')?.status).toBeUndefined();
+    expect(goalFromText('Goal reached: 82 → 80 kg', undefined, running, 'en')?.status).toBe('done');
+  });
+});
+
+describe('a lift goal on a plateau', () => {
+  it('is STALLED, never ahead, even right after a climb, and GOALS says for how long', () => {
+    const kgs = [70, 72.5, 75, 77.5, 77.5, 77.5, 77.5, 77.5, 77.5];
+    useStore.setState({ sessions: kgs.map((kg, i) => session(addDays(today, -40 + i * 5), [['bench-press', kg, 5]])), memory: [{ id: 'g', kind: 'goal', text: 'Goal: bench 100', at: 0, exerciseIds: ['bench-press'], goal: { metric: 'lift', target: 100, reps: 1, by: addDays(today, 200), startDate: today } }] });
+    const st = goalState(data(), data().memory[0], today)!;
+    expect(st.pace).toBe('stalled');
+    expect(st.plateau).toMatchObject({ kg: 77.5, reps: 5, workouts: 6 });
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Plateau: best set 77\.5 kg × 5, not beaten for 6 workouts since/);
+  });
+});
+

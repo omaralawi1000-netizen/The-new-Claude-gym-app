@@ -1876,6 +1876,11 @@ export const da: Record<string, string> = {
  "Goal set": "Mål sat",
  "Going {rate} a week.": "Går {rate} om ugen.",
  "How am I doing on my goal “{goal}”? Be honest.": "Hvordan går det med mit mål “{goal}”? Vær ærlig.",
+ "{what} by {date}": "{what} inden {date}",
+ "What you eat points to {rate} a week.": "Det, du spiser, peger på {rate} om ugen.",
+ "Best set {set} for {n} workouts.": "Bedste sæt {set} i {n} træninger.",
+ "Stalled: {goal}": "Står stille: {goal}",
+ "stalled": "står stille",
  "My goal: {status}": "Mit mål: {status}",
  "I reached my goal “{goal}”. What’s next?": "Jeg har nået mit mål “{goal}”. Hvad nu?",
  "I want to set a goal. Ask me what I’m working toward and help me make it concrete.": "Jeg vil sætte et mål. Spørg mig, hvad jeg arbejder hen imod, og hjælp mig med at gøre det konkret.",
@@ -1908,5 +1913,4 @@ export const da: Record<string, string> = {
  "Date passed: {goal}": "Datoen er passeret: {goal}",
  "Too early to tell: {goal}": "For tidligt at sige: {goal}",
  "About {rate} a week. Faster than about 0.5% a week is mostly fat.": "Omkring {rate} om ugen. Hurtigere end ca. 0,5 % om ugen er mest fedt.",
- "What you eat points to {rate} a week.": "Det, du spiser, peger på {rate} om ugen.",
 };

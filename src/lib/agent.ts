@@ -1204,13 +1204,14 @@ function doDuplicateRoutine(a: Extract<AgentAction, { type: 'duplicate_routine' 
 }
 
 /** A small chart in the chat: the model picks the metric, the numbers are the app's own (agentCharts.ts). */
-function doShowChart(a: Extract<AgentAction, { type: 'show_chart' }>, ctx: AgentCtx): AgentResult {
+function doShowChart(a: Extract<AgentAction, { type: 'show_chart' }>, ctx: AgentCtx): AgentResult | null {
   // (a strength chart with no lift named, while one lift goal runs: that lift)
   const st = useStore.getState();
   const goalLift = !a.exercise && a.metric === 'strength' ? activeGoals(st, ctx.today).filter((m) => m.goal?.metric === 'lift' && m.exerciseIds?.length) : [];
   const exercise = a.exercise ?? (goalLift.length === 1 ? allExercises(st.exercises).find((e) => e.id === goalLift[0].exerciseIds![0])?.name ?? null : null);
   const b = buildChart(a.metric, { exercise, weeks: a.weeks, today: ctx.today, lang: ctx.lang, t: ctx.t });
-  if ('miss' in b) return { id: uid('r'), kind: 'miss', title: b.miss, lines: [] };
+  // (no lift named and none to guess: no card at all, rather than a "Which lift?" card under an answer about something else)
+  if ('miss' in b) return !exercise && a.metric === 'strength' ? null : { id: uid('r'), kind: 'miss', title: b.miss, lines: [] };
   return { id: uid('r'), kind: 'chart', title: b.title, subtitle: b.subtitle, lines: [], chart: b.chart };
 }
 
@@ -1495,7 +1496,11 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
   const more = { label: t('See all'), run: openMemory };
   const untilSub = until ? t('until {date}', { date: fmtDate(until, lang, { weekday: 'short', day: 'numeric', month: 'short' }) }) : undefined;
   const goal = goalIn ? goalPlan(goalIn, ex, old, ctx) : undefined;
-  const sub = (goal ? goalSub(goal, ex, ctx) : undefined) ?? untilSub ?? (ex ? exLabel(ex, lang) : undefined);
+  // (a goal card: the note's words with its dates readable, and the numbers line only when the words don't carry its
+  // target already: one set of numbers on the card, not two that differ by the trend's 0.1 kg)
+  const says = goal?.target !== undefined && new RegExp(`(^|[^\\d.,])${String(goal.target).replace('.', '[.,]')}(\\.0)?(?![\\d.,]\\d)`).test(a.text);
+  const sub = says ? undefined : (goal ? goalSub(goal, ex, ctx) : undefined) ?? untilSub ?? (ex ? exLabel(ex, lang) : undefined);
+  const shown = goal ? a.text.replace(/\b(\d{4}-\d{2}-\d{2})\b/g, (x) => fmtDate(x, lang, { day: 'numeric', month: 'short', ...(x.slice(0, 4) !== ctx.today.slice(0, 4) ? { year: 'numeric' } : {}) })) : a.text;
   if (old) {
     const before = { ...old };
     const same = fold(old.text) === fold(a.text);
@@ -1504,7 +1509,7 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
     // the new wording has none)
     st.updateMemory(old.id, { ...fields, exerciseIds: ex ? [ex.id] : goal && old.exerciseIds ? old.exerciseIds : undefined, until, updatedAt: Date.now(), was, goal: goal ?? (fields.kind === 'goal' ? old.goal : undefined) });
     const title = goal?.status === 'done' ? t('Goal reached') : goal?.status === 'dropped' ? t('Goal dropped') : goal && !old.goal ? t('Goal set') : t('Memory updated');
-    return { id: uid('r'), kind: 'memory', title, was: same ? undefined : old.text, lines: [{ text: a.text, sub }], button: more, undo: () => useStore.getState().updateMemory(before.id, { ...before, until: before.until, updatedAt: before.updatedAt, was: before.was, exerciseIds: before.exerciseIds, goal: before.goal }) };
+    return { id: uid('r'), kind: 'memory', title, was: same ? undefined : old.text, lines: [{ text: shown, sub }], button: more, undo: () => useStore.getState().updateMemory(before.id, { ...before, until: before.until, updatedAt: before.updatedAt, was: before.was, exerciseIds: before.exerciseIds, goal: before.goal }) };
   }
   // full: a temporary note that has ended makes room first (its time is over), else the Coach says so
   if (st.memory.length >= MEMORY_MAX) {
@@ -1516,7 +1521,7 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
     st.removeMemory(ended.id);
   }
   const note = st.addMemory({ ...fields, ...(until ? { until } : {}), ...(goal ? { goal } : {}) });
-  return { id: uid('r'), kind: 'memory', title: goal ? t('Goal set') : t('Remembered'), lines: [{ text: note.text, sub }], button: more, undo: () => useStore.getState().removeMemory(note.id) };
+  return { id: uid('r'), kind: 'memory', title: goal ? t('Goal set') : t('Remembered'), lines: [{ text: goal ? shown : note.text, sub }], button: more, undo: () => useStore.getState().removeMemory(note.id) };
 }
 
 /** A goal's numbers as kept: a changed target or date keeps where it started (the same goal, revised); a new goal, or one
@@ -1546,27 +1551,33 @@ const kgNum = (x: string) => Number(x.replace(',', '.'));
 /** A goal's numbers read from its words, when the model didn't give them: a lift ("Bench Press 47.5 → 80 kg"), a
  *  bodyweight ("82 → 80 kg", "make the 74 kg class", "lose 2 kg"), a date (YYYY-MM-DD), or that it was reached or dropped. */
 export function goalFromText(text: string, until: string | undefined, old: MemoryNote | undefined, lang: 'en' | 'da'): GoalArg | undefined {
-  if (old?.goal && !old.goal.status && /\b(reached|achieved|completed|hit it|nået|naet)\b/i.test(text)) return { metric: old.goal.metric, status: 'done' };
+  // (reached only when the words say the goal is: "halfway reached" isn't)
+  if (old?.goal && !old.goal.status && /^\s*(?:(?:goal|mål)\s*)?(?:reached|achieved|completed|done|nået|naet)\b|\b(?:goal|mål)\s+(?:reached|achieved|completed|nået|naet)\b|\bhit it\b/i.test(text)) return { metric: old.goal.metric, status: 'done' };
   if (old?.goal && !old.goal.status && /\b(dropped|gave up|given up|abandoned|droppet|opgivet)\b/i.test(text)) return { metric: old.goal.metric, status: 'dropped' };
   const by = text.match(/\b(\d{4}-\d{2}-\d{2})\b/)?.[1] ?? until;
-  const kgs = [...text.matchAll(/(\d{1,3}(?:[.,]\d+)?)\s*kg\b/gi)].map((m) => kgNum(m[1]));
+  // (pounds too: the goal is kept in kg)
+  const toKg = (n: string, unit: string) => (/^lb/i.test(unit) ? Math.round(kgNum(n) * 0.45359237 * 10) / 10 : kgNum(n));
+  const kgs = [...text.matchAll(/(\d{1,3}(?:[.,]\d+)?)\s*(kg|lbs?)\b/gi)].map((m) => toKg(m[1], m[2]));
   // a lift: one of their exercises named in the words (the longest name that fits), or a common lift word
   const f = fold(text);
   const pool = allExercises(useStore.getState().exercises).filter((e) => !e.archived && e.logType === 'weightReps');
   const named = pool.flatMap((e) => [e.name, e.nameDa].filter(Boolean).map((n) => ({ e, n: fold(n!) }))).filter((x) => x.n.length >= 4 && f.includes(x.n)).sort((x, y) => y.n.length - x.n.length)[0]?.e;
   const word = text.match(LIFT_WORDS)?.[1];
   const ex = named ?? (word ? findExercise(word, lang) : undefined);
-  if (ex && kgs.length) {
+  const arrow = text.match(/(\d{2,3}(?:[.,]\d+)?)\s*(?:kg\s*|lbs?\s*)?(?:→|->|to|til)\s*(\d{2,3}(?:[.,]\d+)?)\s*(kg|lbs?)\b/i);
+  // (a bodyweight change named before the lift, "82 → 80 kg, keeping my bench", is a weight goal)
+  const exAt = ex ? f.indexOf(named ? fold(named.name) : fold(word!)) : -1;
+  const weightFirst = arrow && exAt >= 0 && f.indexOf(fold(arrow[0])) >= 0 && f.indexOf(fold(arrow[0])) < exAt;
+  if (ex && kgs.length && !weightFirst) {
     const reps = Number(text.match(/(?:[×x]\s*|for\s+)(\d{1,2})\b(?!\s*kg)/i)?.[1] ?? 1);
     return { metric: 'lift', target: kgs[kgs.length - 1], reps: reps >= 1 && reps <= 30 ? reps : 1, ...(by ? { by } : {}), exercise: ex };
   }
-  const arrow = text.match(/(\d{2,3}(?:[.,]\d+)?)\s*(?:kg\s*)?(?:→|->|to|til)\s*(\d{2,3}(?:[.,]\d+)?)\s*kg/i);
-  if (arrow) return { metric: 'weight', target: kgNum(arrow[2]), ...(by ? { by } : {}) };
+  if (arrow) return { metric: 'weight', target: toKg(arrow[2], arrow[3]), ...(by ? { by } : {}) };
   const cls = text.match(/(\d{2,3}(?:[.,]\d+)?)\s*kg\s*(?:weight\s*)?(?:class|klasse|vægtklasse)/i) ?? text.match(/\b(?:under|below|weigh in at|make)\s+(\d{2,3}(?:[.,]\d+)?)\s*kg/i);
   // (a weight class is a goal to reach only with its weigh-in date: "wrestles in the 74 kg class" is a fact about them)
   if (cls && by) return { metric: 'weight', target: kgNum(cls[1]), by };
-  const rel = text.match(/\b(lose|losing|drop|cut|shed|tabe|tab|gain|gaining|put on|add|bulk|tage på|tag på)\s+(?:about\s+|around\s+|ca\.?\s+)?(\d{1,2}(?:[.,]\d+)?)\s*kg/i);
-  if (rel) return { metric: 'weight', delta: (/^(gain|put|add|bulk|tag)/i.test(rel[1]) ? 1 : -1) * kgNum(rel[2]), ...(by ? { by } : {}) };
+  const rel = text.match(/\b(lose|losing|drop|cut|shed|tabe|tab|gain|gaining|put on|add|bulk|tage på|tag på)\s+(?:about\s+|around\s+|ca\.?\s+)?(\d{1,2}(?:[.,]\d+)?)\s*(kg|lbs?)\b/i);
+  if (rel) return { metric: 'weight', delta: (/^(gain|put|add|bulk|tag)/i.test(rel[1]) ? 1 : -1) * toKg(rel[2], rel[3]), ...(by ? { by } : {}) };
   return by ? { metric: 'other', by } : undefined;
 }
 
@@ -2285,7 +2296,7 @@ export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promi
         case 'edit_routine': out.push(doEditRoutine(a, ctx)); break;
         case 'delete_routine': out.push(doDeleteRoutine(a, ctx)); break;
         case 'duplicate_routine': out.push(doDuplicateRoutine(a, ctx)); break;
-        case 'show_chart': out.push(doShowChart(a, ctx)); break;
+        case 'show_chart': { const r = doShowChart(a, ctx); if (r) out.push(r); break; }
         case 'delete_workout': out.push(doDeleteWorkout(a, ctx)); break;
         case 'discard_workout': out.push(doDiscardWorkout(ctx)); break;
         case 'set_schedule': out.push(doSchedule(a, ctx)); break;

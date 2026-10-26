@@ -202,6 +202,8 @@ function GoalLine({ m }: { m: MemoryNote }) {
   const t = useT();
   const lang = useLang();
   const u = useStore((s) => s.settings.units.weight);
+  // (drawn again when a weigh-in, a workout or a meal comes in while the screen is open)
+  useStore((s) => s.weights); useStore((s) => s.sessions); useStore((s) => s.entries);
   const g = m.goal!;
   const day = (x: string) => fmtDate(x, lang, { day: 'numeric', month: 'short' });
   let text: string;
