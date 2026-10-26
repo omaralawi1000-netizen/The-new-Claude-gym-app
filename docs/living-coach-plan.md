@@ -8,15 +8,16 @@ exact step; a "yes, but…" is not a go. Omar's doc for it: https://claude.ai/ar
 | Step | State | Where |
 | --- | --- | --- |
 | 1 · Honest voice | **SHIPPED v0.1.179 (26 Oct, PR #204, Omar's go 00:18).** Refined through round 9; six fresh judges 7 → 7.5 → 7.5 → 8 → 8.2 → 8.4, every must-fix done | README "Living coach, step 1"; before/after https://claude.ai/artifact/GjDMaqc9pEpChSCGqHzvPZ; replies per round in /mnt/project-files/living-coach/step1-r*-run*.json |
-| 2 · Goals you tell it | not started, needs its own go | — |
+| 2 · Goals you tell it | **SHIPPED v0.1.180 (26 Oct, Omar: "we ship now" 08:29).** Built 26 Oct overnight + 4 morning rounds. Thirteen fresh judges 6.5 → 7.5 → 8.0 → 7.0 → 7.8 → 7.3 → 7.8 → 7.8 → 8.2, then 4 more rounds on 26 Oct morning (Omar: "Can you do it even better?") 8.3 → 8.2 → 8.3 → 8.3 (live Coach ~6.3 on the same nine); every judge: ship-ready, what's left is polish and the test brain's variance | README "Living coach, step 2"; before/after https://claude.ai/artifact/H9vdoBAX4QC5vaLd6P1wYz; results /mnt/project-files/living-coach/step2/; harness /mnt/project-files/living-coach/tools/_goals.test.ts (never commit) |
 | 3 · Phone test (APK) | not started | — |
 | 4 · Morning looks | not started | — |
 | 5 · Full coach | not started | — |
 | 6 · Sunday review | not started | — |
 
-**Next:** step 1 is live; Omar tries it on his phone. Step 2 (goals you tell it) only
-after a new go; it touches Coach memory, which Omar's other Claude Code session also works on: pull the default branch
-first and read its newest commits to `types.ts`, `agent.ts`, `coachContext.ts`.
+**Next:** step 2 is live; Omar uses it with a real goal. In parallel (needs his go): the stronger-AI test (the 9
+conversations on Gemini Pro + one fresh judge). Step 3 (phone test) needs its own go; his Aven app's battery is
+already Unrestricted (Omar, 26 Oct). Left open by the last judge (polish): a stall's change is sometimes asked instead
+of saved; the first plan reply can carry two asks; a goal is sometimes saved on a "help me" before the yes.
 
 **Judges (Omar, 25 Oct):** a judge never builds fixes itself. It may suggest a better solution with the exact how-to; the
 builder implements it, and a fresh judge checks it.
