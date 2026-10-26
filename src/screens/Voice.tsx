@@ -23,6 +23,7 @@ import { appendExchange, dropFailed, markInThread, readThread, threadSaid, threa
 import { SphereSlot, mirrorOrb, orbPress, orbTap, holdOrbSize, orbVoiceSource, orbBeat, orbHide } from '../ui/Sphere';
 import { Stardust, type DustLive } from '../ui/stardust/Stardust';
 import { moodOf } from '../ui/stardust/mood';
+import { shapeOf } from '../ui/stardust/shape';
 import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
@@ -313,6 +314,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // talking live, like ChatGPT (Omar's recording, 26 Oct): each new thing you say starts a fresh page; the last exchange goes
   // and the orb is big in the middle while you talk, then your words and its answer show with the orb small at the bottom
   const [page, setPage] = useState(0), [pageNext, setPageNext] = useState(0);
+  const formCards = useRef<(ids: string[]) => void>(() => {}); // (talking live: new cards are written in dust first, below)
   // (the last exchange fades away first, then the new page starts: never cut in one frame)
   useEffect(() => { if (pageNext === page) return; const id = setTimeout(() => setPage(pageNext), calm ? 0 : 320); return () => clearTimeout(id); }, [pageNext, page]); // eslint-disable-line
   const hearDrop = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -472,7 +474,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           const today = dayKey(Date.now(), useStore.getState().settings.dayStartHour);
           const results = v?.actions.length ? await runActions(v.actions, { t, lang, today, brain: brainFor({ big: false, surface: 'orb' }), date: props.date, mealId: props.mealId }) : [];
           const id = lt.id;
-          if (id && alive.current) setTurns((all) => all.map((x) => (x.id === id ? { ...x, results: [...x.results, ...results] } : x)));
+          if (id && alive.current) { setTurns((all) => all.map((x) => (x.id === id ? { ...x, results: [...x.results, ...results] } : x))); formCards.current(results.map((x) => x.id)); }
           if (results.some((r) => r.kind !== 'miss' && r.kind !== 'nav' && !r.pending)) { haptic('success'); orbBeat(1); dustBeat.current++; } // (one heartbeat of light: done)
           // (with each item's ref, so "change that" can find it; and what couldn't be read)
           return [results.map((r) => `${r.title}: ${r.lines.map((l) => [l.text, l.sub, l.ref ? `[ref ${l.ref}]` : ''].filter(Boolean).join(' ')).join(', ')}${r.button ? ' (waits for their Apply)' : ''}`).join('; ') || 'Nothing was changed.', v.dropped ? `${v.dropped} action(s) could not be read and were not done.` : ''].filter(Boolean).join(' ');
@@ -735,6 +737,59 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // dragged). If the phone can't draw it, the usual orb simply stays.
   const [dustOk, setDustOk] = useState(false);
   const [dustOn, setDustOn] = useState(false);
+  // A card written in dust (Omar, 26 Oct: "shape the card almost fully with the specks… so it feels seamless"): a new card
+  // is laid out unseen, its outline and words are sampled into points (ui/stardust/shape.ts), the dust flies there and
+  // draws it, and when it is fully drawn the real card takes over with a flash of light; the rest of the dust flows home.
+  // One card at a time; if the dust can't draw, the card simply appears.
+  const [forming, setForming] = useState<string[]>([]);
+  const shape = useRef<{ n: number; pts: Float32Array | null }>({ n: 0, pts: null });
+  const shapeAt = useRef<{ el: HTMLElement; x: number; y: number } | null>(null); // (the card being written, and where it was)
+  const shaping = useRef(false), jump = useRef(0), formQ = useRef<string[]>([]), formBusy = useRef<string | null>(null);
+  const dustReady = useRef(false); dustReady.current = dustOk && dustOn && !calm;
+  const formNext = () => {
+    if (formBusy.current || !formQ.current.length) return;
+    const id = formQ.current.shift()!; formBusy.current = id;
+    // (the card is laid out, unseen, once its answer is in: wait for it, then read its shape)
+    const t0 = performance.now(); let lastKey = '';
+    const look = () => {
+      if (!alive.current) return;
+      const el = document.querySelector<HTMLElement>(`[data-card="${id}"]`);
+      // (and still: its answer has finished moving it, so the dust lands exactly where the card will be)
+      const rc = el?.getBoundingClientRect(), key = rc ? `${Math.round(rc.left)},${Math.round(rc.top)},${Math.round(rc.width)},${Math.round(rc.height)}` : '';
+      // (its words rise into place as it mounts: read them only once every animation inside it has finished)
+      const still = !!rc?.height && key === lastKey && !el!.getAnimations({ subtree: true }).some((x) => x.playState === 'running' || x.pending); lastKey = key;
+      if (!el || !still) { if (performance.now() - t0 < 15000) { setTimeout(look, 120); return; } formDone(id); return; }
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const pts = shapeOf(el, 6000);
+        if (!pts.length || !alive.current) { formDone(id); return; }
+        const b0 = el.getBoundingClientRect(); shapeAt.current = { el, x: b0.left, y: b0.top };
+        shape.current = { n: shape.current.n + 1, pts }; shaping.current = true;
+        formTimer.current = setTimeout(() => formDone(id), 4000); // (never stuck: it appears anyway)
+      }));
+    };
+    look();
+  };
+  const formTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const formDone = (id: string) => {
+    if (formBusy.current !== id) return;
+    clearTimeout(formTimer.current);
+    setForming((f) => f.filter((x) => x !== id));
+    // (the card is there: a moment later the dust lets go and flows home, then the next one)
+    setTimeout(() => { shaping.current = false; formBusy.current = null; setTimeout(formNext, 700); }, 550);
+  };
+  formCards.current = (ids) => {
+    if (!dustReady.current || !ids.length) return;
+    setForming((f) => [...f, ...ids]); formQ.current.push(...ids); formNext();
+  };
+  const onDustCrisp = (on: boolean) => { if (formBusy.current && shaping.current) { if (on) formDone(formBusy.current); return; } setCrisp(on); };
+  // Undo: the card dissolves back into dust (its outline and words, flowing home)
+  const dissolve = (id: string) => {
+    if (!dustReady.current) return;
+    const el = document.querySelector<HTMLElement>(`[data-card="${id}"]`); const pts = el ? shapeOf(el, 6000) : null;
+    if (!pts?.length) return;
+    const b0 = el!.getBoundingClientRect(); shapeAt.current = { el: el!, x: b0.left, y: b0.top };
+    shape.current = { n: shape.current.n + 1, pts }; jump.current++;
+  };
   const [crisp, setCrisp] = useState(false);
   const [heard, setHeard] = useState(false); // your voice was heard this visit: the greeting has gone back into the orb
   const dustWanted = liveUi && present;
@@ -753,6 +808,11 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     get hold() { return touch.current.hold; }, get press() { return touch.current.hold ? 1 : 0; }, get tap() { return touch.current.tap; },
     get lean(): [number, number] { return [hand.x, hand.y]; }, get beat() { return dustBeat.current; }, get mood() { return dustMood.current; },
     greet: dustOn && liveActive && !chatting && !heard && turns.length === 0, onVoice: () => setHeard(true),
+    horizon: liveUi && chatting && !calm,
+    textBottom: () => { const box = talkRef.current; const items = box?.querySelectorAll('.exchange'); const last = items?.[items.length - 1] as HTMLElement | undefined;
+      if (!box || !last) return 0; const b = box.getBoundingClientRect(); return Math.min(b.bottom, last.getBoundingClientRect().bottom); },
+    shift: () => { const a = shapeAt.current; if (!a || !a.el.isConnected) return [0, 0]; const b = a.el.getBoundingClientRect(); return [b.left - a.x, b.top - a.y]; },
+    get shape() { return shape.current; }, get shaping() { return shaping.current; }, get jump() { return jump.current; },
   };
   // what it's doing, in a word (the orb says it too, in light): listening, thinking, speaking
   const liveLabel = renewing ? t('Reconnecting…') : muted ? t('Muted') : !liveActive ? '' : speaking ? t('Speaking') : phase === 'processing' ? doing || t('Thinking…') : phase === 'listening' ? t('Listening') : '';
@@ -796,7 +856,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       {/* (kept for the whole live visit: when it isn't wanted any more, typing or Live failing, the dust fades out as the
           usual orb fades back in, never a frame with neither) */}
       {liveWanted && <motion.div aria-hidden style={{ position: 'absolute', inset: 0, opacity: contentO, pointerEvents: 'none' }}>
-        <Stardust orbEl={handEl} greetEl={greetRef} greet={t('What can I do for you?')} live={dustLive} onCrisp={setCrisp} ready={setDustOk} />
+        <Stardust orbEl={handEl} greetEl={greetRef} greet={t('What can I do for you?')} live={dustLive} onCrisp={onDustCrisp} ready={setDustOk} />
       </motion.div>}
       <motion.div ref={contentRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', padding: 'calc(var(--sat) + 12px) 18px 0', opacity: contentO }}>
         <div className="row-flex between">
@@ -818,7 +878,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
             {/* its light: a close halo and a soft pool just under it, as if it hovers over glass (gradients only: no blur,
                 nothing animated but its fade in) */}
             <span ref={handEl} className="orb-hand" style={{ position: 'absolute', inset: 0 }}>
-              <span className="voice-glow" aria-hidden><SelfGlow /></span>
+              <span className="voice-glow" aria-hidden style={liveUi && chatting && dustOk ? { opacity: 0, transition: 'opacity .4s' } : undefined}><SelfGlow /></span>
               <SphereSlot id="voice" priority={10} engage={engage} style={{ position: 'absolute', inset: 0 }} />
             </span>
           </motion.button>
@@ -855,9 +915,10 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                 const cards = tu.results.length > 0 && (
                   <div className="stack gap12">
                     {tu.results.map((r, k) => (
-                      <motion.div key={r.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SEND, delay: 0.06 + k * 0.07 }}>
+                      <motion.div key={r.id} data-card={r.id} initial={forming.includes(r.id) ? { opacity: 0 } : { opacity: 0, y: 16 }} animate={{ opacity: forming.includes(r.id) ? 0 : 1, y: 0 }}
+                        transition={forming.length || dustReady.current ? { duration: 0.45, ease: [0.2, 0.7, 0.2, 1] } : { ...SEND, delay: 0.06 + k * 0.07 }}>
                         <ActionCard r={r} undone={tu.undone.includes(r.id)} confirmed={tu.confirmed.includes(r.id)}
-                          onUndo={() => { r.undo?.(); haptic('light'); markInThread(tu.threadId, r.id, 'undone'); setTurns((all) => all.map((x) => (x.id === tu.id ? { ...x, undone: [...x.undone, r.id] } : x))); }}
+                          onUndo={() => { dissolve(r.id); r.undo?.(); haptic('light'); markInThread(tu.threadId, r.id, 'undone'); setTurns((all) => all.map((x) => (x.id === tu.id ? { ...x, undone: [...x.undone, r.id] } : x))); }}
                           onConfirm={() => { r.button?.run(); haptic('confirm'); markInThread(tu.threadId, r.id, 'confirmed'); setTurns((all) => all.map((x) => (x.id === tu.id ? { ...x, confirmed: [...x.confirmed, r.id] } : x))); }} />
                       </motion.div>
                     ))}

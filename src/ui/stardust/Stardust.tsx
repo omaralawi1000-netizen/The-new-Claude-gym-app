@@ -11,6 +11,18 @@ export interface DustLive {
   beat: number; greet: boolean;
   /** your voice was heard (while the greeting shows): it goes back into the orb */
   onVoice: () => void;
+  /** it is answering: it sinks into the horizon below the screen's edge (a planet seen from orbit), clear of the words */
+  horizon: boolean;
+  /** where the conversation's words end on screen (css px from the top): the horizon stays below them */
+  textBottom: () => number;
+  /** a card to write in dust (a new counter starts it from the orb; its points from ui/stardust/shape.ts) */
+  shape: { n: number; pts: Float32Array | null };
+  /** the card is being written (true) or its dust flows home (false) */
+  shaping: boolean;
+  /** a card dissolving back into it (a counter: Undo): its dust starts where the card is */
+  jump: number;
+  /** how far the card being written has moved since its shape was read (css px) */
+  shift: () => [number, number];
 }
 
 /**
@@ -98,6 +110,16 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
     };
 
     const bands: number[] = new Array(16).fill(0), obands: number[] = new Array(16).fill(0);
+    // the horizon's air: a soft ring of light along its rim (one element, moved and faded by transform and opacity only)
+    const air = document.createElement('div');
+    air.style.cssText = 'position:absolute;left:0;top:0;width:1000px;height:1000px;border-radius:50%;pointer-events:none;opacity:0;will-change:transform,opacity;transform-origin:500px 500px';
+    holder.insertBefore(air, canvas);
+    let airKey = '', airO = -1, hz = 0, lastT = performance.now(), shapeN = 0;
+    const paintAir = () => {
+      const c = (colors.dark ? colors.ac : colors.alt).map((x) => Math.round(Math.min(1, x / (colors.dark ? 1 : 0.75)) * 255)).join(',');
+      if (c === airKey) return; airKey = c;
+      air.style.background = `radial-gradient(closest-side, rgba(${c},0) 76%, rgba(${c},.42) 84.5%, rgba(${c},.14) 90%, rgba(${c},0) 100%)`;
+    };
     let voiceFor = 0, stage: HTMLElement | null = null;
     const tick = () => {
       if (stopped || (!worker && !eng)) return; // (it couldn't draw: nothing more to do)
@@ -116,6 +138,14 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
       const flying = !!g && g.width > 2 && !L.hold && Math.abs(mx) + Math.abs(my) < 0.5
         && (Math.abs(g.left + g.width / 2 - (s0.left + s0.width / 2)) + Math.abs(g.top + g.height / 2 - (s0.top + s0.height / 2)) > 2 || Math.abs(g.width - s0.width) > 2);
       const r = flying ? g! : s0;
+      // the horizon: while it answers it sinks and grows below the bottom edge, its top kept below the words (a long answer
+      // pushes it lower, down to a glowing strip), and leans a little with your finger
+      const t = performance.now(), dt = Math.min(0.05, (t - lastT) / 1000); lastT = t;
+      hz += ((L.horizon ? 1 : 0) - hz) * (1 - Math.exp(-dt * 2.4));
+      const hzE = hz * hz * (3 - 2 * hz);
+      const vw = canvas.clientWidth || window.innerWidth, vh = canvas.clientHeight || window.innerHeight;
+      const RH = Math.min(vw * 0.64, 360), top = Math.min(vh - 66, Math.max(vh - RH * 0.46, L.textBottom() + 30));
+      const hx = vw / 2 + mx * 0.35, hy = top + RH + my * 0.25;
       const lv = L.levels();
       if (lv) for (let i = 0; i < 16; i++) { bands[i] = lv.bands[i] ?? 0; obands[i] = lv.obands?.[i] ?? 0; }
       // (your voice for a moment, not a click or a breath, takes the greeting back into the orb)
@@ -124,17 +154,25 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
         at: performance.timeOrigin + performance.now(),
         w: canvas.clientWidth || window.innerWidth, h: canvas.clientHeight || window.innerHeight, dpr: Math.min(2.5, window.devicePixelRatio || 1),
         // (the sphere fills two thirds of the orb's place, as the usual orb does)
-        cx: r.left + r.width / 2 + (flying ? 0 : mx), cy: r.top + r.height / 2 + (flying ? 0 : my), r: (r.width / 2) * 0.66,
+        cx: (r.left + r.width / 2 + (flying ? 0 : mx)) * (1 - hzE) + hx * hzE, cy: (r.top + r.height / 2 + (flying ? 0 : my)) * (1 - hzE) + hy * hzE,
+        r: (r.width / 2) * 0.66 * (1 - hzE) + RH * hzE, hz: hzE,
+        kind: L.greet ? 0 : 1, writeN: L.shape.n, writeJump: L.jump, shift: L.greet ? [0, 0] : L.shift(),
         on: L.on ? 1 : 0, listen: L.listen, think: L.think, speak: L.speak, quiet: L.quiet,
         vin: lv?.in ?? 0, bands, vout: lv?.out ?? 0, obands, mood: L.mood,
-        hold: L.hold, press: L.press, tap: L.tap, lean: L.lean, beat: L.beat, greet: L.greet,
+        hold: L.hold, press: L.press, tap: L.tap, lean: L.lean, beat: L.beat, greet: L.greet || L.shaping,
         reduced: reducedQ.matches || document.documentElement.dataset.motion === 'reduce', colors,
       };
+      // (a card to write: its points go to the drawing once)
+      if (L.shape.n !== shapeN) { shapeN = L.shape.n; sentText = ''; const pts = L.shape.pts; if (pts?.length) { const a = pts.slice(); if (worker) post({ text: a }, [a.buffer]); else eng?.setText(a); } }
+      paintAir();
+      air.style.transform = `translate(${(st.cx - 500).toFixed(1)}px, ${(st.cy - 500).toFixed(1)}px) scale(${((st.r * 2.36) / 1000).toFixed(4)})`;
+      const ao = Math.round(hzE * (0.6 + 0.4 * Math.min(1, (lv?.out ?? 0) * 1.6 + (lv?.in ?? 0) * 0.8)) * (colors.dark ? 1 : 0.55) * 100) / 100;
+      if (ao !== airO) { airO = ao; air.style.opacity = String(ao); }
       if (worker) post({ state: st }); else eng?.frame(performance.now(), st);
     };
     raf = requestAnimationFrame(tick);
     // (off screen the page's frames stop; the worker draws only while the dust moves and stops once it has gone)
-    return () => { stopped = true; cancelAnimationFrame(raf); mo.disconnect(); worker?.terminate(); worker = null; eng = null; canvas.remove(); probes.forEach((d) => d.remove()); };
+    return () => { stopped = true; cancelAnimationFrame(raf); mo.disconnect(); worker?.terminate(); worker = null; eng = null; canvas.remove(); air.remove(); probes.forEach((d) => d.remove()); };
   }, [greet]); // eslint-disable-line
   return <div ref={box} aria-hidden className={className} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />;
 }

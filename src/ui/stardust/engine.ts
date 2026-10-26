@@ -47,11 +47,21 @@ export interface DustState {
   beat: number;
   /** its greeting written in dust (true) or flowing back into it (false) */
   greet: boolean;
+  /** what it writes: 0 its greeting, 1 a card (its outline and words, in thousands of specks, then the real card) */
+  kind?: number;
+  /** a new shape to write (a counter: each one starts from the orb) */
+  writeN?: number;
+  /** a shape that is already there and leaves (a counter: Undo, the card dissolving back into it) */
+  writeJump?: number;
+  /** how far the card has moved since its shape was read (css px): the dust stays on it */
+  shift?: [number, number];
+  /** 0 the orb, 1 the horizon: sunk below the screen's edge while it answers, a planet seen from orbit */
+  hz?: number;
   reduced: boolean;
   colors: { ac: RGB; alt: RGB; ok: RGB; dark: boolean };
 }
 
-const N = 16000, WRITERS = 3400;
+const N = 16000, WRITERS = 6000; // (a card's outline and every word on it need thousands)
 // the app's shared springs (ui/motion.ts, written out here so the worker needs nothing from the app): SMOOTH = apple(0.36)
 // for its breath and size, BOUNCY = apple(0.5, 0.3) for the dust trailing a drag
 const SMOOTH_K = (2 * Math.PI / 0.36) ** 2, SMOOTH_C = (4 * Math.PI) / 0.36;
@@ -70,7 +80,7 @@ export class DustEngine {
     syl: [-1, -1, -1, -1], sylA: [0, 0, 0, 0], hsyl: [-1, -1, -1, -1], hsylA: [0, 0, 0, 0], lastHeard: -9, rot: 0, scale: 1, scaleV: 0, attn: 0, quietFor: 9, lx: 0, ly: 0, lvx: 0, lvy: 0,
     hold: 0, hx: 0, hy: 0, tapN: -1, tapAge: 99, tx: 0, ty: 0,
     bass: 0, bassV: 0, bassT: 0, mid: 0, high: 0, peak: [0.2, 0.2, 0.2], mood: 0, wake: 9, wasListen: false,
-    imp: new Float32Array(16).fill(-1), impK: 0, twP: 0, qShown: 1, q: 1, dts: [] as number[], slowFor: 0, fastFor: 0, beatN: -1, doneAge: 99, appear: 0, write: 0, unwrite: 0, crisp: 0 };
+    imp: new Float32Array(16).fill(-1), impK: 0, twP: 0, qShown: 1, q: 1, dts: [] as number[], slowFor: 0, fastFor: 0, beatN: -1, doneAge: 99, appear: 0, write: 0, unwrite: 0, crisp: 0, writeN: 0, jumpN: 0 };
   /** called when the words are fully written (true) or start leaving (false): the page shows or hides the crisp text */
   onCrisp: (on: boolean) => void = () => {};
   private crispOn = false;
@@ -185,7 +195,10 @@ export class DustEngine {
     for (let j = 3; j < 16; j += 4) if (s.imp[j] >= 0) s.imp[j] = s.imp[j] > 2 ? -1 : s.imp[j] + dt;
     if (st.beat !== s.beatN) { if (s.beatN >= 0) s.doneAge = 0; s.beatN = st.beat; } else s.doneAge += dt;
     // its words: written out of its dust, then (when you start talking) flowing back in
-    if (st.greet && s.appear > 0.3) { s.write = Math.min(2.2, s.write + dt / 1.5); s.unwrite = 0; }
+    // (a new shape starts from the orb; a shape that is already there, Undo's card, is written at once and leaves)
+    if ((st.writeN ?? 0) !== s.writeN) { s.writeN = st.writeN ?? 0; s.write = 0; s.unwrite = 0; }
+    if ((st.writeJump ?? 0) !== s.jumpN) { s.jumpN = st.writeJump ?? 0; s.write = 2.2; s.unwrite = 0; s.crisp = 1; }
+    if (st.greet && s.appear > 0.3) { s.write = Math.min(2.2, s.write + dt / (st.kind ? 1.15 : 1.5)); s.unwrite = 0; }
     else if (s.write > 0) { s.unwrite += dt / 1.3; if (s.unwrite > 1.6) { s.write = 0; s.unwrite = 0; } }
     const crisp = st.greet && s.write > 1.55;
     if (crisp !== this.crispOn) { this.crispOn = crisp; this.onCrisp(crisp); }
@@ -202,7 +215,9 @@ export class DustEngine {
     const R = st.r * dpr;
     gl.uniform2f(U('uView'), W, H); gl.uniform1f(U('uDpr'), dpr);
     gl.uniform2f(U('uC'), st.cx * dpr, H - st.cy * dpr); gl.uniform1f(U('uR'), R);
-    gl.uniform1f(U('uSz'), Math.max(0.5, 1.9 * R / 150));
+    // (the specks keep the size they have on the big orb: the horizon is the same dust, only more of it)
+    gl.uniform1f(U('uSz'), Math.max(0.5, 1.9 * Math.min(R, 120 * dpr) / 150));
+    gl.uniform1f(U('uHz'), red ? Math.round(st.hz ?? 0) : st.hz ?? 0); gl.uniform1f(U('uKind'), st.kind ?? 0); gl.uniform2f(U('uShift'), (st.shift?.[0] ?? 0) * dpr, -(st.shift?.[1] ?? 0) * dpr);
     gl.uniform1f(U('uT'), red ? 0 : this.t + 3); gl.uniform1f(U('uRot'), s.rot); gl.uniform1f(U('uScale'), s.scale);
     gl.uniform1f(U('uIn'), s.vin); gl.uniform1f(U('uOut'), s.vout);
     const b = s.bands; gl.uniform4f(U('uB0'), b[0], b[1], b[2], b[3]); gl.uniform4f(U('uB1'), b[4], b[5], b[6], b[7]); gl.uniform4f(U('uB2'), b[8], b[9], b[10], b[11]); gl.uniform4f(U('uB3'), b[12], b[13], b[14], b[15]);

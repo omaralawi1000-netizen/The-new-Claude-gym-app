@@ -38,6 +38,62 @@ function lattice(): { pts: V3; order: Uint16Array; jit: Float32Array } {
   return { pts, order, jit };
 }
 const LAT = lattice();
+
+// Stardust's look everywhere (Omar, 26 Oct: "make it the same design all over the place"): outside the launch the orb is
+// drawn as the same fine dust as the live orb (ui/stardust): specks of many sizes on a sphere's shell and a few inside,
+// turning in currents that slide past each other, light gathered in streams, a few twinkling. The 400 beads stay only for
+// the launch logo (each bead is one of its dots), then hand over to the dust.
+const DN = 1500;
+const DUST = (() => {
+  let seed = 11; const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const g = Math.PI * (3 - Math.sqrt(5)), lat = new Float32Array(DN), lon = new Float32Array(DN), sh = new Float32Array(DN), sz = new Float32Array(DN), ph = new Float32Array(DN);
+  for (let i = 0; i < DN; i++) {
+    const y = 1 - (2 * (i + 0.5)) / DN; lat[i] = y; lon[i] = i * g;
+    sh[i] = rnd() < 0.16 ? 0.42 + rnd() * 0.42 : 0.93 + rnd() * 0.09;
+    const u = rnd(); sz[i] = u < 0.72 ? 0.7 + rnd() * 0.5 : u < 0.95 ? 1.2 + rnd() * 0.8 : 2 + rnd() * 1.2;
+    ph[i] = rnd() * 6.2832;
+  }
+  // (shuffled, so a smaller orb draws an even share of them)
+  const order = new Uint16Array(DN); for (let i = 0; i < DN; i++) order[i] = i;
+  for (let i = DN - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = order[i]; order[i] = order[j]; order[j] = t; }
+  return { lat, lon, sh, sz, ph, order };
+})();
+const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+/** the dust, drawn round (c, c) at radius R: `light` its extra light (voice, a tap, a press), `k` how much of it shows */
+function drawDust(ctx: Ctx2D, c: number, R: number, t: number, rot: number, vis: number, light: number, k: number, hi: RGB, lo: RGB, alt: RGB, dark: boolean, reduced: boolean) {
+  // (a palette of 14 shades from the far side's second colour through the accent to white, made once per frame)
+  const pal: string[] = [];
+  for (let q = 0; q < 14; q++) { const m = q / 13; const a = m < 0.5 ? m * 2 : 1, w = m < 0.5 ? 0 : (m - 0.5) * 2 * (dark ? 0.7 : 0.25);
+    const base: RGB = [alt[0] + (hi[0] - alt[0]) * a, alt[1] + (hi[1] - alt[1]) * a, alt[2] + (hi[2] - alt[2]) * a];
+    const d = dark ? 1 : 0.72; pal.push(`rgb(${((base[0] + (255 - base[0]) * w) * d) | 0},${((base[1] + (255 - base[1]) * w) * d) | 0},${((base[2] + (255 - base[2]) * w) * d) | 0})`); }
+  void lo;
+  const count = Math.min(DN, Math.max(900, Math.round(vis * 16)));
+  const small = 1 + 1.1 * smooth(110, 40, vis); // (a small orb, in the dock: brighter, so it is still dust, not haze)
+  const tilt = 0.38, ct = Math.cos(tilt), st = Math.sin(tilt), T = reduced ? 0 : t;
+  const px = R / 70; // (a speck's size follows the orb, as on the live orb)
+  for (let n = 0; n < count; n++) {
+    const i = DUST.order[n], y0 = DUST.lat[i], shell = DUST.sh[i];
+    const flow = (0.6 * Math.sin(y0 * 3.6 + 1.3) + 0.25 * Math.sin(y0 * 7.9 - 0.4)) * (0.55 + 0.45 * shell) * (reduced ? 0 : 1);
+    const shear = flow * (0.9 * Math.sin(T * 0.11) + 0.5 * Math.sin(T * 0.07 + 1));
+    const lon = DUST.lon[i] + rot + shear, rr = Math.sqrt(1 - y0 * y0);
+    const x = Math.cos(lon) * rr, z0 = Math.sin(lon) * rr;
+    const y = y0 * ct - z0 * st, z = y0 * st + z0 * ct;
+    const persp = 1 / (1 - z * 0.28), rad = shell * R * (1 + 0.012 * Math.sin(T * 1.05));
+    const sx = c + x * rad * persp, sy = c - y * rad * persp;
+    const depth = (z / Math.max(shell, 0.3) + 1) * 0.5;
+    const lonF = DUST.lon[i] + shear * 1.6 + T * 0.03;
+    const cloud = 0.5 + 0.5 * Math.sin(y0 * 5.5 + Math.sin(lonF * 2 + T * 0.3) * 1.3 + T * 0.2) * Math.cos(lonF * 1.5 - T * 0.15);
+    const lit = Math.min(1, smooth(0.52, 0.86, cloud) + light * 0.5);
+    const tw = reduced ? 0 : Math.pow(0.5 + 0.5 * Math.sin(T * (1.3 + DUST.ph[i] * 0.4) + DUST.ph[i] * 6), 14) * (DUST.sz[i] > 2 ? 1 : 0.35);
+    const a = (0.06 + 0.94 * Math.pow(depth, 1.6)) * (0.12 + 0.88 * lit) * (1 + tw * 0.8) * k * (dark ? 1 : 1.5) * small;
+    if (a < 0.02) continue;
+    ctx.globalAlpha = Math.min(1, a);
+    ctx.fillStyle = pal[Math.max(0, Math.min(13, Math.round((0.3 + 0.4 * depth + 0.3 * lit + 0.2 * tw) * 13)))];
+    const w = Math.max(0.7, DUST.sz[i] * px * (0.55 + 0.6 * depth) * (1 + tw * 0.6));
+    ctx.fillRect(sx - w / 2, sy - w / 2, w, w);
+  }
+  ctx.globalAlpha = 1;
+}
 /** Orbit's beads: three rows of the orb's own beads round it (inner row fewest), each with its place, a small spread off
  *  the row (dust, not a drawn line), its own size and its own slow twinkle. Fixed, so nothing ever jumps. */
 const ORBIT = (() => {
@@ -167,6 +223,7 @@ export class SphereRenderer {
   private ign = -1;                        // seconds into the arrival spiral (-1: none)
   private ignTop = false;                  // its front has reached the top (the whole orb lit up)
   private lk = 0;                          // how much it is still the launch logo (1 … 0)
+  private dk = 1;                          // how much it is dust (0 while it is the launch logo; eases in after it)
   private lt = -1;                         // seconds into becoming the sphere (-1: not yet)
   /** each bead's logo dot (-1: on the far side, it isn't in the logo), its share of that dot's light, and the logo dots no
    *  near bead is closest to (drawn by their nearest bead's twin, fading as the sphere forms). Fixed when the logo is
@@ -541,11 +598,17 @@ export class SphereRenderer {
     const glowK = 0.1;
     if (LK > 0) {
       this.drawLogo(LK, c, R, dots, buckets, NB, NH, NM, (b, h, q) => tint(b, h, q), alphaOf, dark, glowK, B.hi);
-    } else for (let q = 0; q < NM; q++) {
+    } else {
+      this.dk = LK > 0 ? 0 : Math.min(1, this.dk + dt / (reduced ? 0.01 : 0.8));
+      if (this.dk > 0) drawDust(ctx, c, R, this.t, this.rot, Math.max(30, (inp.vis ?? W / 2)), this.env * 0.8 + this.flash * 0.6 + this.press * 0.3 + this.body * 0.3, this.dk * fade, B.hi, B.lo, B.alt, dark, reduced);
+    }
+    if (LK <= 0 && this.dk < 1) for (let q = 0; q < NM; q++) {
       const at = (b: number, h: number) => buckets[(q * NB + b) * NH + h];
+      ctx.globalAlpha = 1 - this.dk;
       if (dark) for (let b = 4; b < NB; b++) for (let h = 0; h < NH; h++) { const list = at(b, h); if (list.length) pass(list, 0, 2.0, rgba(tint(b, h, q), alphaOf(b) * glowK)); }
       for (let b = 0; b < NB; b++) for (let h = 0; h < NH; h++) { const list = at(b, h); if (list.length) pass(list, 0, 0.96, rgba(tint(b, h, q), alphaOf(b))); }
       if (dark) for (let h = 0; h < NH; h++) { const list = at(NB - 1, h); if (list.length) pass(list, 0, 0.36, rgba(whiten(tint(NB - 1, h, q), 0.6), alphaOf(NB - 1) * 0.36)); }
+      ctx.globalAlpha = 1;
     }
     // the launch's coil: added light over the beads it lights (a quarter brighter, even where a bead is already at full)
     if (launchIgn && LK <= 0) this.coil(dots.map((d) => d.x), dots.map((d) => d.y), dots.map((d) => d.r), B.hi, 1, dark);
@@ -565,7 +628,7 @@ export class SphereRenderer {
     // at the top left, where the light comes from. Both are light only and sit still while the beads turn inside.
     const Rs = R * 1.03; // the outline, perspective included
     const edge = whiten([hiX[0] + (altX[0] - hiX[0]) * 0.4, hiX[1] + (altX[1] - hiX[1]) * 0.4, hiX[2] + (altX[2] - hiX[2]) * 0.4], 0.35);
-    const ek = (dark ? 1 : 0.7) * fade * (1 - LK);
+    const ek = (dark ? 1 : 0.7) * fade * (1 - LK) * (1 - 0.85 * this.dk);
     const rim = ctx.createRadialGradient(c, c, Rs * 0.8, c, c, Rs * 1.07);
     rim.addColorStop(0, rgba(edge, 0));
     rim.addColorStop(0.5, rgba(edge, 0.035 * ek));
@@ -575,8 +638,8 @@ export class SphereRenderer {
     ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(c, c, Rs * 1.07, 0, TAU); ctx.fill();
     const sx = c - R * 0.34, sy = c - R * 0.4;
     const gloss = ctx.createRadialGradient(sx, sy, 0, sx, sy, R * 0.66);
-    gloss.addColorStop(0, `rgba(255,255,255,${(dark ? 0.085 : 0.1) * fade * (1 - LK)})`);
-    gloss.addColorStop(0.45, `rgba(255,255,255,${(dark ? 0.03 : 0.035) * fade * (1 - LK)})`);
+    gloss.addColorStop(0, `rgba(255,255,255,${(dark ? 0.085 : 0.1) * fade * (1 - LK) * (1 - this.dk)})`);
+    gloss.addColorStop(0.45, `rgba(255,255,255,${(dark ? 0.03 : 0.035) * fade * (1 - LK) * (1 - this.dk)})`);
     gloss.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.save(); ctx.beginPath(); ctx.arc(c, c, Rs, 0, TAU); ctx.clip();
     ctx.fillStyle = gloss; ctx.fillRect(c - Rs, c - Rs, Rs * 2, Rs * 2);

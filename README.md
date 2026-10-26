@@ -3466,3 +3466,19 @@ page's main thread and add full-screen glow passes over the glass):
 - **Swipes:** down puts it away (as before); up opens the Coach chat (the whole conversation, and typing).
 - **Seamless from the dock:** the dust appears 120 ms after opening and rides with the orb as it flies up (it follows the drawn
   orb, `.sphere-stage`, until it lands, then its place and your finger).
+
+### Horizon, cards made of dust, one look everywhere (26 Oct 2026, Beta)
+Omar picked "Horizon" from four orb-screen versions (artifact "Orb Screen, Four Ways") and asked: "make it as good as
+possible… the same design all over the place… the dust should shape the card almost fully… then fade into it".
+- **Horizon** (`ui/stardust`): while you talk the dust is the big orb. When the conversation shows, it eases (≈1 s) down
+  and out into a large sphere below the screen's bottom edge, a planet seen from orbit: its top kept below the last line
+  (a long answer pushes it lower, to a glowing strip), tilted to show more of its top, a soft ring of light along its rim
+  (one element, transform and opacity only), each syllable a ripple along the rim (its voice from the middle out, yours from
+  the edges in), thinking as weather (bands swirling to and fro) instead of the galaxy. A new question brings the orb back.
+- **Cards made of dust** (`ui/stardust/shape.ts`, Voice.tsx forming queue): a new card is laid out unseen; once it is
+  still and its own animations are done, its outline, its buttons and chips, its icons and every word (in its own font and
+  place) are sampled into up to 6,000 points. 6,000 specks fly there and draw the card, then it flashes towards white and
+  the real card takes over; the rest flows home. Undo: the dust starts on the card and flows home. If the dust can't draw,
+  the card just appears (4 s at most).
+- **One look everywhere** (`ui/sphereRender.ts`): the small orb (dock, Coach) is now drawn as the same dust (currents,
+  streams of light, twinkle, brighter when small). The 400 beads remain only for the launch logo, then crossfade to dust.

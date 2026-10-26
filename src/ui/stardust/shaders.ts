@@ -11,8 +11,8 @@ uniform float uAttn; uniform float uQuiet;
 uniform vec4 uSyl; uniform vec4 uSylA; uniform vec3 uTouch; uniform float uTapAge; uniform vec3 uHold; uniform vec2 uLean;
 uniform float uWrite; uniform float uUnwrite; uniform float uCrisp; uniform vec2 uView; uniform float uDpr; uniform float uReduce; uniform float uSmall;
 uniform vec4 uHeard; uniform vec4 uHeardA;
-uniform float uBass; uniform float uMid; uniform float uHigh; uniform float uWake; uniform vec4 uImp[4]; uniform float uTwP; uniform float uCut; uniform float uBand;
-out float vA; out float vHot; out float vOk; out float vBack; out float vGlow;
+uniform float uBass; uniform float uMid; uniform float uHigh; uniform float uWake; uniform vec4 uImp[4]; uniform float uTwP; uniform float uCut; uniform float uBand; uniform float uHz; uniform float uKind; uniform vec2 uShift;
+out float vA; out float vHot; out float vOk; out float vBack; out float vGlow; out float vWr;
 #define PI 3.14159265
 float band(float x) {
   float f = clamp(x, 0.0, 1.0) * 15.0; int i = int(floor(f)); float r = f - float(i);
@@ -40,17 +40,18 @@ void main() {
   float flow = (0.6 * sin(lat * 3.6 + 1.3) + 0.25 * sin(lat * 7.9 - 0.4)) * (0.55 + 0.45 * shell) * (1.0 - uReduce);
   float shear = flow * (0.9 * sin(uT * 0.11) + 0.5 * sin(uT * 0.07 + 1.0));
   float lon0 = atan(p.z, p.x);
-  float spin = uRot + shear;
+  // (on the horizon, thinking is weather: its bands swirl past each other, to and fro)
+  float spin = uRot + shear + uThink * uHz * 0.7 * sin(lat * 5.0 + uT * 0.5) * (1.0 - uReduce);
   float lat2 = lat + 0.035 * sin(lon0 * 3.0 + uT * 0.37 + lat * 2.0) * sqrt(max(0.0, 1.0 - lat * lat)) * (1.0 - uReduce);
   float rr0 = sqrt(max(0.0, 1.0 - lat2 * lat2));
   p = vec3(cos(lon0 + spin) * rr0, lat2, sin(lon0 + spin) * rr0);
   float lonF = lon0 + shear * 1.6 + uT * 0.03; // (where the speck is along its current, for its light)
-  p.yz = rot(0.38) * p.yz;
+  p.yz = rot(0.38 + 0.5 * uHz) * p.yz; // (the horizon is seen from above: more of its top towards you)
   float r = shell;
   vec3 pv = p; // (seen direction, for the rim)
   // thinking: the sphere's dust settles into a spinning galaxy, each speck in its own turn (so it flows, never snaps):
   // spread from the core out, the inner ones turning faster, gathered into two arms, seen from a little above
-  float gk = sm(uThink * 1.35 - aRnd.z * 0.35) * (1.0 - uReduce);
+  float gk = sm(uThink * 1.35 - aRnd.z * 0.35) * (1.0 - uReduce) * (1.0 - uHz);
   float rg = pow(aRnd.x, 0.75) * 1.05 + 0.03;
   float ga = atan(aHome.z, aHome.x) - uT * 0.9 / (rg + 0.35);
   ga += 0.42 * sin(2.0 * (ga + log(rg) * 3.2));
@@ -82,6 +83,17 @@ void main() {
     float w = exp(-d * d * 16.0) * fade * fade * (1.0 - uReduce);
     r *= 1.0 + w * 0.1 * (1.0 - uReduce); hot += w * 1.2; impHot += w;
   }
+  // on the horizon: each syllable runs as a ripple of light sideways along its rim, from the middle out (its voice) or
+  // from the edges in (yours)
+  float rimW = 0.0;
+  if (uHz > 0.01) {
+    float rimK = pow(1.0 - abs(pv.z), 2.5) * uHz * (1.0 - uReduce);
+    for (int i = 0; i < 4; i++) {
+      float a1 = uSyl[i]; if (a1 >= 0.0 && a1 < 1.4) { float d = abs(pv.x) - a1 * 0.85; rimW += exp(-d * d * 28.0) * uSylA[i] * (1.0 - a1 / 1.4) * uSpeak * rimK; }
+      float a2 = uHeard[i]; if (a2 >= 0.0 && a2 < 1.2) { float d = abs(pv.x) - (1.0 - a2 * 0.85); rimW += exp(-d * d * 28.0) * uHeardA[i] * (1.0 - a2 / 1.2) * uListen * rimK; }
+    }
+    r *= 1.0 + rimW * 0.035; hot += rimW * 1.4;
+  }
   // its voice: a wave of light running out through the dust with each syllable
   for (int i = 0; i < 4; i++) { float age = uSyl[i]; if (age < 0.0 || age > 1.4) continue; float d = shell - age * 1.1; float w = exp(-d * d * 60.0) * uSylA[i] * (1.0 - age / 1.4) * uSpeak; r *= 1.0 + w * 0.06 * (1.0 - uReduce); hot += w; }
   r *= 1.0 + uOut * uSpeak * 0.035;
@@ -108,7 +120,7 @@ void main() {
   // writing: the writer specks fly out (each in its turn, left to right) to the words, and back
   float wr = 0.0;
   if (aTg.x >= 0.0) {
-    vec2 tgt = vec2(aTg.x, uView.y / uDpr - aTg.y) * uDpr;
+    vec2 tgt = vec2(aTg.x, uView.y / uDpr - aTg.y) * uDpr + uShift * uKind;
     float dl = (aTg.x * uDpr / uView.x) * 0.5 + aRnd.z * 0.25;
     float k = sm((uWrite - dl) / 0.5) * (1.0 - sm((uUnwrite - aRnd.x * 0.45) / 0.55));
     if (k > 0.0) px = bow(px, tgt, (aRnd.y - 0.5) * 80.0 * uDpr * (1.0 - uReduce), uReduce > 0.5 ? step(0.5, k) : k);
@@ -130,20 +142,27 @@ void main() {
   float tw = pow(0.5 + 0.5 * sin(uT * (1.3 + aRnd.y * 2.6) + uTwP * (0.5 + aRnd.y) + aRnd.x * 40.0), mix(14.0, 6.0, uHigh)) * (aRnd.w > 2.4 ? 1.0 : 0.35 + uHigh * 0.4) * (1.0 - uReduce);
   // the far side small and faint, the near side crisp: depth
   gl_PointSize = (1.0 + vGlowPre(lit, hot, tw) * 0.7) * max(1.0 + 0.4 * uSmall, aRnd.w * uSz * mix(mix(0.55, 1.05, depth), 1.0, wr) * (1.0 + hot * 0.5 + tw * 0.6) * (1.0 + bv * 0.4 * (1.0 - uReduce)) * mix(mix(0.5, 1.2, lit), 1.0, wr));
+  // (writing, every speck is the same fine size whatever the orb's: the outline and the words read cleanly)
+  gl_PointSize = mix(gl_PointSize, clamp(aRnd.w, 0.8, 1.6) * uDpr * mix(1.15, 0.9, uKind), wr);
   float a0 = mix(0.05, 1.0, pow(depth, 1.6)) * (0.09 + 0.91 * lit) + rim * 0.3;
   // (once the words are written in crisp text, their dust steps back to a faint shimmer behind them)
   vA = mix(a0, mix(0.95, 0.22, uCrisp), wr) * ap * (1.0 + 1.6 * ap * (1.0 - ap) * (1.0 - uReduce)) * (1.0 + bv * 0.35 + uIn * uListen * 0.15 + gk * 0.9 + uAttn * 0.35 + tw * 0.8) * (1.0 - 0.45 * uQuiet) * (1.0 + 0.7 * uSmall);
   // only the hottest specks get a halo of light (the glow is a highlight, never a fog over the whole orb)
   vGlow = clamp(smoothstep(0.8, 1.0, lit) * 0.6 + hot * 0.3 + tw * 0.45 + wk * (1.0 - shell) * 1.5, 0.0, 1.0) * (1.0 - wr);
+  // (a card it writes: at the moment the real card appears, its dust flashes towards white and steps back)
+  float flash = uKind * uCrisp * (1.0 - uCrisp) * 4.0 * wr;
+  vA *= 1.0 + flash * 0.9;
+  if (uKind > 0.5) vA = mix(vA, vA * mix(1.0, 0.06 / 0.22, uCrisp), wr);
+  vWr = wr * uKind;
   vA *= (wr > 0.0 ? 1.0 : smoothstep(uCut + uBand * 0.5, uCut - uBand * 0.5, float(gl_VertexID))) * (1.0 + wk * (1.0 - smoothstep(0.5, 1.0, shell)) * 2.0) * (1.0 + impHot * 2.2);
-  vHot = hot + heardHot * 0.8 + wk * 0.5 + lit * lit * 0.35 + gk * exp(-length(q.xz) * 4.0) * 1.6 + bv * 0.35 + uAttn * 0.25;
+  vHot = hot + heardHot * 0.8 + wk * 0.5 + lit * lit * 0.35 + gk * exp(-length(q.xz) * 4.0) * 1.6 + bv * 0.35 + uAttn * 0.25 + flash * 1.4;
   // logged: the success colour runs up through it
   vOk = uDone > 0.0 ? exp(-pow((lat + 1.0 - uDone * 2.4) * 3.0, 2.0)) * (1.0 - uDone) : 0.0;
 }`;
 
 export const DUST_FS = `#version 300 es
 precision highp float;
-in float vA; in float vHot; in float vOk; in float vBack; in float vGlow;
+in float vA; in float vHot; in float vOk; in float vBack; in float vGlow; in float vWr;
 uniform vec3 uAc; uniform vec3 uAlt; uniform vec3 uOk; uniform float uDark; uniform float uMood;
 out vec4 o;
 void main() {
@@ -158,6 +177,8 @@ void main() {
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
   col = mix(col, uMood > 0.0 ? mix(uAlt, vec3(1.0), 0.25 * uDark) * (0.7 + lum) : uAc * 0.55, clamp(abs(uMood), 0.0, 1.0) * 0.35);
   col = mix(col, uOk, clamp(vOk, 0.0, 1.0));
+  // (a card in dust takes the colour of the card's own words)
+  col = mix(col, uDark > 0.5 ? vec3(1.0, 0.97, 0.95) : vec3(0.1, 0.08, 0.1), clamp(vWr * 0.8, 0.0, 1.0));
   float a = clamp(vA * (core * mix(0.6, 0.75, vGlow) + glow * mix(0.4, 0.5, vGlow)) * mix(1.0, 1.6, 1.0 - uDark), 0.0, 1.0);
   o = vec4(col * a, a);
 }`;
