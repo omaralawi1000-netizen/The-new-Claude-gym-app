@@ -199,10 +199,10 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     };
     // one slow sweep through the day, left to right, every layer together (the day in time order); the labels and now settle after
     layer('axis')?.animate([{ opacity: 0, offset: 0 }], { duration: 600, delay: 200, easing: 'linear', fill: 'both' });
-    for (const k of ['sleep', 'heart', 'steps', 'moves']) wipe(k, 320, 1700);
+    for (const k of ['sleep', 'heart', 'steps', 'moves']) wipe(k, 220, 1200);
     // the steps label fades in once the sweep has drawn its hill (a wipe would cut it letter by letter)
-    layer('slab')?.animate([{ opacity: 0, offset: 0 }], { duration: 400, delay: 950, easing: 'linear', fill: 'both' });
-    layer('now')?.animate([{ opacity: 0, transform: 'translateY(-6px)', offset: 0 }], { duration: 450, delay: 1050, easing: EO, fill: 'both' });
+    layer('slab')?.animate([{ opacity: 0, offset: 0 }], { duration: 360, delay: 640, easing: 'linear', fill: 'both' });
+    layer('now')?.animate([{ opacity: 0, transform: 'translateY(-6px)', offset: 0 }], { duration: 420, delay: 700, easing: EO, fill: 'both' });
   });
 
   // chapters and rows rise as they come into view. The ones on screen at the start carry on the same wave as the lines above
@@ -218,12 +218,13 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     if (!io.current) {
       t0.current = performance.now();
       // where the wave above ends: one step after the goal card
-      const first = 60 + Math.min(el.querySelectorAll('.hx-sent .hx-w').length ? 7 : 3, 7) * 60;
+      const first = 60 + Math.min(el.querySelectorAll('.hx-sent .hx-w').length ? 6 : 3, 6) * 50;
       io.current = new IntersectionObserver((es) => es.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top).forEach((e) => {
         const x = e.target as HTMLElement; io.current?.unobserve(x);
         const since = performance.now() - t0.current;
-        const late = since < 400 ? Math.max(0, Math.min(first + order.current++ * 55, 760) - since) : 0;
+        const late = since < 400 ? Math.max(0, Math.min(first + order.current++ * 45, 520) - since) : 0;
         x.style.opacity = '';
+        if (x.closest('.hx-root')?.querySelector('.hx-detail.live')) return; // home is under a page: it stays covered
         x.animate([{ opacity: 0, transform: 'translateY(12px)', offset: 0 }], { duration: 560, delay: late, easing: 'cubic-bezier(.25,1,.5,1)', fill: 'both' });
       }), { root: el, threshold: 0.2 });
     }
@@ -411,13 +412,13 @@ function Chapters({ v, t, lang, onTap }: { v: HealthView; t: TFn; lang: Lang; on
   return <>{CHAPTERS.map(({ name, keys }) => {
     const ks = keys.filter((k) => has(k, v));
     // no watch: Recovery says, once, what fills it in (a row of its own, never an empty chapter)
-    const empty = name === 'Recovery' && !v.hasWatch;
+    const empty = name === 'Body' && !v.hasWatch;
     if (!ks.length && !empty) return null;
     return (
       <div key={name} className="hx-chapter">
-        <h2 className="hx-chap" data-k={`ch-${name}`}>{t(name)}</h2>
-        {empty && <div className="hx-row hx-quiet" data-k="ch-watch"><div className="hx-rmain"><div className="hx-lab" style={{ ['--c' as string]: C.sleep }}><i />{t('Sleep and heart')}</div><div className="hx-sub hx-cap">{t('Connect your watch in Settings → Watch, and sleep, heart and steps fill in here.')}</div></div></div>}
+        {ks.length > 0 && <h2 className="hx-chap" data-k={`ch-${name}`}>{t(name)}</h2>}
         {ks.map((k) => <Section key={k} k={k} v={v} t={t} lang={lang} onTap={onTap} />)}
+        {empty && <div className="hx-row hx-quiet" data-k="ch-watch"><div className="hx-rmain"><div className="hx-lab" style={{ ['--c' as string]: C.sleep }}><i />{t('Sleep and heart')}</div><div className="hx-sub hx-cap">{t('Connect your watch in Settings → Watch, and sleep, heart and steps fill in here.')}</div></div></div>}
       </div>
     );
   })}</>;
@@ -471,7 +472,7 @@ function Section({ k, v, t, lang, onTap }: { k: K; v: HealthView; t: TFn; lang: 
     cap = b.rate !== null ? `${fmtSigned(kgToDisplay(b.rate, u), lang)} ${u}/${t('wk')}` : b.date ? t('Last weigh-in {d}', { d: fmtDate(b.date, lang, { day: 'numeric', month: 'short' }) }) : null;
     if (b.series.length > 2) side = <Spark values={b.series} w={92} h={28} />;
   } else if (k === 'training') {
-    num = String(v.train.n28); unit = t('workouts in 4 weeks');
+    num = String(v.train.n28); unit = t('workouts, last 4 weeks');
     cap = t('Charts, records and exercise trends');
     side = <WeekBars weeks={v.train.weeks} target={v.week.target} />;
   }
@@ -570,12 +571,12 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
       {st.curve.length > 1 && <div className="hx-bleed" data-share="chart" style={{ marginTop: 8 }}><StepsDay today={st.curve} usual={st.usualCurve} w={W} h={48} /></div>}
       <h3 className="hx-dt hx-rise">{ahead === undefined ? t('Today so far') : Math.abs(ahead) < 800 ? t('On your usual pace') : ahead > 0 ? t('Ahead of your usual day') : t('Behind your usual day')}</h3>
       {ahead !== undefined && st.usual && <p className="hx-dsub hx-rise">{t('The dotted line is your usual day. You tend to finish around {n}.', { n: fmtNum(Math.round(st.usual / 100) * 100, lang, 0) })}</p>}
-      <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('This week')}</div>
+      {st.week.some((x) => x.count) && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('This week')}</div>
         <svg viewBox={`0 0 ${w} 132`} width={w} height={132} style={{ display: 'block', overflow: 'visible' }} aria-hidden>
           <defs><clipPath id="hxW"><rect x="0" y="-10" width={w} height="126" /></clipPath></defs>
           <g clipPath="url(#hxW)">{st.week.map((x, i) => { const cx = 20 + (i / 6) * (w - 40), y = 116 - ((x.count ?? 0) / top) * 104; const now = x.date === v.today; return x.count ? <g key={x.date} className="hx-col"><rect x={cx - 1} y={y} width={2} height={116 - y + 14} rx={1} fill={C.move} opacity={now ? 1 : 0.55} /><circle cx={cx} cy={y} r={now ? 5 : 3.5} fill={C.move} /></g> : null; })}</g>
           {st.week.map((x, i) => <text key={x.date} className="hx-ax3" x={20 + (i / 6) * (w - 40)} y="130" textAnchor="middle">{fmtDate(x.date, lang, { weekday: 'narrow' })}</text>)}
-        </svg></div>
+        </svg></div>}
       {d && <div className="hx-panel hx-rise"><div className="hx-kv">
         {d.distanceM !== undefined && <div><span>{t('Distance')}</span><b>{fmtNum(d.distanceM / 1000, lang, 1)} km</b></div>}
         {d.floors !== undefined && <div><span>{t('Floors')}</span><b>{fmtNum(d.floors, lang, 0)}</b></div>}
@@ -617,7 +618,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
   } else if (k === 'training') {
     out = <>
       <div className="hx-lab"><i />{t('Training')}</div>
-      <div className="hx-rnum"><span className="hx-n hx-n52" data-share="num">{v.train.n28}</span><span className="hx-sub hx-unit" data-share="unit">{t('workouts in 4 weeks')}</span></div>
+      <div className="hx-rnum"><span className="hx-n hx-n52" data-share="num">{v.train.n28}</span><span className="hx-sub hx-unit" data-share="unit">{t('workouts, last 4 weeks')}</span></div>
       <div className="hx-rise hx-training"><ProgressBody /></div>
     </>;
   }

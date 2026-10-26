@@ -2138,6 +2138,6 @@ export const da: Record<string, string> = {
  "of {n} workouts": "af {n} træninger",
  "{n} min cardio this week": "{n} min kondition i denne uge",
  "Last weigh-in {d}": "Sidste vejning {d}",
- "workouts in 4 weeks": "træninger på 4 uger",
+ "workouts, last 4 weeks": "træninger, seneste 4 uger",
  "Charts, records and exercise trends": "Grafer, rekorder og øvelsestendenser",
 };
