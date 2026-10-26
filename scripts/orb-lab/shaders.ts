@@ -74,7 +74,7 @@ vec3 glass(vec2 p, vec3 n, float k) {
 }
 vec3 tone(vec3 c) { return 1.0 - exp(-c * 1.25); }
 // a touch: the strength of its ring of light at distance d (orb units) from where the finger landed
-float tapRing(float d) { float f = uTapAge * 1.3; return uTouch.z * exp(-uTapAge * 2.2) * exp(-pow((d - f) * 9.0, 2.0)); }
+float tapRing(float d) { float f = uTapAge * 1.1; return uTouch.z * exp(-uTapAge * 2.4) * (exp(-d * d * 28.0) * 0.7 + 0.22 * exp(-pow((d - f) * 5.0, 2.0))); }
 `;
 
 // 1. SILK: a glass sphere with a satin ribbon of light inside (Omar's reference clip). One half-twisted band that turns
@@ -171,14 +171,15 @@ float dens(vec3 q, out float heat) {
   w += vec3(uLean * 1.6, 0.0) * (1.0 - r);
   float h = band(sat((q.y + 1.0) * 0.5)) * uListen;
   vec3 f = w * 1.7 + vec3(0.0, -uT * 0.18, uT * 0.07);
-  f += 0.55 * vec3(snoise(f * 0.8 + 3.1), snoise(f * 0.8 + 7.9), snoise(f * 0.8 + 1.3)) * (1.0 + h * 1.5 + uIn * uListen * 0.6);
-  float d = fbm(f) * 0.6 + 0.35 - r * 0.55;
+  f += 0.4 * vec3(snoise(f * 0.6 + 3.1), snoise(f * 0.6 + 7.9), snoise(f * 0.6 + 1.3)) * (1.0 + h * 0.8 + uIn * uListen * 0.4);
+  float n1 = snoise(f * 0.9), n2 = snoise(f * 1.9 + 5.0);
+  float d = (n1 * 0.45 + n2 * 0.15) + 0.32 - r * 0.6;
   heat = 0.0;
-  for (int i = 0; i < 4; i++) { float age = uSyl[i]; if (age < 0.0 || age > 1.6) continue; float sh = age * 0.75; heat += uSylA[i] * uSpeak * exp(-pow((r - sh) * 7.0, 2.0)) * (1.0 - age / 1.6); }
+  for (int i = 0; i < 4; i++) { float age = uSyl[i]; if (age < 0.0 || age > 1.6) continue; float sh = age * 0.75; heat += uSylA[i] * uSpeak * 0.5 * exp(-pow((r - sh) * 9.0, 2.0)) * (1.0 - age / 1.6); }
   vec3 tp = vec3(uTouch.xy, sqrt(max(0.0, 1.0 - dot(uTouch.xy, uTouch.xy))) * 0.6);
   float tr = 0.08 + uTapAge * 0.25;
   heat += uTouch.z * exp(-uTapAge * 1.4) * exp(-dot(q - tp, q - tp) / (tr * tr)) * 1.5;
-  heat += uThink * exp(-r * r * 12.0) * 1.4 + uOut * exp(-r * r * 5.0) * 0.8;
+  heat += uThink * exp(-r * r * 12.0) * 1.4 + uOut * uSpeak * exp(-r * r * 14.0) * 0.6;
   return max(0.0, d) * (1.0 + h * 1.3);
 }
 void main() {
@@ -194,7 +195,7 @@ void main() {
       float rq = length(q);
       vec3 c = mix(uAlt * 0.9, uAc, sat(d * 2.2)) * d * 2.4;
       c += mix(uAc, vec3(1.0), 0.6) * pow(sat(d * 1.6), 3.0) * 2.0;
-      c += mix(uAc, vec3(1.0), 0.5) * heat * 1.6;
+      c += mix(uAc, vec3(1.0), 0.45) * min(heat, 1.2) * 1.3;
       c *= 0.55 + 0.45 * smoothstep(1.0, 0.2, rq);
       acc += c * tr * dz * 1.6;
       tr *= exp(-d * dz * 2.2);
@@ -226,14 +227,14 @@ float height(vec3 n) {
     h += wave(n, mid, uSyl[i], uSylA[i] * uSpeak * 0.05, 1.2);
   }
   vec3 tp = vec3(uTouch.xy, sqrt(max(0.0, 1.0 - dot(uTouch.xy, uTouch.xy))));
-  h += wave(n, tp, uTapAge, uTouch.z * 0.07, 1.5);
+  h += wave(n, tp, uTapAge, uTouch.z * 0.035, 1.5);
   h += 0.004 * snoise(n * 3.0 + uT * 0.3) * (1.0 + uIn * uListen * 3.0);
   return h;
 }
 vec3 env(vec3 d) {
   // a soft studio: a dark room, a big softbox above left, a thin strip light right, the accent's glow from below
-  vec3 c = vec3(0.02, 0.025, 0.04) + uAc * 0.12 * sat(-d.y) ;
-  c += vec3(1.0) * 1.6 * smoothstep(0.28, 0.0, length((d.xy - vec2(-0.42, 0.55)) * vec2(1.0, 1.5)));
+  vec3 c = vec3(0.03, 0.04, 0.06) + uAc * 0.2 * sat(-d.y) + mix(uAlt, uAc, 0.5) * 0.06 * sat(d.y + 0.3);
+  c += vec3(1.0) * 2.2 * smoothstep(0.32, 0.0, length((d.xy - vec2(-0.42, 0.55)) * vec2(1.0, 1.5)));
   c += vec3(1.0) * 0.9 * smoothstep(0.03, 0.0, abs(d.x - 0.62)) * smoothstep(0.6, 0.1, abs(d.y - 0.1));
   c += mix(uAc, uAlt, 0.5) * 0.5 * smoothstep(0.5, 0.0, length(d.xy - vec2(0.2, -0.75)));
   return c;
@@ -251,18 +252,19 @@ void main() {
     vec3 v = vec3(0.0, 0.0, 1.0);
     vec3 refl = reflect(-v, n);
     refl.xy = rot(uLean.x * 1.5) * refl.xy;
-    float fres = 0.04 + 0.96 * pow(1.0 - max(0.0, dot(n, v)), 4.0);
+    float fres = 0.08 + 0.92 * pow(1.0 - max(0.0, dot(n, v)), 3.0);
     // through it: the room behind, bent, coloured a little by the glass, with caustics deep inside while it thinks
     vec3 refr = refract(-v, n, 0.72);
     vec2 bp = p + refr.xy * 0.55 + uLean * 0.4;
     float ca = 0.0;
     if (uThink > 0.01) {
-      vec3 cq = vec3(bp * 2.2, uT * 0.35); cq.xy = rot(uT * 0.25) * cq.xy;
-      float c1 = abs(snoise(cq)), c2 = abs(snoise(cq * 1.9 + 4.0));
-      ca = uThink * (pow(1.0 - c1, 10.0) + 0.6 * pow(1.0 - c2, 12.0)) * smoothstep(1.0, 0.3, length(bp));
+      // soft light like sun through water on a pool's floor, drifting round slowly
+      vec3 cq = vec3(bp * 1.4, uT * 0.22); cq.xy = rot(uT * 0.18) * cq.xy;
+      float c1 = abs(snoise(cq)), c2 = abs(snoise(cq * 1.7 + 4.0));
+      ca = uThink * (pow(1.0 - c1, 7.0) * 0.5 + 0.3 * pow(1.0 - c2, 9.0)) * smoothstep(1.0, 0.2, length(bp));
     }
-    vec3 through = vec3(0.03, 0.04, 0.06) + mix(uAlt, uAc, 0.5 + 0.5 * bp.y) * 0.22 * smoothstep(1.2, 0.0, length(bp - vec2(0.0, -0.5)));
-    through += mix(uAc, vec3(1.0), 0.5) * ca * 1.4;
+    vec3 through = vec3(0.04, 0.05, 0.075) + mix(uAlt, uAc, 0.5 + 0.5 * bp.y) * 0.4 * smoothstep(1.3, 0.0, length(bp - vec2(0.0, -0.55)));
+    through += mix(uAc, vec3(1.0), 0.35) * ca * 1.1;
     through += uAc * (uIn * uListen * 0.35 + uOut * 0.45) * exp(-dot(bp, bp) * 1.8);
     vec3 c = mix(through, env(refl), fres);
     // a film of colour at the rim, like soap: the accent and its partner
@@ -306,6 +308,11 @@ void main() {
   float dpt = 0.0;
   { float a2 = uT * 2.1; vec2 dp = vec2(cos(a2), sin(a2)); dpt = uThink * exp(-length(p - dp) * 22.0) * 2.5; }
   vec3 atm = mix(uAlt, uAc, 0.6 + 0.4 * facing);
+  atm = mix(atm, uOk, sin(PI * uDone) * 0.85); // logged: the atmosphere glows the success colour once
+  // a touch: the light gathers to the rim where your finger is, in a flare
+  float ta = atan(uTouch.y, uTouch.x), tdA = abs(ang - ta); if (tdA > PI) tdA = 2.0 * PI - tdA;
+  float tflare = uTouch.z * exp(-uTapAge * 1.8) * exp(-tdA * tdA * 10.0) * exp(-abs(r - 1.0) * 14.0) * 1.6;
+  col += mix(uAc, vec3(1.0), 0.5) * tflare;
   col += atm * limb * lit * 1.6 + mix(uAc, vec3(1.0), 0.3) * rays * 0.9 + mix(uAc, vec3(1.0), 0.6) * flare + vec3(1.0) * dpt;
   col += atm * 0.25 * exp(-max(0.0, r - 1.0) * 3.0) * (lit * 0.6 + bv * 0.5 + uOut * 0.4);
   if (r < 1.0) {
@@ -316,8 +323,6 @@ void main() {
     vec3 pc = vec3(0.012, 0.015, 0.024) + atm * day * (0.12 + 0.18 * surf) * (0.4 + 0.6 * uSpeak);
     pc += atm * pow(1.0 - n.z, 4.0) * lit * 0.9; // the atmosphere seen through the edge
     pc += vec3(1.0) * pow(sat(dot(reflect(-L, n), vec3(0.0, 0.0, 1.0))), 30.0) * 0.25 * uSpeak;
-    pc += vec3(1.0) * tapRing(length(p - uTouch.xy)) * 0.5;
-    if (uDone > 0.0) pc += uOk * 0.5 * (1.0 - uDone) * exp(-pow((r - uDone) * 6.0, 2.0));
     col = mix(col, pc, smoothstep(1.0, 0.993, r) * uAppear);
   }
   o = vec4(tone(col), 1.0);
