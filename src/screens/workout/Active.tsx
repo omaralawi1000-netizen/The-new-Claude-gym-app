@@ -158,9 +158,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // there), eased away over the new move's first CARRY_N frames (`cv`); null: nothing carried
   const carry = useRef<Record<string, number> | null>(null);
   const CARRY_N = 24;
-  const cv = (k: string, v: number, pp: number) => {
+  const cv = (k: string, v: number, pp: number, n = CARRY_N) => {
     const o = carry.current?.[k], t = tOf.current;
-    return o && t ? v + o * (1 - sm(t(pp) / CARRY_N)) : v;
+    return o && t ? v + o * (1 - sm(t(pp) / n)) : v;
   };
   // Opening, the window sets off the moment the card is tapped, as the card itself (a copy of it, words and all, takes its
   // place in that frame), at no speed and easing in; closing, it is the card again by the time it gets there and lands in
@@ -299,15 +299,29 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // (r8 film: one after the other left the window bare but for the name for four frames, open f14-17; the list now starts
   // in three frames before the words have quite gone, and goes three frames after they have set off, where both are faint,
   // under 10 %)
-  // (an opening turned round starts it two frames sooner still: the card's words were part way back, and went from there,
-  // so the window was bare four frames, r8 min-int f52-55)
+  // (round 9, judge r8: an opening turned round starts it only once the card's words and its play button are really gone,
+  // as carried from where they were (`listFrom`), not before: they had been on their way back and the clock was still big
+  // and low, so it lay on the list's title and the play button on its "•••", min-int f53-55; a bare window for a frame or
+  // two is the lesser evil. Into the resume bar it goes three frames
+  // later: nothing of the card's comes in there after it but the bar's own line, and the window was a bare slab six frames,
+  // pill-min f48-53)
+  const src = useRef<HTMLElement[]>([]); // (the card's surface and its words, set in `measure`; here as `listV` reads it)
   const LIST_N = 10, LIST_LAP = 3;
+  // (`listFrom`: an opening turned round, the frame its card's words and play button are really gone, carried in from where
+  // they were, `startOpen`; null: the plain course)
   const turnedOpen = useRef(false);
+  const listFrom = useRef<number | null>(null);
   const listV = (pp: number) => {
     const t = tOf.current, i = t!(pp);
-    return leaving.current ? 1 - sm((i - (tDep() - LIST_N + LIST_LAP)) / LIST_N) : sm((i - PART_N.words + LIST_LAP + (turnedOpen.current ? 2 : 0)) / LIST_N);
+    const late = src.current[0]?.dataset.wk === 'pill' ? 3 : 0;
+    if (leaving.current) return 1 - sm((i - (tDep() - LIST_N + LIST_LAP + late)) / LIST_N);
+    const i0 = turnedOpen.current ? (listFrom.current ?? PART_N.words + 3) + 1 : PART_N.words - LIST_LAP;
+    return sm((i - i0) / LIST_N);
   };
-  const insideV = (pp: number) => (from.current ? (timed() ? clamp01(cv('list', listV(pp), pp)) : ramp(pp, F().views ?? F().inside)) : 1);
+  // (and it is either there or not: under 3 % it is nothing, and a move turned round blends into its course over three
+  // frames, not CARRY_N: carried 24 frames it hung on a few % for eight, under the card's "1 / 12", judge r8 open-int f53-61)
+  const listOf = (pp: number) => { const v = clamp01(cv('list', listV(pp), pp, 3)); return v < 0.03 ? 0 : v; };
+  const insideV = (pp: number) => (from.current ? (timed() ? listOf(pp) : ramp(pp, F().views ?? F().inside)) : 1);
   // (never quite 0 while it is there: the browser leaves what lies inside a fully clear layer to the page to animate, frame
   // by frame, instead of running it itself)
   const skinV = (pp: number) => { const v = F().veil; return clamp01(cv('skin', 1 - (v ? clamp01((pp - v[0]) / (v[1] - v[0])) : ramp(pp, F().skin)), pp)); };
@@ -338,7 +352,9 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const t = tOf.current;
     if (!t || ls.current !== 'D' || !from.current) return null;
     const n = PART_N[kind], i = t(pp);
-    const v = !leaving.current ? sm(i / n) : kind === 'status' ? 1 - sm((i - tLand()) / n) : 1 - sm((i - tDep()) / n);
+    // (round 9: closing, the play button grows from three frames later than the rest, so it is never seen while the done
+    // boxes' copies are still going: one orange speck seemed to jump 150 px into the other, judge r8 open-int f52-53)
+    const v = !leaving.current ? sm(i / n) : kind === 'status' ? 1 - sm((i - tLand()) / n) : 1 - sm((i - tDep() - (kind === 'pop' ? 3 : 0)) / n);
     return clamp01(cv(`part-${kind}`, v, pp));
   };
   // the list's own bottom edge: how far down the list is uncovered (0 none, 1 all of it, the window's edge clipping it)
@@ -568,7 +584,6 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // copy's words stand in for them and back the frame it lands; its surface: Today's card (`exact`, nothing frosted) is
   // copied exactly, so it is hidden too, all but its shadow on the page; the resume bar is frosted (nothing on a moving
   // layer is blurred), so its own surface stays, under the window's ground, and is what shows as that ground clears.
-  const src = useRef<HTMLElement[]>([]);
   const exact = useRef(true);
   const cardKey = useRef('');
   const cardAt = (pp: number) => {
@@ -599,6 +614,14 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // frames (their edges merge; none of it is see-through, so nothing doubles); the play button and the live dot swap in
   // the same frame, as before (their glows are see-through and would double).
   const HAND_MS = (10 * 1000) / 120;
+  // the live dot's ring (.pulse-dot::before, a CSS pulse) on `to` put at the very point of its 1.8 s pulse that `from`'s is
+  // at: the copy's ring set off when the copy was made, so at the hand-over the card's own dot showed its ring at another
+  // point of the pulse, a glow gone or a bright ring in one frame (judge r8 pill-min f95, pill-swipe f135, swipe-min f134)
+  const syncPulse = (from: Element | null | undefined, to: Element | null | undefined) => {
+    const ring = (r: Element | null | undefined) => { const d = r?.querySelector('.pulse-dot'); return d ? d.getAnimations({ subtree: true }).find((a) => (a.effect as KeyframeEffect | null)?.pseudoElement === '::before') ?? null : null; };
+    const a = ring(from), b = ring(to);
+    if (a && b && a.currentTime !== null) b.currentTime = a.currentTime;
+  };
   const handOver = () => {
     const k = skinParts.current, sk = skinRef.current, top = skinTopRef.current, H2 = 2 * HAND_MS;
     // (round 7b, in two steps, so nothing changes in one frame: the card's own words come up under the copy's over ten
@@ -610,12 +633,26 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     cancelHand();
     const keep = (a: Animation | undefined | null) => { if (a) handAnims.current.push(a); };
     for (const el of words) keep(el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: HAND_MS, easing: 'linear', fill: 'backwards' }));
+    syncPulse(k?.dot, fg); // (its own part: the play button's copy holds a hidden dot of its own)
     if (top) { mirror.current?.of(top)?.cancel(); top.style.opacity = '0.002'; }
     if (sk) {
       mirror.current?.of(sk)?.cancel(); sk.style.opacity = String(skinO(LAND_AT_D + 0.002));
       // (and the ground under the copy goes with it: left on, its last few % of dark lay over the card's own play button,
       // which dimmed by a tenth for a frame and came back, t7b f95)
-      if (k) { k.mat.style.background = 'transparent'; mirror.current?.of(k.back)?.cancel(); k.back.style.opacity = '0'; }
+      const back0 = k ? getComputedStyle(k.back).opacity : '0'; // (as drawn, before its own animation is stopped)
+      if (k) mirror.current?.of(k.back)?.cancel();
+      if (k && exact.current) k.back.style.opacity = '0';
+      // (round 9: the resume bar's own frosted ground has been under the copy's all along, a shade lighter (r9 pill-min f95:
+      // the whole bar stepped 8 levels in one frame), so there the copy's ground (and the dark under it) fades off over ten frames, with the copy's
+      // play button and dot kept on top meanwhile (the bar's own button under a part-faded ground went brown, t7b f95) and the
+      // bar's own dot hidden (two rings over each other glow twice as bright); the card's own ground was hidden, and comes
+      // back under the copy's in this frame, so there it goes at once (faded, the two lay over each other, 18 levels lighter))
+      if (k && !exact.current) {
+        keep(k.mat.animate([{ opacity: getComputedStyle(k.mat).opacity }, { opacity: 0 }], { duration: HAND_MS, easing: 'linear', fill: 'forwards' }));
+        keep(k.back.animate([{ opacity: back0 }, { opacity: 0 }], { duration: HAND_MS, easing: 'linear', fill: 'forwards' }));
+        if (top) keep(top.animate([{ opacity: 1 }, { opacity: 1, offset: 0.999 }, { opacity: 0.002 }], { duration: HAND_MS, easing: 'linear', fill: 'forwards' }));
+        if (k.dot) keep(fg?.querySelector('.pulse-dot')?.animate([{ opacity: 0 }, { opacity: 0, offset: 0.999 }, { opacity: 1 }], { duration: HAND_MS, easing: 'linear' }));
+      } else if (k) k.mat.style.background = 'transparent';
       keep(sk.animate([{ opacity: sk.style.opacity }, { opacity: sk.style.opacity, offset: 0.5 }, { opacity: 0.002 }], { duration: H2, easing: 'linear', fill: 'forwards' }));
       // the rim, a see-through line, would double where the two lie a device pixel apart: the card's own comes up as the copy's goes
       const bg = src.current[0], rim = bg?.matches('.plinth') ? bg : bg?.querySelector<HTMLElement>('.plinth');
@@ -721,8 +758,12 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     if (n === null || !g) return 0;
     // where its top is to be on the screen: where it rests, or under the window's bottom edge once that is past it (a card
     // ending below the bar's top: once that is past where the card ends). It holds still while the page under it sinks.
-    const bot = g.b + (hA - LEAD + RB - g.b) * qAt(pp), k = 1 - 0.05 * env(pp), c = H / 2;
-    const v = (n + Math.max(0, bot - Math.max(n, g.b)) - c) / k + c - n;
+    // (round 9: and it slides away down off the screen over the first 40 % of the window's way, back up over the last 40 %
+    // of a close, ahead of the edge: carried on the edge it stood under the growing window all the way down, judge r8 open
+    // f16-27. Not let under the window instead: the window's frosted bar would then lie over its frost, blur on blur.)
+    const q = qAt(pp), bot = g.b + (hA - LEAD + RB - g.b) * q, k = 1 - 0.05 * env(pp), c = H / 2;
+    const away = (H - n + 24) * sm(q / 0.4);
+    const v = (n + Math.max(0, bot - Math.max(n, g.b), away) - c) / k + c - n;
     // (only a true rest is let go: a threshold here made it hop by a quarter pixel as it set off)
     return v > 0.005 ? v : 0;
   };
@@ -745,7 +786,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // the set being undone (r5). So while the window moves, each done box in sight is a copy on a layer of its own that
   // rides the list but not its fade (`ticks`), whole orange, and goes or comes by size with the list; the box itself is
   // hidden meanwhile. (`tickT`: its size at pp, the list's own fade eased)
-  const tickT = (pp: number) => { const v = sm(insideV(pp)); return v >= 1 ? 'none' : `scale(${Math.max(0.001, v).toFixed(4)})`; };
+  // (round 9: it is gone by the time the list is down to 30 %, three frames or so before the play button's own speck can be
+  // seen: shrinking with the whole fade, it ended as an orange speck in the frame before that one grew 150 px away, one dot
+  // seeming to jump, judge r8 open-int f52-53. At full colour all the way: faded, it went brown.)
+  const tickT = (pp: number) => { const v = sm((insideV(pp) - 0.3) / 0.7); return v >= 1 ? 'none' : `scale(${Math.max(0.001, v).toFixed(4)})`; };
   const ticksHid = useRef<HTMLElement[]>([]);
   const ticksDown = () => {
     for (const el of ticksHid.current) el.style.visibility = '';
@@ -915,7 +959,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
           w.replaceChildren(c); sync(fg, c);
           if (status) status.replaceChildren(only('[data-wk-part="status"]'));
           if (dot) {
-            dot.replaceChildren(only('.pulse-dot'));
+            dot.replaceChildren(only('.pulse-dot')); syncPulse(fg, dot);
             const pd = fg.querySelector<HTMLElement>('.pulse-dot');
             if (pd && !dot.dataset.at) {
               const fr = fg.getBoundingClientRect(), br = pd.getBoundingClientRect(), q = fr.width / (fg.offsetWidth || 1) || 1;
@@ -1362,6 +1406,15 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const sp = from.current ? (lw ? { ...lw, restDelta: 0.0005 } : WINDOW_OPEN) : SURFACE;
     turnedOpen.current = !!now;
     setFrames(p0, 1, sp, v0); carryOver(was, p0);
+    listFrom.current = null;
+    if (now && move.current && tOf.current) {
+      const m = move.current, t = tOf.current;
+      for (const x of m.xs) {
+        if (x < 0) continue;
+        const pp = m.p0 + m.span * x, w = partV(pp, 'words'), b = partV(pp, 'pop');
+        if ((w ?? 1) >= 0.97 && (b ?? 1) >= 0.9) { listFrom.current = t(pp); break; }
+      }
+    }
     thaw(); pv.set(p0); flush(); cardAt(p0);
     launchHero(true, p0, 1, sp, v0, performance.now(), 0, wasHero);
     opening.current?.stop();
