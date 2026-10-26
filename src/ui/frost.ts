@@ -43,15 +43,23 @@ function paint(cv: HTMLCanvasElement) {
   const src = RECIPE[look()] ? made ?? last : undefined;
   const g = cv.getContext('2d'); if (!g) return;
   const prev = cv.previousElementSibling instanceof HTMLCanvasElement ? cv.previousElementSibling : null;
-  if (!src) { prev?.getContext('2d')?.clearRect(0, 0, prev.width, prev.height); cv.dataset.on = ''; return; } // (fades out over the last picture; the card shows its plain glass)
+  if (!src) { // (fades out over the last picture; the card shows its plain glass, and the one under goes once it has)
+    const clear = () => { if (!cv.dataset.on) prev?.getContext('2d')?.clearRect(0, 0, prev.width, prev.height); };
+    if (prev && parseFloat(getComputedStyle(cv).opacity) > 0) cv.addEventListener('transitionend', clear, { once: true }); else clear();
+    cv.dataset.on = ''; return;
+  }
   // a new picture over one on show (the sun moved when food was logged, a copy once more): the old one stays under it and
   // the new one fades in over it, never a jump (judge 26 Oct)
-  // (a second picture in the same moment, two copies close together: the one under stays the one that was on show)
-  if (prev && cv.dataset.on === '1' && !cv.dataset.now && !cv.dataset.swap) {
+  if (prev && cv.dataset.on === '1' && !cv.dataset.now) {
     if (prev.width !== cv.width || prev.height !== cv.height) { prev.width = cv.width; prev.height = cv.height; }
     const pg = prev.getContext('2d');
     if (pg) {
-      pg.clearRect(0, 0, prev.width, prev.height); pg.drawImage(cv, 0, 0);
+      // (one coming in the middle of a fade: the one under takes what is on screen now, the last one partly faded in)
+      const op = cv.dataset.swap ? 0 : parseFloat(getComputedStyle(cv).opacity);
+      if (op >= 0.999) { pg.clearRect(0, 0, prev.width, prev.height); pg.drawImage(cv, 0, 0); }
+      else if (op > 0) { pg.globalAlpha = op; pg.drawImage(cv, 0, 0); pg.globalAlpha = 1; }
+      // (slow and even, 1.6 s: the usual fade did most of its change in the first quarter of a second, judge 26 Oct)
+      cv.dataset.fading = ''; cv.addEventListener('transitionend', () => { if (!cv.dataset.swap) delete cv.dataset.fading; }, { once: true });
       cv.dataset.swap = '1'; requestAnimationFrame(() => requestAnimationFrame(() => delete cv.dataset.swap));
     }
   }
