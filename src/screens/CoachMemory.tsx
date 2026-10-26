@@ -205,12 +205,14 @@ function GoalLine({ m }: { m: MemoryNote }) {
   const g = m.goal!;
   const day = (x: string) => fmtDate(x, lang, { day: 'numeric', month: 'short' });
   let text: string;
-  if (g.status) text = g.status === 'done' ? t('Reached {date}', { date: day(g.endedOn ?? '') }) : t('Dropped {date}', { date: day(g.endedOn ?? '') });
+  // (an ended goal without its day, from an older backup: no line rather than an invalid date)
+  if (g.status) text = !g.endedOn ? '' : g.status === 'done' ? t('Reached {date}', { date: day(g.endedOn) }) : t('Dropped {date}', { date: day(g.endedOn) });
   else {
     const s = useStore.getState();
     const st = goalState(s, m, dayKey(Date.now(), s.settings.dayStartHour));
     const short = st ? goalShort(st, t, (kg) => `${fmtNum(kgToDisplay(kg, u), lang, 1)} ${u}`) : '';
-    text = [short, g.by && t('by {date}', { date: day(g.by) })].filter(Boolean).join(' · ');
+    // (the date only when the note's words don't already say it)
+    text = [short, g.by && !m.text.includes(g.by) && t('by {date}', { date: day(g.by) })].filter(Boolean).join(' · ');
   }
   if (!text) return null;
   return <div className="xs t3 num" style={{ marginTop: 4 }}><Icon name={g.metric === 'lift' ? 'bolt' : 'scale'} size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />{text}</div>;

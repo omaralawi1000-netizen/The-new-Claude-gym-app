@@ -1876,6 +1876,7 @@ export const da: Record<string, string> = {
  "Goal set": "Mål sat",
  "Going {rate} a week.": "Går {rate} om ugen.",
  "How am I doing on my goal “{goal}”? Be honest.": "Hvordan går det med mit mål “{goal}”? Vær ærlig.",
+ "My goal: {status}": "Mit mål: {status}",
  "I reached my goal “{goal}”. What’s next?": "Jeg har nået mit mål “{goal}”. Hvad nu?",
  "I want to set a goal. Ask me what I’m working toward and help me make it concrete.": "Jeg vil sætte et mål. Spørg mig, hvad jeg arbejder hen imod, og hjælp mig med at gøre det konkret.",
  "Reached {date}": "Nået {date}",

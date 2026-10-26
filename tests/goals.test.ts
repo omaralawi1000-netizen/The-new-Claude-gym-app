@@ -236,3 +236,24 @@ describe('a goal note without its numbers', () => {
     expect(data().memory[0].goal).toMatchObject({ status: 'done', target: 80 });
   });
 });
+
+describe('a goal in its first two weeks', () => {
+  it('is judged on what they eat, not on the weeks before it, and says so', () => {
+    // 4 weeks of a slow cut, then a gain goal 6 days ago eaten at 3,900 a day
+    const ws = weighIns(27, 83, -0.25).filter((w) => w.date < addDays(today, -6));
+    const entries = [...Array.from({ length: 22 }, (_, i) => entry(addDays(today, -28 + i), 2700)), ...Array.from({ length: 6 }, (_, i) => entry(addDays(today, -6 + i), 3900))];
+    useStore.setState({ weights: [...ws, { id: 'n', date: addDays(today, -2), kg: 82.4, at: 0 }], entries, memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 84 kg', at: 0, goal: { metric: 'weight', target: 84, by: addDays(today, 40), startDate: addDays(today, -6), start: 82 } }] });
+    const st = goalState(data(), data().memory[0], today)!;
+    expect(st.eating!.kgPerWeek).toBeGreaterThan(0.5);
+    expect(st.rateBasis).toMatch(/^what they eat since the goal started/);
+    expect(st.pace).toBe('too fast');
+    const nd = findNudges(data(), today, 9, t, 'en', name).find((x) => x.id.startsWith('goal:'))!;
+    expect(nd.body).toMatch(/Faster than about 0.5% a week is mostly fat/);
+  });
+  it('is not judged at all in its first days without its own numbers', () => {
+    useStore.setState({ weights: weighIns(27, 83, -0.25), memory: [{ id: 'g', kind: 'goal', text: 'Goal', at: 0, goal: { metric: 'weight', target: 81, by: addDays(today, 40), startDate: addDays(today, -1), start: 82 } }] });
+    const st = goalState(data(), data().memory[0], today)!;
+    expect(st.pace).toBe('too early');
+    expect(st.why).toMatch(/the goal is 1 day old/);
+  });
+});

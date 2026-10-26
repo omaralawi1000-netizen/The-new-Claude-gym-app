@@ -1,11 +1,12 @@
 import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { activeGoals, goalShort, goalState, tracked } from '../lib/goals';
 import { kcalTargetFor } from '../lib/eating';
 import { weighIns } from '../lib/dataQuality';
 import { useLang, useT } from '../lib/i18n';
 import { Icon, type IconName } from './Icon';
 import { Collapse } from './kit';
 import { BarChart, LineChart } from './charts';
-import { fmtNum } from '../lib/units';
+import { fmtNum, kgToDisplay } from '../lib/units';
 import type { ChartData } from '../lib/agentCharts';
 import { useStore } from '../state/store';
 import { dayKey, diffDays } from '../lib/dates';
@@ -81,6 +82,15 @@ export function useCoachTips(max = 3): Tip[] {
 
     // the one question that covers the whole day: the workout with its targets, what is left to eat
     if (s.entries.length || s.sessions.length || s.routines.length) add({ icon: 'sparkle', label: t('How’s today?'), prompt: t('How’s today?') });
+    // a goal they told the Coach: where it stands, one tap from the follow-up (lib/goals.ts)
+    const goal = activeGoals(s, today).filter(tracked)[0];
+    const gs = goal && goalState(s, goal, today);
+    if (goal && gs) {
+      const name = goal.text.replace(/^(goal|mål)\s*:\s*/i, '');
+      const u = s.settings.units.weight;
+      const word = goalShort(gs, t, (kg) => `${fmtNum(kgToDisplay(kg, u), lang, 1)} ${u}`).split(' · ').pop();
+      add({ icon: gs.metric === 'lift' ? 'bolt' : 'scale', label: t('My goal: {status}', { status: word ?? '' }), prompt: t('How am I doing on my goal “{goal}”? Be honest.', { goal: name }) });
+    }
 
     // training
     const plan = plannedFor(s, today, today);
