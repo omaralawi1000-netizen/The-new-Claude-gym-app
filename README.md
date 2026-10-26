@@ -3242,6 +3242,14 @@ rounds, each checked by a fresh judge that only suggests (6.5 → 7.5 → 8.0 �
   number and a check-in rule; on pace gets one extra line for anything GOAL WATCH marks off; a class nobody named is
   "the next class up". `goalFromText`: a lift's target is the weight after its name, "for 12 weeks" isn't reps, "in a
   row" isn't a lift.
+- **Judge round 5 fixes:** the prompt's examples no longer use the test's own numbers (the model copied them); the
+  harness has a second person (Lea, 75 kg, evening snacks). The app works out what a plan names: "What most likely
+  breaks a plan" (days of the week 300+ kcal over the rest, protein days, last 4 weeks; `habitLine`) and a "Check-in"
+  every 2 weeks with its rule (150 kcal either way). Behind on a cut while sleep or HRV is off → "RECOMMEND: keep the
+  target, accept the later date" and the date's calories are left out (`recovery`, `goalCalories(…, hold)`). A logging
+  promise is counted (`loggingLine`: full days, days with a usual meal missing, days with nothing). Rules: a wrestler's
+  weight goal 4 weeks out or less → ask if it's a weigh-in, with the plan; the goal weight is not "the class"; the class
+  up never gets a made-up number; a school grade in memory means under 18; reached → offer to set the hold calories.
 - Tests: `tests/goals.test.ts`. Before/after on Gemini Flash: `scripts/exam/_goals.test.ts` (scratch, never committed; a
   copy and `show.py` live in `/mnt/project-files/living-coach/tools/`), run as
   `G_OUT=dir G_TAG=after npx vitest run --config scripts/exam/vitest.config.ts scripts/exam/_goals.test.ts`.
