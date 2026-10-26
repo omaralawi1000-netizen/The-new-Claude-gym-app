@@ -504,3 +504,12 @@ describe('judge round 8 (26 Oct)', () => {
     expect(goalLines(data(), today, name).join('\n')).toMatch(/4 days a week \(Sun, Tue, Thu, Fri\) average 3,400 kcal, against 1,900 on the other days, mostly food after 21:00/);
   });
 });
+
+describe('a goal closed and saved again in the same answer', () => {
+  it('stays closed', async () => {
+    useStore.setState({ weights: weighIns(20, 82.5, -0.3), memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 81 kg by 2026-10-26', at: 0, goal: { metric: 'weight', target: 81, by: '2026-10-26', startDate: addDays(today, -20), start: 82.2 } }] });
+    await runActions(validateAgent({ reply: '', actions: [{ type: 'remember', kind: 'goal', replaces: 1, text: 'Goal: 82 → 81 kg by 2026-10-26 (reached 80.7 kg)' }, { type: 'remember', kind: 'goal', replaces: 1, text: 'Goal: 82 → 81 kg by 2026-10-26' }] })!.actions, ctx());
+    expect(data().memory).toHaveLength(1);
+    expect(data().memory[0].goal).toMatchObject({ status: 'done', startDate: addDays(today, -20) });
+  });
+});

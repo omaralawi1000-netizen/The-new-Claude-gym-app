@@ -440,6 +440,8 @@ export interface AgentCtx {
   date?: string; mealId?: string;
   /** the message came with a photo: amounts read off a plate are estimates */
   photo?: boolean;
+  /** goal notes closed (reached or dropped) earlier in this answer: a later remember of the same note doesn't reopen it */
+  closedGoals?: Set<string>;
   /** a few words while it works ("Looking up 3 foods…"); '' when done */
   onStatus?: (s: string) => void;
   /** the memory list as the model saw it (numbered), so "forget 2" means the same note even after another forget */
@@ -1514,6 +1516,9 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
   const says = (goal?.metric === 'other' && !!goal.by && a.text.includes(goal.by)) || goal?.target !== undefined && new RegExp(`(^|[^\\d.,])${String(goal.target).replace('.', '[.,]')}(\\.0)?(?![\\d.,]\\d)`).test(a.text);
   const sub = says ? undefined : (goal ? goalSub(goal, ex, ctx) : undefined) ?? untilSub ?? (ex ? exLabel(ex, lang) : undefined);
   const shown = goal ? a.text.replace(/\b(\d{4}-\d{2}-\d{2})\b/g, (x) => fmtDate(x, lang, { day: 'numeric', month: 'short', ...(x.slice(0, 4) !== ctx.today.slice(0, 4) ? { year: 'numeric' } : {}) })) : a.text;
+  // (closed earlier in this same answer, then saved again in its old words: the close stands; judge round 8 run, a reached
+  // goal reopened as a new one by a second remember)
+  if (old && ctx.closedGoals?.has(old.id) && !(goal && !goal.status && a.goal)) return null;
   if (old) {
     const before = { ...old };
     const same = fold(old.text) === fold(a.text);
@@ -1524,6 +1529,7 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
     // (an exercise or end date the new wording doesn't carry goes with the old one; a goal note keeps its numbers when
     // the new wording has none)
     st.updateMemory(old.id, { ...fields, exerciseIds: ex ? [ex.id] : goal && old.exerciseIds ? old.exerciseIds : undefined, until, updatedAt: Date.now(), was, goal: goal ?? (fields.kind === 'goal' ? old.goal : undefined) });
+    if (goal?.status) (ctx.closedGoals ??= new Set()).add(old.id);
     const title = goal?.status === 'done' ? t('Goal reached') : goal?.status === 'dropped' ? t('Goal dropped') : goal && !old.goal ? t('Goal set') : t('Memory updated');
     return { id: uid('r'), kind: 'memory', title, was: same ? undefined : old.text, lines: [{ text: shown, sub }], button: more, undo: () => useStore.getState().updateMemory(before.id, { ...before, until: before.until, updatedAt: before.updatedAt, was: before.was, exerciseIds: before.exerciseIds, goal: before.goal }) };
   }
