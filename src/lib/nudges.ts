@@ -10,9 +10,10 @@
  */
 import { weighIns } from './maintenance';
 import { exerciseMap, missedWorkouts, plannedFor } from '../state/store';
-import { addDays, diffDays, weekdayOf } from './dates';
+import { addDays, diffDays, fmtDate, weekdayOf } from './dates';
 import { setsPerMuscle, stalledLifts, nutritionByDay, average, weightTrend, trendRate, weeklyTraining, MUSCLES } from './stats';
 import { lastBackup } from './persist';
+import { activeGoals, goalState, tracked, type Pace } from './goals';
 import { fmtNum, kgToDisplay } from './units';
 import type { AppData, Lang, MuscleGroup } from './types';
 import type { IconName } from '../ui/Icon';
@@ -35,6 +36,7 @@ export interface Nudge {
 }
 type T = (k: string, v?: Record<string, string | number>) => string;
 
+const fmtDay = (day: string, lang: Lang) => fmtDate(day, lang, { day: 'numeric', month: 'short' });
 const LEGS: MuscleGroup[] = ['quads', 'hamstrings', 'glutes'];
 const LABEL: Record<string, string> = { chest: 'Chest', back: 'Back@muscle', shoulders: 'Shoulders', biceps: 'Biceps', triceps: 'Triceps', forearms: 'Forearms', quads: 'Quads', hamstrings: 'Hamstrings', glutes: 'Glutes', calves: 'Calves', core: 'Core' };
 
@@ -149,6 +151,37 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
       action: { label: t('Log food'), run: { type: 'open', overlay: 'foodSearch', props: { date: today } } } });
   }
 
+  // ── goals they told the Coach (lib/goals.ts): where each one is, every day ─────────
+  const kg = (x: number) => `${fmtNum(kgToDisplay(x, u), lang, 1)} ${u}`;
+  const goals = activeGoals(d, today).filter(tracked);
+  for (const m of goals) {
+    const st = goalState(d, m, today);
+    if (!st) continue;
+    const name = m.text.replace(/^(goal|mål)\s*:\s*/i, '');
+    const short = name.length > 44 ? `${name.slice(0, 42)}…` : name;
+    const lift = st.metric === 'lift';
+    const by = m.goal.by ? fmtDay(m.goal.by, lang) : undefined;
+    const body: string[] = [];
+    if (st.now !== undefined && st.target !== undefined) body.push(lift
+      ? t('Estimated max {now}, target {target}.', { now: kg(st.now), target: kg(st.target) })
+      : by ? t('{now} now, {target} by {date}.', { now: kg(st.now), target: kg(st.target), date: by }) : t('{now} now, target {target}.', { now: kg(st.now), target: kg(st.target) }));
+    if (st.pace === 'too fast') body.push(t('About {rate} a week. Faster than about 1% a week costs muscle and strength.', { rate: kg(Math.abs(st.rate!)) }));
+    else if (st.rate !== undefined && st.pace !== 'reached') body.push(t('Going {rate} a week.', { rate: `${st.rate > 0 ? '+' : '−'}${kg(Math.abs(st.rate))}` }));
+    if (st.need !== undefined && (st.pace === 'behind' || st.pace === 'wrong way' || st.dateUnsafe)) body.push(st.dateUnsafe ? t('The date needs {need} a week, faster than is safe.', { need: kg(Math.abs(st.need)) }) : t('The date needs {need} a week.', { need: kg(Math.abs(st.need)) }));
+    if (st.pace === 'too early' && st.why?.includes('weigh-in')) body.push(t('Weigh in most mornings so the pace can be judged.'));
+    const TITLE: Record<Pace, string> = { reached: 'Goal reached: {goal}', 'on pace': 'On pace: {goal}', ahead: 'Ahead of pace: {goal}', behind: 'Behind pace: {goal}', 'too fast': 'Faster than safe: {goal}', 'wrong way': 'Going the wrong way: {goal}', slow: 'Slow: {goal}', 'date passed': 'Date passed: {goal}', 'too early': 'Too early to tell: {goal}' };
+    const off = st.pace === 'behind' || st.pace === 'too fast' || st.pace === 'wrong way' || st.pace === 'date passed';
+    add({ id: `goal:${m.id}:${st.pace}`, kind: off ? 'warning' : 'insight', icon: lift ? 'bolt' : 'scale', priority: off ? 75 : st.pace === 'reached' ? 80 : 32,
+      title: t(TITLE[st.pace], { goal: short }), body: body.join(' ') || undefined,
+      action: st.pace === 'too early' && st.metric === 'weight'
+        ? { label: t('Log weight'), run: { type: 'open', overlay: 'weight' } }
+        : { label: t('Ask the Coach'), run: { type: 'coach', prompt: st.pace === 'reached' ? t('I reached my goal “{goal}”. What’s next?', { goal: name }) : t('How am I doing on my goal “{goal}”? Be honest.', { goal: name }) } } });
+  }
+  // no goal told yet: asked once (✕ for good), when they use the app enough to have one
+  if (!(d.memory ?? []).some((m) => m.kind === 'goal') && (done.length >= 5 || d.entries.length >= 30)) add({ id: 'goal-ask', kind: 'suggestion', icon: 'info', priority: 22,
+    title: t('What are we working on?'), body: t('Tell the Coach a goal, like “lose 2 kg by December” or “bench 100 by summer”. It plans it with you and follows it up.'),
+    action: { label: t('Set a goal'), run: { type: 'coach', prompt: t('I want to set a goal. Ask me what I’m working toward and help me make it concrete.') } } });
+
   // ── body ───────────────────────────────────────────────────
   // (Aven's weigh-ins and the watch's scale)
   const ws = weighIns(d);
@@ -156,7 +189,8 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
   if (lastW) {
     const rate = trendRate(weightTrend(ws));
     const pct = rate !== null ? (rate / lastW.kg) * 100 : 0;
-    if (rate !== null && pct <= -1.1 && ws.length >= 6) add({ id: `fastloss:${today.slice(0, 7)}`, kind: 'warning', icon: 'scale', priority: 65,
+    // (a weight goal running says this itself, with its own numbers)
+    if (rate !== null && pct <= -1.1 && ws.length >= 6 && !goals.some((m) => m.goal.metric === 'weight')) add({ id: `fastloss:${today.slice(0, 7)}`, kind: 'warning', icon: 'scale', priority: 65,
       title: t('Losing weight fast'), body: t('About {r} a week. Faster than about 1% a week costs muscle and strength.', { r: `${fmtNum(kgToDisplay(-rate, u), lang, 1)} ${u}` }),
       action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I am losing about {r} a week. Is that too fast for keeping muscle? Adjust my calories if so.', { r: `${fmtNum(kgToDisplay(-rate, u), lang, 1)} ${u}` }) } } });
     const gap = diffDays(today, lastW.date);

@@ -22,7 +22,7 @@ describe('talking steers the Coach', () => {
     expect(sys).toMatch(/Plans ahead.*remember with until/);
     expect(sys).toContain('"Age: N (as of YYYY-MM-DD)"');
     expect(sys).toMatch(/NOT SATISFIED.*remember the preference/);
-    expect(sys).toMatch(/a change of goal now → also offer set_setting goal/);
+    expect(sys).toMatch(/a change of profile goal now \(cutting → bulking\) → also offer set_setting goal/);
   });
   it('heavy-day talk: off and quiet by words, a catch-up only when asked, help once, eating-disorder signals', () => {
     expect(sys).toMatch(/"No catch-ups ever".*set_setting heavyDays off/);
