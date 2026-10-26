@@ -44,6 +44,8 @@ describe('every setting in the table can be said, and undone', () => {
     for (const sp of SETTING_SPEC) {
       const before = JSON.stringify(useStore.getState().settings);
       const r = await one({ type: 'set_setting', key: sp.key, value: sample(sp.values) });
+      // (the value it already has: nothing changes and there is no card)
+      if (!r) { expect(JSON.stringify(useStore.getState().settings), sp.key).toBe(before); continue; }
       expect(r.kind, sp.key).toBe('setting');
       r.undo!();
       expect(JSON.stringify(useStore.getState().settings), sp.key).toBe(before);
@@ -58,6 +60,10 @@ describe('every setting in the table can be said, and undone', () => {
     expect(r.lines.filter((l) => l.warn)).toHaveLength(1);
     r.undo!();
     expect(useStore.getState().settings).toEqual(before);
+  });
+  it('a setting already at that value makes no card', async () => {
+    useStore.getState().updateSettings({ goals: { ...useStore.getState().settings.goals, kcal: 2500 } });
+    expect(await one({ type: 'set_setting', key: 'kcalGoal', value: '2500' })).toBeUndefined();
   });
   it('keys that are not in the table are dropped before anything runs', () => {
     expect(validateAgent({ reply: 'x', actions: [{ type: 'set_setting', key: 'openaiKey', value: 'sk-x' }] })!.actions).toEqual([]);

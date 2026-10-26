@@ -2425,7 +2425,7 @@ function doNavigate(a: Extract<AgentAction, { type: 'navigate' }>, ctx: AgentCtx
 }
 
 /** Settings (one or several at once): each checked against SETTING_SPEC; the card shows every change and undoes them together. */
-function doSetting(a: Extract<AgentAction, { type: 'set_setting' }>, ctx: AgentCtx): AgentResult {
+function doSetting(a: Extract<AgentAction, { type: 'set_setting' }>, ctx: AgentCtx): AgentResult | null {
   const st = useStore.getState();
   const pairs = a.pairs ?? (a.key && a.value !== undefined ? [{ key: a.key, value: a.value }] : []);
   let cur = st.settings;
@@ -2434,9 +2434,12 @@ function doSetting(a: Extract<AgentAction, { type: 'set_setting' }>, ctx: AgentC
   for (const p of pairs) {
     const spec = specOf(p.key); const r = spec?.parse(p.value, cur);
     if (!spec || !r) { bad.push(`${p.key} = ${p.value}`); continue; }
+    // (already that value: no "Setting changed" card for a change that didn't happen; judge, 26 Oct)
+    if (Object.keys(r.patch).every((k) => JSON.stringify((cur as any)[k]) === JSON.stringify((r.patch as any)[k]))) continue;
     Object.assign(patch, r.patch); cur = { ...cur, ...r.patch };
     lines.push({ text: ctx.t(spec.label), sub: r.show });
   }
+  if (!lines.length && !bad.length) return null;
   if (!lines.length) return { id: uid('r'), kind: 'miss', title: ctx.t('Couldn’t change that setting'), lines: bad.map((b) => ({ text: b, warn: true })) };
   const prev: Partial<Settings> = {};
   for (const k of Object.keys(patch) as (keyof Settings)[]) (prev as any)[k] = (st.settings as any)[k];
@@ -2475,7 +2478,7 @@ export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promi
         case 'start_workout': out.push(doStartWorkout(a, ctx)); break;
         case 'finish_workout': out.push(doFinishWorkout(ctx)); break;
         case 'navigate': out.push(doNavigate(a, ctx)); break;
-        case 'set_setting': out.push(doSetting(a, ctx)); break;
+        case 'set_setting': { const r = doSetting(a, ctx); if (r) out.push(r); break; }
         case 'edit_food': out.push(doEditFood(a, ctx)); break;
         case 'delete_food': out.push(doDeleteFood(a, ctx)); break;
         case 'move_food': case 'copy_food': out.push(doMoveCopy(a, ctx)); break;
