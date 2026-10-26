@@ -354,7 +354,7 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number, ref?: Uint8Clam
         if (dusk > 0) { let dh = H - H0; dh -= Math.round(dh / (2 * Math.PI)) * 2 * Math.PI; H += (Math.max(0, -dh) + (4 * Math.PI) / 180) * dusk; }
         // a dark page with almost no colour: a hint of colour stays, so the glass never reads charcoal grey (judge 26 Oct). Where
         // the page has next to none its own hue is only noise, so the hint takes the whole page's colour; none over true black
-        const fl = 0.022 * (1 - smooth(0.012, 0.018, C0)) * smooth(0.08, 0.16, P0) * (1 - green);
+        const fl = 0.022 * (1 - smooth(0.018, 0.024, C0)) * smooth(0.08, 0.16, P0) * (1 - green);
         if (C < fl) {
           let dp = hue - H0; dp -= Math.round(dp / (2 * Math.PI)) * 2 * Math.PI;
           let dh = H0 + dp * (1 - smooth(0.004, 0.012, C0)) - H; dh -= Math.round(dh / (2 * Math.PI)) * 2 * Math.PI;
