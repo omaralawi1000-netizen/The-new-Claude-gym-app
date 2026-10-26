@@ -35,7 +35,15 @@ const RECIPE: Record<string, string> = { a: 'blur(8px) saturate(1.35)', b: 'blur
 function bake(o: CanvasRenderingContext2D, raw: HTMLCanvasElement, rec: string, w: number, h: number) {
   o.filter = rec; o.drawImage(raw, 0, 0);
   if (look() === 'a' && (root().dataset.cards ?? 'between') === 'between') { o.globalAlpha = 0.35; o.filter = 'blur(32px) saturate(1.35)'; o.drawImage(raw, 0, 0); o.globalAlpha = 1; }
-  o.filter = 'none'; tame(o, w, h);
+  o.filter = 'none';
+  // the page right under each spot, only lightly frosted (no saturate, no wide scatter): what the glass is held to. Held to
+  // the frosted copy itself, the navy sky high above, pulled down by the blur, turned a dark warm page mauve over the top of
+  // the card and brown below it (Omar's phone, Time of day at night with Background glow soft, 26 Oct)
+  let ref: Uint8ClampedArray | undefined;
+  const rc = document.createElement('canvas'); rc.width = w; rc.height = h;
+  const rg = rc.getContext('2d', { willReadFrequently: true });
+  if (rg) { rg.filter = 'blur(8px)'; rg.drawImage(raw, 0, 0); try { ref = rg.getImageData(0, 0, w, h).data; } catch { ref = undefined; } }
+  tame(o, w, h, ref);
 }
 
 function paint(cv: HTMLCanvasElement) {
@@ -259,7 +267,7 @@ function rgb(L: number, A: number, B: number): [number, number, number] {
   const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3, m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3, s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
   return [toSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s), toSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s), toSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s)];
 }
-function tame(o: CanvasRenderingContext2D, w: number, h: number) {
+function tame(o: CanvasRenderingContext2D, w: number, h: number, ref?: Uint8ClampedArray) {
   if (look() !== 'a') return;
   const M = root().dataset.cards ?? 'between'; // Cards on trial (Settings): blue E, sapphire F, clear G, plum A
   let im: ImageData; try { im = o.getImageData(0, 0, w, h); } catch { return; }
@@ -322,22 +330,23 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         // last, and always winning: the glass stays close to the page under it, so it shows the page instead of sitting on it.
         // Over a near-black page a lifted, coloured card read as a wine, navy or petrol slab, and the floors and leans before
         // this squashed the page's gradient into flat steps (judge 26 Oct); the card's own sheen (surfaces.css) keeps it glass
-        const C0 = Math.hypot(px[i * 3 + 1], px[i * 3 + 2]), H0 = Math.atan2(px[i * 3 + 2], px[i * 3 + 1]), h0 = (H0 * 180) / Math.PI;
-        L = Math.min(L0 + 0.01 + 0.02 * smooth(0.12, 0.22, L0), Math.max(L0 - 0.02, L)); // (darker than the page, red glass read
-        // brown; lighter over black, a slate panel)
+        const [P0, A0, B0] = ref && ref[i * 4 + 3] > 0 ? lab(ref[i * 4], ref[i * 4 + 1], ref[i * 4 + 2]) : [L0, px[i * 3 + 1], px[i * 3 + 2]];
+        const C0 = Math.hypot(A0, B0), H0 = Math.atan2(B0, A0), h0 = (H0 * 180) / Math.PI;
+        L = Math.min(P0 + 0.01 + 0.02 * smooth(0.12, 0.22, P0), Math.max(P0 - 0.02, L));
+        // (darker than the page, red glass read brown; lighter over black, a slate panel)
         const green = step(h0, 110, 120) * step(-h0, -170, -160); // (saturate lifts greens: Forest's cards went lime)
         // (every limit fades in over a range: an on/off one drew a jagged line across the Train cards, judge 26 Oct)
-        const lift = smooth(0.12, 0.24, L0); // no colour added over black, so dark navy keeps its own blue
+        const lift = smooth(0.12, 0.24, P0); // no colour added over black, so dark navy keeps its own blue
         // the colour as a step away from the page's own (not a hue and an amount): where the page has almost no colour its hue
         // is only noise, and a hue limit let each pixel take a different tint, a jagged band where Time of day's blue turns
         // orange (Omar's phone, 26 Oct). The step grows with the page's own colour, a little more where there is light.
         // Split into more or less of the page's colour (up to a quarter more, hardly less: less read grey) and a turn of it
         // (less: a turn read rosier than the page, judge 26 Oct)
-        const u = C0 > 1e-4 ? 1 / C0 : 0, ux = px[i * 3 + 1] * u, uy = px[i * 3 + 2] * u;
-        const dA = C * Math.cos(H) - px[i * 3 + 1], dB = C * Math.sin(H) - px[i * 3 + 2];
+        const u = C0 > 1e-4 ? 1 / C0 : 0, ux = A0 * u, uy = B0 * u;
+        const dA = C * Math.cos(H) - A0, dB = C * Math.sin(H) - B0;
         const up = (0.25 - 0.2 * green) * C0 + 0.006 * lift, side = (0.1 - 0.06 * green) * C0 + 0.004 * lift;
         const dr = Math.min(up, Math.max(-0.05 * C0 - 0.002, dA * ux + dB * uy)), dt = Math.min(side, Math.max(-side, dB * ux - dA * uy));
-        { const A = px[i * 3 + 1] + dr * ux - dt * uy, B = px[i * 3 + 2] + dr * uy + dt * ux; C = Math.hypot(A, B); H = Math.atan2(B, A); }
+        { const A = A0 + dr * ux - dt * uy, B = B0 + dr * uy + dt * ux; C = Math.hypot(A, B); H = Math.atan2(B, A); }
       }
     }
     out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H;
