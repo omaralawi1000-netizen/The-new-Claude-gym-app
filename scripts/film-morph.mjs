@@ -30,7 +30,9 @@ const start = p.getByRole('button', { name: /Start workout/ }).first();
 const best = async () => {
   if (!process.env.BEST) return;
   await p.locator('.wk-sheet').getByRole('button', { name: 'Mark set not done' }).first().tap(); await s.advance(30);
-  await p.locator('.wk-sheet').getByRole('button', { name: 'Complete set' }).first().tap(); await s.advance(90);
+  await p.locator('.wk-sheet').getByRole('button', { name: 'Complete set' }).first().tap(); await s.advance(60);
+  // (and the list back at its top, as every close is filmed from: one run of r10b found it scrolled 147 px down by then)
+  await p.evaluate(() => document.querySelector('.wk-sheet .wk-list')?.scrollTo({ top: 0 })); await s.advance(30);
 };
 await start.scrollIntoViewIfNeeded().catch(() => {}); await s.advance(60);
 await film('open', () => start.tap(), 150);
