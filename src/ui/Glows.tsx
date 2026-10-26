@@ -187,6 +187,7 @@ function useGlowImage(at: React.RefObject<HTMLElement | null>, describe: (el: HT
       url = u ?? '';
       if (u) { fileShown(u, true); el.style.setProperty('--glow-img', `url(${u})`); } else el.style.removeProperty('--glow-img');
       el.toggleAttribute('data-dith-img', !!u);
+      el.dispatchEvent(new Event('glowimg', { bubbles: true })); // (the cards' frost copies the field again: ui/frost.ts)
       cur = p?.key ?? ''; op = p?.op ?? 1;
     };
     const plan = (on: HTMLElement) => { try { return describe(on); } catch { return null; } };

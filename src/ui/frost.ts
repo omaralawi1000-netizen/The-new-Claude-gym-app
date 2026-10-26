@@ -73,6 +73,7 @@ function grainFor(src: HTMLCanvasElement) {
 const KEEP = 'aven.frost';
 const kept = new Map<string, HTMLCanvasElement>();
 const keyOf = (hue: string) => { const { w, h } = size(); return `${stamp()}|${root().dataset.cards ?? ''}|${w}x${h}|${hue}`; };
+const toKeep = new Map<string, string>();
 const keptFor = (hue: string) => kept.get(keyOf(hue)) ?? kept.get(keyOf('*'));
 function loadKept() {
   let o: Record<string, string>; try { o = JSON.parse(localStorage.getItem(KEEP) ?? '{}'); } catch { return; }
@@ -85,10 +86,10 @@ function loadKept() {
       for (const cv of live) if (cv.isConnected && !cv.dataset.on) paint(cv);
     };
     im.src = url;
+    toKeep.set(k, url); // (kept again with the next copy: otherwise the first copy after a start dropped the other tabs')
   }
 }
 let keepAt = 0;
-const toKeep = new Map<string, string>();
 function keep(hue: string, pic: HTMLCanvasElement) {
   const at = stamp();
   for (const k of toKeep.keys()) if (!k.startsWith(at + '|')) toKeep.delete(k); // (only the colours now in use)
@@ -106,6 +107,9 @@ function partImage(el: HTMLElement): HTMLImageElement | null {
   return im.complete && im.naturalWidth ? im : null;
 }
 
+/** a moving glow (Sunrise's sun) has its own picture in, ready to copy (one at no opacity needs none) */
+const sunIn = (field: HTMLElement) => [...field.querySelectorAll<HTMLElement>('.bg-sun')]
+  .every((el) => !(parseFloat(getComputedStyle(el).opacity) > 0) || (el.hasAttribute('data-dith-img') && !!partImage(el)));
 const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 /** the field's colour, its most colourful part winning (chroma-weighted mean hue in OKLab), and the sheets' glass for it */
 function sample(g: CanvasRenderingContext2D, w: number, h: number) {
@@ -155,11 +159,10 @@ export function frostFromField(field: HTMLElement, everyTab = false, last = fals
   if (!watched.has(field)) {
     watched.add(field);
     field.addEventListener('transitionend', (e) => { if ((e.target as HTMLElement).hasAttribute?.('data-dith-img')) frostFromField(field); });
-    // (and as soon as a moving glow's own picture comes in: until then the page shows it drawn by CSS, which the copy can't
-    // read, so the cards went on without the sun until the next copy, judge 26 Oct)
+    // (and as soon as a moving glow's own picture comes in or changes, Glows.tsx `glowimg`: until then the page shows it drawn
+    // by CSS, which the copy can't read)
     let soon = 0;
-    new MutationObserver(() => { cancelAnimationFrame(soon); soon = requestAnimationFrame(() => { if (field.isConnected) frostFromField(field); }); })
-      .observe(field, { subtree: true, attributes: true, attributeFilter: ['data-dith-img'] });
+    field.addEventListener('glowimg', () => { cancelAnimationFrame(soon); soon = requestAnimationFrame(() => { if (field.isConnected) frostFromField(field); }); });
   }
   // (once more, not again and again: each copy scheduled the next, so the copy ran every 2.8 s for as long as the app was open)
   if (!last) { clearTimeout(againAt); againAt = window.setTimeout(() => { if (field.isConnected) frostFromField(field, false, true); }, 2800); }
@@ -175,6 +178,8 @@ export function frostFromField(field: HTMLElement, everyTab = false, last = fals
     g.globalAlpha = op; g.drawImage(im, b.left / SC, b.top / SC, b.width / SC, b.height / SC); g.globalAlpha = 1;
   }
   const c = sample(g, w, h); if (c) { hues.set(hue, c); showHue(); }
+  // (a copy without the sun read as brown cards that then changed: until its picture is in, the cards keep what they show)
+  if (!sunIn(field)) return;
   // Classic sways and Orb light's glows move: their cards keep the plain glass (a still copy would slide off them)
   const moves = root().dataset.motion !== 'reduce' && (field.classList.contains('aurora') || root().dataset.bg === 'orb');
   const rec = recipe();
@@ -205,7 +210,8 @@ export function frostAhead(hue: string, pic: ImageData, at: string) {
   const c = sample(g, w, h); if (c) hues.set(hue, c);
   const moves = root().dataset.motion !== 'reduce' && (f.classList.contains('aurora') || root().dataset.bg === 'orb');
   const rec = recipe();
-  if (moves || !rec) return;
+  // (nor with a sun: this picture has none, so its cards read brown and then changed; they wait for their own field)
+  if (moves || !rec || f.querySelector('.bg-sun')) return;
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const o = out.getContext('2d'); if (!o) return;
   bake(o, raw, rec, w, h);
@@ -294,7 +300,8 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         // Over a near-black page a lifted, coloured card read as a wine, navy or petrol slab, and the floors and leans before
         // this squashed the page's gradient into flat steps (judge 26 Oct); the card's own sheen (surfaces.css) keeps it glass
         const C0 = Math.hypot(px[i * 3 + 1], px[i * 3 + 2]), H0 = Math.atan2(px[i * 3 + 2], px[i * 3 + 1]), h0 = (H0 * 180) / Math.PI;
-        L = Math.min(L0 + 0.03, Math.max(L0 - 0.02, L)); // (darker than the page, red glass read brown)
+        L = Math.min(L0 + 0.01 + 0.02 * smooth(0.12, 0.22, L0), Math.max(L0 - 0.02, L)); // (darker than the page, red glass read
+        // brown; lighter over black, a slate panel)
         const green = step(h0, 110, 120) * step(-h0, -170, -160); // (saturate lifts greens: Forest's cards went lime)
         // (every limit fades in over a range: an on/off one drew a jagged line across the Train cards, judge 26 Oct)
         const lift = smooth(0.12, 0.24, L0); // no colour added over black, so dark navy keeps its own blue
