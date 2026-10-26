@@ -328,9 +328,12 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         const green = step(h0, 110, 120) * step(-h0, -170, -160); // (saturate lifts greens: Forest's cards went lime)
         // (every limit fades in over a range: an on/off one drew a jagged line across the Train cards, judge 26 Oct)
         const lift = smooth(0.12, 0.24, L0); // no colour added over black, so dark navy keeps its own blue
-        C = Math.min(C0 + (0.012 * (1 - green) + 0.05 * C0 * green) * lift, Math.max(0.95 * C0, C));
-        const m = Math.PI / 15 + (Math.PI * 14 / 15) * (1 - smooth(0.008, 0.03, C0)); // ±12°, free only where the page has no colour
-        { let dt = H - H0; dt -= Math.round(dt / (2 * Math.PI)) * 2 * Math.PI; H = H0 + Math.min(m, Math.max(-m, dt)); }
+        // the colour as a step away from the page's own (not a hue and an amount): where the page has almost no colour its hue
+        // is only noise, and a hue limit let each pixel take a different tint, a jagged band where Time of day's blue turns
+        // orange (Omar's phone, 26 Oct). The step grows with the page's own colour, a little more where there is light.
+        const dA = C * Math.cos(H) - px[i * 3 + 1], dB = C * Math.sin(H) - px[i * 3 + 2], dd = Math.hypot(dA, dB);
+        const far = (0.25 - 0.2 * green) * C0 + 0.006 * lift;
+        if (dd > far) { const k = far / dd, A = px[i * 3 + 1] + dA * k, B = px[i * 3 + 2] + dB * k; C = Math.hypot(A, B); H = Math.atan2(B, A); }
       }
     }
     out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H;
