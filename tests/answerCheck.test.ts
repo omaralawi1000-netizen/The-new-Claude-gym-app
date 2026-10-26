@@ -97,3 +97,14 @@ describe('a goal lift\'s new plan is saved; no "shall I save it?" under a saved 
     expect(answerProblems('Saved. Want me to set up two full-body routines?', [goal], '')).toEqual([]);
   });
 });
+
+describe('nothing-to-choose questions and long replies are flagged (26 Oct)', () => {
+  it('flags "keep the date?", ", or should we …", and 150+ words', async () => {
+    const { answerProblems } = await import('../src/lib/answerCheck');
+    expect(answerProblems('Keep 2,350 kcal. Should we keep 16 November as your target date?', [], '')).toHaveLength(1);
+    expect(answerProblems('Is this for a weigh-in, or should we lock in the 4-week plan?', [], '')).toHaveLength(1);
+    expect(answerProblems(Array(160).fill('word').join(' ') + ' at 0.5 kg a week.', [], '')).toHaveLength(1);
+    expect(answerProblems(Array(160).fill('word').join(' ') + '.', [], '')).toEqual([]);
+    expect(answerProblems('Want me to move your goal date to 19 November?', [], '')).toEqual([]);
+  });
+});

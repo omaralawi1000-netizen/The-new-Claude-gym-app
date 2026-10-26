@@ -64,8 +64,15 @@ export function answerProblems(reply: string, actions: AgentAction[], system: st
     out.push('The reply says a target was set, but no set_setting sets it: send it (kcalGoal / proteinGoal), or offer it as a question instead.');
   // one question, not two ("What date is the weigh-in, or should I set it up for the 1st?")
   const asks = reply.split(/(?<=[.!?])\s+|\n+/).filter((x) => /\?\s*$/.test(x));
-  if (asks.length > 1 || asks.some((x) => /,?\s+(?:or|and)\s+(?:should|shall|do you want|want|would you like)\s+(?:I|me|you|us|to)\b/i.test(x)))
+  if (asks.length > 1 || asks.some((x) => /,?\s+(?:or|and)\s+(?:should|shall|do you want|want|would you like|can)\s+(?:I|me|you|us|we|to)\b/i.test(x)))
     out.push('The reply asks more than one thing: keep only the one question that matters most now; say the rest as what you will do (or leave it out).');
+  // a question with nothing to choose ("Should we keep 16 November as your target date?" when the target still reaches it)
+  if (asks.some((x) => /\b(?:keep|stick with|stay with)\b[^?]{0,40}\b(?:date|deadline)\b/i.test(x)))
+    out.push('The reply asks whether to keep the date, but nothing changes it: leave that question out; ask about an open step instead (a preview to apply, which days), or ask nothing.');
+  // (a goal plan or follow-up, read on a phone: about 110 words; other answers, an explanation they asked for, are left alone)
+  const words = reply.split(/\s+/).filter(Boolean).length;
+  const goalTalk = goalNote || /\bkg(?:\/|\s+a\s+|\s+per\s+)week\b|\bkg om ugen\b/i.test(reply);
+  if (goalTalk && words > 150) out.push(`The reply is ${words} words; they read it on a phone: say the same in at most about 110 (the verdict line, at most 4 short lines, one question), keeping every number that matters and every MUST SAY.`);
   // (a real answer only: a short confirmation of a log is left alone)
   if (reply.length >= 250) {
     const said = numbers(reply);
