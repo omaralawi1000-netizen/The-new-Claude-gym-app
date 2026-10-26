@@ -3272,6 +3272,28 @@ rounds, each checked by a fresh judge that only suggests (6.5 → 7.5 → 8.0 �
   days left are counted one way everywhere ("3 days left including today"). Rules: under 18 → no goal saved without a
   yes, and one positive line for the week; a vague goal's "leaner" example is a modest 2–3 kg from the app's rows; one
   question at most; numbers named in a plan that is set up now are set too (kcalGoal, proteinGoal).
+- **Rounds 9–13 (26 Oct morning, Omar: "Can you do it even better?")**, fresh judges 8.2 → 8.3 → 8.2 → 8.3 → 8.3 (live
+  6.3; the Gemini Flash test brain's variance is now most of what is left):
+  - Behind: the app passes the biggest foods on the big days, the Coach gives the tactic itself and the date move is the
+    one question; keeping the date is offered only with the calories that reach it. A target that lands after its date
+    is a MUST SAY early, not found at the first check-in.
+  - Calories for every 0.05 kg/week, so a date's own pace has its row (the row at or just over it). A too-fast ask
+    recommends the comfortable pace by default.
+  - The habit comes with a HOW next to its cap; big days 3+ times a week are capped at the target itself (+300 on them
+    would miss the date), fewer → the pace is said with the cap. Ordinary days far under a cut target → eat the full
+    target every day with a planned ~300 kcal evening snack. On a gain, the risk is the ordinary days under the target,
+    with a how for every gain row that adds up.
+  - Gaining too fast: what they eat against what the date needs, the meal the extra comes from (vs the 4 weeks before),
+    its foods, protein over its range trimmed first (carbs kept), a fix adding up to the gap, and the date's calories as
+    the one question. Reached: the plan to hold it names the big days at maintenance + 300 with a number.
+  - A lift goal while eating under maintenance names the trade-off and offers maintenance. A stall: GOALS writes out
+    the remember (goalPlan) and edit_routine actions for the one change.
+  - Promises: the verdict is said as GOALS words it ("Broken on Tue and Wed"), a new fix, late with nothing logged →
+    today's meals are the one ask; the Today card shows from the day it is set.
+  - Weigh-in plans: the time is an assumption said in one line, not a question; the last line is always refuelling.
+  - Honest cards: a create_routine or edit_routine the model sent empty is kept and says it couldn't be done (it was
+    dropped while the reply said "created"/"updated"); a full-body day named without exercises builds from a template
+    (squat or hinge, push, pull, legs; still a preview). set_schedule accepts `workout` for the routine.
 - Tests: `tests/goals.test.ts`. Before/after on Gemini Flash: `scripts/exam/_goals.test.ts` (scratch, never committed; a
   copy and `show.py` live in `/mnt/project-files/living-coach/tools/`), run as
   `G_OUT=dir G_TAG=after npx vitest run --config scripts/exam/vitest.config.ts scripts/exam/_goals.test.ts`.

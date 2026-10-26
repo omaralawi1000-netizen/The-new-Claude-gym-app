@@ -461,11 +461,11 @@ describe('judge round 5 (26 Oct)', () => {
     // 4 weeks: Fridays at 3,400, other days 2,500
     const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); return entry(date, new Date(`${date}T12:00:00`).getDay() === 5 ? 3400 : 2500); });
     useStore.setState({ weights: weighIns(28, 82, 0), entries });
-    expect(goalLines(data(), today, name).join('\n')).toMatch(/What most likely breaks a plan \(last 4 weeks, 28 finished logged days\): Fridays average 3,400 kcal, against 2,500 on the other days, mostly the lunch meal: 3,400 kcal on those days vs 2,500 on the others[^;]*; a cap for those days that still holds a plan: its daily target \+ 300 \([^)]*2,900 at the current 2,600 target\);[^;]*; protein at or above 180 g on 0 of 28 days/);
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/What most likely breaks a plan \(last 4 weeks, 28 finished logged days\): Fridays average 3,400 kcal, against 2,500 on the other days, mostly the lunch meal: 3,400 kcal on those days vs 2,500 on the others[^;]*; a cap for those days that still holds a plan: its daily target \+ 300 \([^)]*2,900 at the current 2,600 target\); with it the pace is about 0\.04 kg\/week slower than the row: say the pace with the cap;[^;]*; protein at or above 180 g on 0 of 28 days/);
     useStore.setState({ memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 80 kg', at: 0, goal: { metric: 'weight', target: 80, by: addDays(today, 40), startDate: addDays(today, -3), start: 82 } }] });
     expect(goalLines(data(), today, name).join('\n')).toMatch(/Check-in 2026-11-05 \(every 2 weeks\): the scale's pace under half of what the date needs then → 150 kcal less/);
     useStore.setState({ memory: [{ id: 'p', kind: 'goal', text: 'Log every meal this week', at: 0, goal: { metric: 'other', by: addDays(today, 2), startDate: addDays(today, -3) } }], entries: entries.filter((e) => e.date !== addDays(today, -2)) });
-    expect(goalLines(data(), today, name).join('\n')).toMatch(/Logging since it was set \(3 finished days, today not counted\): fully logged 2 of 3; nothing logged: \w{3} 2026-10-23; today has nothing yet\. Verdict \(say it in these words\): broken on \w{3}; 3 days left including today to finish the rest clean/);
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Logging since it was set \(3 finished days, today not counted\): fully logged 2 of 3; nothing logged: \w{3} 2026-10-23; today has nothing yet\. Verdict \(say it in these words\): Broken on \w{3}; 3 days left including today to finish the rest clean/);
   });
   it('behind on a cut while sleep is off: the app recommends the later date, not fewer calories', () => {
     const pre = weighIns(38, 82, 0).filter((w) => w.date <= addDays(today, -10));
@@ -501,7 +501,7 @@ describe('judge round 7 (26 Oct)', () => {
     expect(findNudges(data(), today, 9, t, 'en', name).find((x) => x.id === 'goal:g:done')!.title).toBe('Goal reached: 81 kg');
     const kgs = [70, 72.5, 75, 77.5, 77.5, 77.5, 77.5, 77.5, 77.5];
     useStore.setState({ sessions: kgs.map((kg, i) => session(addDays(today, -40 + i * 5), [['bench-press', kg, 5]])), memory: [{ id: 'b', kind: 'goal', text: 'Goal: bench 100', at: 0, exerciseIds: ['bench-press'], goal: { metric: 'lift', target: 100, reps: 1, by: addDays(today, 200), startDate: addDays(today, -12) } }] });
-    expect(goalLines(data(), today, name).join('\n')).toMatch(/When you change its plan: save it in the same answer \(remember with memory = 1 and goal\.plan/);
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/When you change its plan \(one change\), make it in this answer[^{]*\{"type":"remember","memory":1,"text":"Goal: bench 100","goalPlan":/);
   });
 });
 
@@ -541,7 +541,7 @@ describe('judge round 10 (26 Oct)', () => {
   it('a gain plan is told the ordinary days are its risk, and a full-body routine sent without exercises still builds', async () => {
     const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); return entry(date, new Date(`${date}T12:00:00`).getDay() === 5 ? 3400 : 2500); });
     useStore.setState({ weights: weighIns(28, 82, 0), entries });
-    expect(goalLines(data(), today, name).join('\n')).toMatch(/On a GAIN plan this cap doesn't apply \(the big days aren't the risk\): the other days average 2,500, about \d{3} under a \+0\.25 kg\/week gain's [\d,]+; the how for those days: one planned shake or snack of about \d{3} kcal/);
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/On a GAIN plan this cap doesn't apply \(the big days aren't the risk\): the other days average 2,500, under a gain target; the how for those days, for the row the plan picks \(its numbers add up to the gap\): \+0\.25 \([\d,]+\): \d{3} more = one shake or snack of about \d{3}/);
     const r = await act({ type: 'create_routine', name: 'Full Body B' });
     expect(r.kind).toBe('routine');
     expect(r.lines.length).toBeGreaterThanOrEqual(3);
@@ -554,7 +554,16 @@ describe('judge round 10 (26 Oct)', () => {
     useStore.setState({ weights: [...weighIns(35, 80, 0).filter((w) => w.date <= addDays(today, -7)), ...weighIns(7, 80, 0.9)], entries, settings: { ...data().settings, goals: { ...data().settings.goals, kcal: 2900 } },
       memory: [{ id: 'g', kind: 'goal', text: 'Goal: 80 → 82 kg', at: 0, goal: { metric: 'weight', target: 82, by: addDays(today, 50), startDate: addDays(today, -7), start: 80 } }] });
     const g = goalLines(data(), today, name).join('\n');
-    expect(g).toMatch(/MUST SAY THIS TURN: the most extra comes from the dinner meal: 1,600 kcal a day since the goal started vs 600 before it \(biggest: Pizza/);
+    expect(g).toMatch(/MUST SAY THIS TURN: they eat about [\d,]+ kcal a day, about [\d,]+ over what the date needs; the most extra comes from the dinner meal: 1,600 kcal a day since the goal started vs 600 before it \(biggest: Pizza/);
     expect(g).toMatch(/protein 260 g a day, \d+ g over the top of its range/);
+    expect(g).toMatch(/The fix, adding up to that gap: protein down to about \d+ g \(e\.g\. one shake fewer\), about −\d+ kcal, carbs kept \(they fuel training\)/);
+  });
+});
+
+describe('judge round 12 (26 Oct)', () => {
+  it('big days 3+ times a week: their cap is the target itself, not +300', () => {
+    const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); return entry(date, [0, 2, 5].includes(new Date(`${date}T12:00:00`).getDay()) ? 3400 : 2500); });
+    useStore.setState({ weights: weighIns(28, 82, 0), entries });
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/they come 3 days a week, so their cap is the daily target itself \(\+300 on them would cut the pace by about 0\.12 kg\/week and miss the date\)/);
   });
 });
