@@ -2144,7 +2144,7 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
 @media (prefers-reduced-motion: reduce) { .wk-check.fresh, .wk-check.fresh .wk-check-mark path { animation: none; stroke-dashoffset: 0; } .wk-set, .wk-check, .wk-ex-done { transition: none; } }
 /* the list's current-set outline glides from row to row (setRing.ts): two outlines above every card (nothing paints over
    them, so nothing is pushed onto a layer by them), kept as layers for as long as the list is there. The row keeps its own
-   faint fill, number colour and check ring; they wait the outline's 100 ms after a tick (the check pops first). Focus keeps
+   faint fill, number colour and check ring; they arrive with the outline (it leaves 100 ms after a tick, once the check has popped). Focus keeps
    the row's own outline. */
 .wk-list { position: relative; }
 .wk-rings { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 4; pointer-events: none; contain: layout style; }
@@ -2153,10 +2153,10 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ac) 55%, transparent); }
 .wk-list .wk-set.current { box-shadow: inset 0 0 0 1px transparent; }
 @media (prefers-reduced-motion: no-preference) {
-  :root:not([data-motion='reduce']) .wk-list .wk-set.current { transition: background-color 420ms 100ms var(--ease-out), box-shadow 420ms var(--ease-out); }
-  :root:not([data-motion='reduce']) .wk-list .wk-set.current .wk-set-n { transition: color 300ms 100ms, background-color 300ms, transform 520ms var(--ease-spring); }
-  :root:not([data-motion='reduce']) .wk-list .wk-set.current .wk-check { transition: background-color 220ms var(--ease-out), box-shadow 220ms 100ms var(--ease-out), transform 520ms var(--ease-spring); }
-  :root:not([data-motion='reduce']) .wk-list .wk-set.current .input { transition: color 300ms 100ms, background-color 420ms var(--ease-out), box-shadow 420ms var(--ease-out); }
+  :root:not([data-motion='reduce']) .wk-list .wk-set.current { transition: background-color 420ms 160ms var(--ease-out), box-shadow 420ms var(--ease-out); }
+  :root:not([data-motion='reduce']) .wk-list .wk-set.current .wk-set-n { transition: color 300ms 180ms, background-color 300ms, transform 520ms var(--ease-spring); }
+  :root:not([data-motion='reduce']) .wk-list .wk-set.current .wk-check { transition: background-color 220ms var(--ease-out), box-shadow 300ms 180ms var(--ease-out), transform 520ms var(--ease-spring); }
+  :root:not([data-motion='reduce']) .wk-list .wk-set.current .input { transition: color 300ms 180ms, background-color 420ms var(--ease-out), box-shadow 420ms var(--ease-out); }
 }
 
 /* rest controls inside the bar, between the time and the orb */

@@ -51,6 +51,7 @@ export function mountSetRing(list: HTMLElement, host: HTMLElement): () => void {
       // look again the moment it lands (a card sliding in on its own animation says so to nobody else)
       for (const a of e.getAnimations()) if (moving(a)) { busy = true; if (!told.has(a)) { told.add(a); a.finished.then(kick, kick); } }
     }
+    if (busy) return { box: null, card: null, busy, hidden: false };
     const r = row.getBoundingClientRect(), l = list.getBoundingClientRect();
     const ox = l.left + list.clientLeft - list.scrollLeft, oy = l.top + list.clientTop - list.scrollTop;
     // a layer always sits on whole screen pixels, so it is placed on the pixel just above-left of the row and draws the
@@ -95,6 +96,9 @@ export function mountSetRing(list: HTMLElement, host: HTMLElement): () => void {
   function glide(g: Ring, b: Box, delay: number) {
     const now = glideNow(g);
     const visual = (g.box?.y ?? b.y) + now.off;
+    const gl = g.glide;
+    // already on its way (quick ticks): it never stops; only what is left of its first wait still holds it
+    if (gl && gl.anim.playState !== 'finished') delay = Math.max(0, gl.delay - Number(gl.anim.currentTime ?? 0));
     g.glide?.anim.cancel(); g.glide = null;
     place(g, b);
     const off = visual - b.y;
@@ -103,7 +107,14 @@ export function mountSetRing(list: HTMLElement, host: HTMLElement): () => void {
     const v0 = Math.max(-8, Math.min(20, -now.v / off));
     const { xs, duration } = springSamples(SMOOTH, v0);
     const easing = `linear(${xs.map((v) => +v.toFixed(4)).join(', ')})`;
-    const anim = g.el.animate([{ transform: `translateY(${off}px)` }, { transform: 'none' }], { duration, delay, easing, fill: 'backwards' });
+    // on a longer move it eases back a little while it travels (the line passes over the rows' numbers, so it reads as
+    // gliding past them rather than striking through them) and is whole again as it lands. Not while it is fading in or out
+    const dip = Math.abs(off) >= 30 && !(g.fade && g.fade.playState === 'running');
+    const kf: Keyframe[] = dip
+      ? [{ transform: `translateY(${off}px)`, opacity: 1 }, { opacity: 0.7, offset: 0.35 }, { transform: 'none', opacity: 1 }]
+      : [{ transform: `translateY(${off}px)` }, { transform: 'none' }];
+    const anim = g.el.animate(kf, { duration, delay, easing, fill: 'backwards' });
+    anim.startTime = document.timeline.currentTime; // re-aimed mid-glide: it moves on from this very frame
     g.glide = { anim, off, xs, delay, dur: duration };
     anim.onfinish = () => { if (g.glide?.anim === anim) g.glide = null; };
   }
@@ -118,7 +129,7 @@ export function mountSetRing(list: HTMLElement, host: HTMLElement): () => void {
     // the store changes often (every set field typed, the rest counting down): with the same set next and nothing on the
     // page moved, there is nothing to measure
     const look = dirty; dirty = false;
-    if (!look && !away && !waiting && id === curId) return;
+    if (!look && !away && id === curId) return; // (waiting for a card to land: its animation's end says when)
     const g = rings[on];
     const m = id ? measure(id) : null;
     if (away && m && !m.hidden && !m.busy) {
@@ -154,8 +165,9 @@ export function mountSetRing(list: HTMLElement, host: HTMLElement): () => void {
       glide(g, m.box, left?.classList.contains('done') ? TICK_DELAY : 0);
       return;
     }
-    // another card (or the first time): the old outline fades where it is, the other one fades in on the new row
-    if (g.shown) fadeTo(g, HIDE, 420);
+    // another card (or the first time): the old outline fades where it is, the other one fades in on the new row (a
+    // moving one goes sooner, so it doesn't settle on a row that is already done)
+    if (g.shown) fadeTo(g, HIDE, g.glide && g.glide.anim.playState === 'running' ? 260 : 420);
     const n = rings[1 - on]; on = 1 - on;
     n.glide?.anim.cancel(); n.glide = null;
     place(n, m.box);
