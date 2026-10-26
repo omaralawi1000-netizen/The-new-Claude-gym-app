@@ -364,3 +364,12 @@ describe('judge round 3 (26 Oct)', () => {
   });
 });
 
+describe('a goal note rewritten with another kind', () => {
+  it('stays a goal and closes when the words say reached', async () => {
+    useStore.setState({ weights: weighIns(20, 82.5, -0.3), memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 81 kg', at: 0, goal: { metric: 'weight', target: 81, by: addDays(today, 7), startDate: addDays(today, -20), start: 82 } }] });
+    const r = await act({ type: 'remember', kind: 'other', replaces: 1, text: 'Goal: 82 → 81 kg by 2026-10-26 (reached 80.7 kg on 2026-10-25).' });
+    expect(r.title).toBe('Goal reached');
+    expect(data().memory[0]).toMatchObject({ kind: 'goal', goal: { status: 'done', target: 81 } });
+  });
+});
+

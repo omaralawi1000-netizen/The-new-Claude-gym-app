@@ -1489,7 +1489,8 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
   const seen = a.replaces ? (ctx.memAtStart ?? st.memory)[a.replaces - 1] : undefined;
   const old = (seen && st.memory.find((m) => m.id === seen.id)) || st.memory.find((m) => sameNote(m.text, a.text));
   // a goal note without its numbers (a model that left goal out): read from its words — "Goal: 82 → 80 kg by 2026-11-16"
-  const g00 = a.goal ?? (a.kind === 'goal' ? goalFromText(a.text, a.until ?? undefined, old, lang, ctx.today) : undefined);
+  // (a goal note rewritten stays a goal, whatever kind the model gave the new words)
+  const g00 = a.goal ?? (a.kind === 'goal' || old?.kind === 'goal' ? goalFromText(a.text, a.until ?? undefined, old, lang, ctx.today) : undefined);
   // (a running goal's line rewritten to say it was reached ends it, whatever the goal field says: "…reached at 80.8 kg")
   const saysDone = !!old?.goal && !old.goal.status && /\b(reached|achieved|nået)\b/i.test(a.text) && !/\b(halfway|half|almost|nearly|not|næsten|halvvejs|ikke)\b/i.test(a.text);
   const g01 = g00 && saysDone && !g00.status ? { ...g00, metric: old!.goal!.metric, status: 'done' as const } : g00;
@@ -1504,7 +1505,7 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
   const goalIn = g0 ? { ...g0, ...(tillRaw ? { by: tillRaw } : {}) } : undefined;
   // a temporary thing ends on its own (a date in the past or years away is not one)
   const until = !goalIn && a.until && a.until >= ctx.today && a.until <= addDays(ctx.today, 366) ? a.until : undefined;
-  const fields = { text: a.text, kind: goalIn ? 'goal' as const : a.kind, ...(ex ? { exerciseIds: [ex.id] } : {}) };
+  const fields = { text: a.text, kind: goalIn || (old?.kind === 'goal' && old.goal) ? 'goal' as const : a.kind, ...(ex ? { exerciseIds: [ex.id] } : {}) };
   const more = { label: t('See all'), run: openMemory };
   const untilSub = until ? t('until {date}', { date: fmtDate(until, lang, { weekday: 'short', day: 'numeric', month: 'short' }) }) : undefined;
   const goal = goalIn ? goalPlan(goalIn, ex, old, ctx) : undefined;
