@@ -3258,6 +3258,13 @@ rounds, each checked by a fresh judge that only suggests (6.5 → 7.5 → 8.0 �
   cut. A logging promise gets a verdict ("broken on Tue and Wed; 3 days left") and a Today card ("Logging promise: 2 of
   4 full days"). Today's "date needs" pace has two decimals. Rules: under 18 → coach or parent, no diet plan unless
   asked, nothing saved without a yes; one question per reply; food numbers from GOAL WATCH's window.
+- **Judge round 7 fixes:** a stalled goal's GOALS line says to save the changed plan (remember with goal.plan) and
+  offer edit_routine; RECOMMEND offers to move the date (goal.by) so the app follows it. The habit line gives the cap
+  for each pace offered (target + 300). Watch signs read "MUST SAY THIS TURN" with the protein beside them. Under 18 (an
+  age in memory or a school grade): no cut signs and no watch for a fat-loss profile alone. Today adds "Goal reached:
+  81 kg" for a goal closed in the last 2 days and "No lifting in 2 weeks" on a cut, with a button asking the Coach for a
+  2-day full-body routine. Rules: "I want…" alone is not a set-up ask; a weigh-in's calories come with the offer to set
+  them until the day.
 - Tests: `tests/goals.test.ts`. Before/after on Gemini Flash: `scripts/exam/_goals.test.ts` (scratch, never committed; a
   copy and `show.py` live in `/mnt/project-files/living-coach/tools/`), run as
   `G_OUT=dir G_TAG=after npx vitest run --config scripts/exam/vitest.config.ts scripts/exam/_goals.test.ts`.
