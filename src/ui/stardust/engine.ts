@@ -56,8 +56,6 @@ const N = 16000, WRITERS = 3400;
 // for its breath and size, BOUNCY = apple(0.5, 0.3) for the dust trailing a drag
 const SMOOTH_K = (2 * Math.PI / 0.36) ** 2, SMOOTH_C = (4 * Math.PI) / 0.36;
 const BOUNCY_K = (2 * Math.PI / 0.5) ** 2, BOUNCY_C = (4 * Math.PI * 0.7) / 0.5;
-// (the low voice's own spring: a heavy swell that overshoots a little and settles, ~0.45 s, damping 0.55)
-const BASS_K = (2 * Math.PI / 0.45) ** 2, BASS_C = 2 * 0.55 * (2 * Math.PI / 0.45);
 
 export class DustEngine {
   private gl: WebGL2RenderingContext;
@@ -72,7 +70,7 @@ export class DustEngine {
     syl: [-1, -1, -1, -1], sylA: [0, 0, 0, 0], hsyl: [-1, -1, -1, -1], hsylA: [0, 0, 0, 0], lastHeard: -9, rot: 0, scale: 1, scaleV: 0, attn: 0, quietFor: 9, lx: 0, ly: 0, lvx: 0, lvy: 0,
     hold: 0, hx: 0, hy: 0, tapN: -1, tapAge: 99, tx: 0, ty: 0,
     bass: 0, bassV: 0, bassT: 0, mid: 0, high: 0, peak: [0.2, 0.2, 0.2], mood: 0, wake: 9, wasListen: false,
-    imp: new Float32Array(16).fill(-1), impK: 0, q: 1, dts: [] as number[], slowFor: 0, fastFor: 0, beatN: -1, doneAge: 99, appear: 0, write: 0, unwrite: 0, crisp: 0 };
+    imp: new Float32Array(16).fill(-1), impK: 0, twP: 0, qShown: 1, q: 1, dts: [] as number[], slowFor: 0, fastFor: 0, beatN: -1, doneAge: 99, appear: 0, write: 0, unwrite: 0, crisp: 0 };
   /** called when the words are fully written (true) or start leaving (false): the page shows or hides the crisp text */
   onCrisp: (on: boolean) => void = () => {};
   private crispOn = false;
@@ -143,7 +141,7 @@ export class DustEngine {
       const raw = [avg(0, 2), avg(3, 10), avg(11, 15)];
       const g = raw.map((v, i) => { s.peak[i] = Math.max(v, s.peak[i] * Math.exp(-dt / 4), 0.12); return Math.min(1, v / s.peak[i]) * (v > 0.03 ? 1 : 0); });
       s.bassT += (g[0] - s.bassT) * k(g[0] > s.bassT ? 18 : 5);
-      for (let rem = dt; rem > 1e-6; rem -= 1 / 240) { const h = Math.min(rem, 1 / 240); s.bassV += (-BASS_K * (s.bass - s.bassT) - BASS_C * s.bassV) * h; s.bass += s.bassV * h; }
+      for (let rem = dt; rem > 1e-6; rem -= 1 / 240) { const h = Math.min(rem, 1 / 240); s.bassV += (-BOUNCY_K * (s.bass - s.bassT) - BOUNCY_C * s.bassV) * h; s.bass += s.bassV * h; }
       s.mid += (g[1] - s.mid) * k(g[1] > s.mid ? 20 : 6);
       s.high += (g[2] - s.high) * k(g[2] > s.high ? 26 : 7);
       if (red) { s.bass = s.bassT * 0.5; s.bassV = 0; }
@@ -151,6 +149,7 @@ export class DustEngine {
     // the mood of its answer, eased over about 1.5 s (its colour leans warmer or deeper while it speaks)
     s.mood += ((st.mood ?? 0) - s.mood) * k(0.8);
     // waking: each time it turns to listen (it opens, or it finished answering) it gathers in to a bright core and opens again
+    s.twP += dt * s.high * 4; // (sparkle quickens by its own clock, so a change never jumps its phase)
     if (st.listen && !s.wasListen && !red) s.wake = 0; s.wasListen = st.listen; s.wake += dt;
     // a syllable: a sudden rise in a voice (its own runs out through it, yours is drawn in)
     if (vout - s.prevOut > 0.08 && vout > 0.18 && this.t - s.lastSyl > 0.16) { s.lastSyl = this.t; s.syl.unshift(0); s.syl.pop(); s.sylA.unshift(Math.min(1, 0.45 + vout)); s.sylA.pop(); }
@@ -179,7 +178,7 @@ export class DustEngine {
         s.tapAge = 0; s.tx = st.tap.x; s.ty = st.tap.y;
         // a shockwave from where you touched it, travelling round the sphere (where the tap is on its face, as a direction)
         const x = Math.max(-1, Math.min(1, st.tap.x)), y = Math.max(-1, Math.min(1, st.tap.y)), z = Math.sqrt(Math.max(0, 1 - x * x - y * y)), l = Math.hypot(x, y, z) || 1;
-        const j = (s.impK++ % 4) * 4; s.imp[j] = x / l; s.imp[j + 1] = y / l; s.imp[j + 2] = z / l; s.imp[j + 3] = 0;
+        if (!red) { const j = (s.impK++ % 4) * 4; s.imp[j] = x / l; s.imp[j + 1] = y / l; s.imp[j + 2] = z / l; s.imp[j + 3] = 0; }
       }
       s.tapN = st.tap.n;
     } else s.tapAge += dt;
@@ -211,7 +210,7 @@ export class DustEngine {
     gl.uniform1f(U('uAppear'), s.appear); gl.uniform1f(U('uAttn'), s.attn); gl.uniform1f(U('uQuiet'), s.quiet);
     gl.uniform1f(U('uDone'), s.doneAge < 1.3 ? s.doneAge / 1.3 : 0);
     gl.uniform1f(U('uBass'), red ? 0 : Math.max(0, s.bass)); gl.uniform1f(U('uMid'), red ? 0 : s.mid); gl.uniform1f(U('uHigh'), red ? 0 : s.high);
-    gl.uniform1f(U('uMood'), s.mood * s.speak); gl.uniform1f(U('uWake'), s.wake < 1.2 ? s.wake : -1);
+    gl.uniform1f(U('uMood'), s.mood * s.speak); gl.uniform1f(U('uTwP'), s.twP); gl.uniform1f(U('uWake'), s.wake < 1.2 ? s.wake : -1);
     gl.uniform4fv(U('uImp'), s.imp);
     gl.uniform4f(U('uHeard'), s.hsyl[0], s.hsyl[1], s.hsyl[2], s.hsyl[3]); gl.uniform4f(U('uHeardA'), s.hsylA[0], s.hsylA[1], s.hsylA[2], s.hsylA[3]);
     // (a small orb at the top of the conversation: a little brighter and its specks a touch bigger, so it is still dust, not haze)
@@ -233,10 +232,14 @@ export class DustEngine {
       let lo = 1, sum = 0; for (const x of s.dts) lo = Math.min(lo, x); for (let i = s.dts.length - 30; i < s.dts.length; i++) sum += s.dts[i];
       const avg = sum / 30;
       s.slowFor = avg > lo * 1.4 ? s.slowFor + dt : 0; s.fastFor = avg < lo * 1.12 ? s.fastFor + dt : 0;
-      if (s.slowFor > 1) { s.q = Math.max(0.5, s.q - 0.1); s.slowFor = 0; s.dts.length = 0; }
+      if (s.slowFor > 1.5) { s.q = Math.max(0.5, s.q - 0.1); s.slowFor = 0; s.dts.length = 0; }
       if (s.fastFor > 4 && s.q < 1) { s.q = Math.min(1, s.q + 0.05); s.fastFor = 0; }
     }
-    const count = Math.round(N * s.q * Math.max(0.3, Math.min(1, st.r / 80)));
+    // (the share drawn eases over about a second, and the specks past it fade out in a band: never a step you can see)
+    const want = s.q * Math.max(0.3, Math.min(1, st.r / 80));
+    s.qShown += (want - s.qShown) * (red ? 1 : k(3));
+    gl.uniform1f(U('uCut'), N * s.qShown); gl.uniform1f(U('uBand'), N * 0.08);
+    const count = Math.min(N, Math.round(N * Math.max(want, s.qShown) + N * 0.08));
     gl.drawArrays(gl.POINTS, 0, Math.max(count, s.write > 0 ? N : 0));
     return true;
   }

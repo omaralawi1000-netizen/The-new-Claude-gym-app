@@ -11,7 +11,7 @@ uniform float uAttn; uniform float uQuiet;
 uniform vec4 uSyl; uniform vec4 uSylA; uniform vec3 uTouch; uniform float uTapAge; uniform vec3 uHold; uniform vec2 uLean;
 uniform float uWrite; uniform float uUnwrite; uniform float uCrisp; uniform vec2 uView; uniform float uDpr; uniform float uReduce; uniform float uSmall;
 uniform vec4 uHeard; uniform vec4 uHeardA;
-uniform float uBass; uniform float uMid; uniform float uHigh; uniform float uWake; uniform vec4 uImp[4];
+uniform float uBass; uniform float uMid; uniform float uHigh; uniform float uWake; uniform vec4 uImp[4]; uniform float uTwP; uniform float uCut; uniform float uBand;
 out float vA; out float vHot; out float vOk; out float vBack; out float vGlow;
 #define PI 3.14159265
 float band(float x) {
@@ -79,7 +79,7 @@ void main() {
     float age = uImp[i].w; if (age < 0.0 || age > 1.8) continue;
     float ang = acos(clamp(dot(vd, uImp[i].xyz), -1.0, 1.0));
     float d = ang - age * 2.0; float fade = 1.0 - age / 1.8;
-    float w = exp(-d * d * 16.0) * fade * fade;
+    float w = exp(-d * d * 16.0) * fade * fade * (1.0 - uReduce);
     r *= 1.0 + w * 0.1 * (1.0 - uReduce); hot += w * 1.2; impHot += w;
   }
   // its voice: a wave of light running out through the dust with each syllable
@@ -127,7 +127,7 @@ void main() {
   // its skin: specks seen edge-on glow brighter, so it reads as a sphere of light with depth, not a flat disc
   float rim = pow(1.0 - abs(pv.z), 2.5) * (1.0 - gk) * (0.35 + 0.65 * smoothstep(0.85, 0.95, shell));
   // a few specks twinkle, the larger ones most
-  float tw = pow(0.5 + 0.5 * sin(uT * (1.3 + aRnd.y * 2.6 + uHigh * 4.0) + aRnd.x * 40.0), mix(14.0, 6.0, uHigh)) * (aRnd.w > 2.4 ? 1.0 : 0.35 + uHigh * 0.4) * (1.0 - uReduce);
+  float tw = pow(0.5 + 0.5 * sin(uT * (1.3 + aRnd.y * 2.6) + uTwP * (0.5 + aRnd.y) + aRnd.x * 40.0), mix(14.0, 6.0, uHigh)) * (aRnd.w > 2.4 ? 1.0 : 0.35 + uHigh * 0.4) * (1.0 - uReduce);
   // the far side small and faint, the near side crisp: depth
   gl_PointSize = (1.0 + vGlowPre(lit, hot, tw) * 0.7) * max(1.0 + 0.4 * uSmall, aRnd.w * uSz * mix(mix(0.55, 1.05, depth), 1.0, wr) * (1.0 + hot * 0.5 + tw * 0.6) * (1.0 + bv * 0.4 * (1.0 - uReduce)) * mix(mix(0.5, 1.2, lit), 1.0, wr));
   float a0 = mix(0.05, 1.0, pow(depth, 1.6)) * (0.09 + 0.91 * lit) + rim * 0.3;
@@ -135,7 +135,7 @@ void main() {
   vA = mix(a0, mix(0.95, 0.22, uCrisp), wr) * ap * (1.0 + 1.6 * ap * (1.0 - ap) * (1.0 - uReduce)) * (1.0 + bv * 0.35 + uIn * uListen * 0.15 + gk * 0.9 + uAttn * 0.35 + tw * 0.8) * (1.0 - 0.45 * uQuiet) * (1.0 + 0.7 * uSmall);
   // only the hottest specks get a halo of light (the glow is a highlight, never a fog over the whole orb)
   vGlow = clamp(smoothstep(0.8, 1.0, lit) * 0.6 + hot * 0.3 + tw * 0.45 + wk * (1.0 - shell) * 1.5, 0.0, 1.0) * (1.0 - wr);
-  vA *= (1.0 + wk * (1.0 - smoothstep(0.5, 1.0, shell)) * 2.0) * (1.0 + impHot * 2.2);
+  vA *= (wr > 0.0 ? 1.0 : smoothstep(uCut + uBand * 0.5, uCut - uBand * 0.5, float(gl_VertexID))) * (1.0 + wk * (1.0 - smoothstep(0.5, 1.0, shell)) * 2.0) * (1.0 + impHot * 2.2);
   vHot = hot + heardHot * 0.8 + wk * 0.5 + lit * lit * 0.35 + gk * exp(-length(q.xz) * 4.0) * 1.6 + bv * 0.35 + uAttn * 0.25;
   // logged: the success colour runs up through it
   vOk = uDone > 0.0 ? exp(-pow((lat + 1.0 - uDone * 2.4) * 3.0, 2.0)) * (1.0 - uDone) : 0.0;
@@ -154,9 +154,9 @@ void main() {
   // dark: light added (overlaps glow); light theme: deeper colour laid over the page
   vec3 col = mix(mix(uAc, vec3(1.0), 0.18 * uDark), uAlt, vBack * 0.55);
   col = mix(col, mix(vec3(1.0), uAc * 0.6, 1.0 - uDark), clamp(vHot * 0.5, 0.0, 0.7));
-  // the mood of what it says: glad leans warmer (gold), serious leans deeper (violet), by its own brightness, softly
+  // the mood of what it says, in its own palette: glad leans to its second colour and brighter, serious to a deeper accent
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
-  col = mix(col, uMood > 0.0 ? lum * vec3(1.45, 1.05, 0.55) : lum * vec3(0.75, 0.6, 1.5), clamp(abs(uMood), 0.0, 1.0) * 0.38);
+  col = mix(col, uMood > 0.0 ? mix(uAlt, vec3(1.0), 0.25 * uDark) * (0.7 + lum) : uAc * 0.55, clamp(abs(uMood), 0.0, 1.0) * 0.35);
   col = mix(col, uOk, clamp(vOk, 0.0, 1.0));
   float a = clamp(vA * (core * mix(0.6, 0.75, vGlow) + glow * mix(0.4, 0.5, vGlow)) * mix(1.0, 1.6, 1.0 - uDark), 0.0, 1.0);
   o = vec4(col * a, a);

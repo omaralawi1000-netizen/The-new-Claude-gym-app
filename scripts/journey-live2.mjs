@@ -3,10 +3,17 @@
 // the month's AI limit reached. Gemini Live is faked at the WebSocket (see journey-live.mjs).
 import { launch, wait, skipOnboarding, loadDemo, applySettings } from './lib.mjs';
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+// (a silent microphone: the fake one beeps, and a beep is a voice, which keeps starting fresh pages; journey-hear.mjs covers a voice)
+const quiet = join(tmpdir(), 'aven-silence.wav'), nq = 32000;
+const wav = Buffer.alloc(44 + nq * 2); wav.write('RIFF', 0); wav.writeUInt32LE(36 + nq * 2, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(nq * 2, 40); writeFileSync(quiet, wav);
 
 const voice = (sec) => Buffer.alloc(48000 * sec).toString('base64'); // sec seconds at 24 kHz (silence that still "plays")
 async function open({ theme = 'dark', lang = 'en', ws, ai = {} }) {
-  const { b, p, errors } = await launch({ theme });
+  const { b, p, errors } = await launch({ theme, args: [`--use-file-for-fake-audio-capture=${quiet}`] });
   await p.routeWebSocket(/BidiGenerateContent/, ws);
   await p.goto('http://127.0.0.1:5173/'); await wait(p, 900); await skipOnboarding(p); await loadDemo(p);
   await p.evaluate((ai) => {
@@ -19,7 +26,7 @@ async function open({ theme = 'dark', lang = 'en', ws, ai = {} }) {
 }
 const real = (errors) => errors.filter((e) => !/Failed to load resource|429|WebSocket/.test(e));
 
-// 1. a long conversation, Danish, light: eight exchanges, the newest in view, the orb small, the type box at the bottom
+// 1. a long conversation, Danish, light: eight exchanges, each on its own page (like ChatGPT), the newest in view, the orb small, the type box at the bottom
 {
   const lines = Array.from({ length: 8 }, (_, i) => [`spørgsmål nummer ${i + 1} om min træning`, `Svar nummer ${i + 1}: ${'det går fint, bliv ved. '.repeat(1 + (i % 3))}`]);
   let n = 0, mine = 0, idx = -1, setups = 0;
@@ -68,6 +75,7 @@ const real = (errors) => errors.filter((e) => !/Failed to load resource|429|WebS
   } });
   await wait(p, 3200);
   const chip = p.getByRole('button', { name: 'Tap to interrupt' });
+  for (let i = 0; i < 15 && (await chip.evaluate((el) => getComputedStyle(el).opacity)) !== '1'; i++) await wait(p, 200); // (its fade, on a slow test machine)
   assert.equal(await chip.evaluate((el) => getComputedStyle(el).opacity), '1', 'Tap to interrupt shows while it speaks');
   await p.screenshot({ path: 'shots/live-6-speaking.png' });
   await chip.click(); await wait(p, 700);

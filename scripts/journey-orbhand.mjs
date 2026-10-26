@@ -38,6 +38,7 @@ const stageY = () => p.locator('.sphere-stage').evaluate((el) => new DOMMatrixRe
   const y1 = await stageY();
   assert(y1 < y0 - 8, `the orb drawn rides up with it (${y0} → ${y1})`);
   await p.mouse.up(); await wait(p, 1600);
+  for (let i = 0; i < 30 && (await hand('.tabbar .orb-hand')) !== ''; i++) await wait(p, 200); // (a slow test machine)
   assert(!(await voiceOpen()), 'a short pull doesn’t open it');
   assert.equal(await hand('.tabbar .orb-hand'), '', 'it springs back home');
 }

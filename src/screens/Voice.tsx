@@ -310,6 +310,11 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const [liveActive, setLiveActive] = useState(false);
   const [speaking, setSpeaking] = useState(false); // its voice is playing (Tap to interrupt)
   const [hearing, setHearing] = useState(false); // talking live: you are being heard right now
+  // talking live, like ChatGPT (Omar's recording, 26 Oct): each new thing you say starts a fresh page; the last exchange goes
+  // and the orb is big in the middle while you talk, then your words and its answer show with the orb small at the bottom
+  const [page, setPage] = useState(0), [pageNext, setPageNext] = useState(0);
+  // (the last exchange fades away first, then the new page starts: never cut in one frame)
+  useEffect(() => { if (pageNext === page) return; const id = setTimeout(() => setPage(pageNext), calm ? 0 : 320); return () => clearTimeout(id); }, [pageNext, page]); // eslint-disable-line
   const hearDrop = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const liveLevels = useCallback(() => liveRef.current?.levels() ?? null, []);
   const [muted, setMuted] = useState(false);
@@ -434,20 +439,20 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           if (!alive.current) return;
           lt.said = text;
           if (lt.id) patch(lt.id, { said: text });
-          else { const id = openTurn(text); lt.id = id; patch(id, { live: true }); }
+          else { setPageNext(turnsRef.current.length); const id = openTurn(text); lt.id = id; patch(id, { live: true }); }
         },
         // you started talking: your bubble is there at once (its words follow as they are understood); a sound that turns out
         // to be no words takes its empty bubble away again
         onHearing: (on) => {
           if (!alive.current) return;
           setHearing(on); clearTimeout(hearDrop.current);
-          if (on && !lt.id) { const id = openTurn(''); lt.id = id; patch(id, { live: true }); }
+          if (on && !lt.id) { setPageNext(turnsRef.current.length); const id = openTurn(''); lt.id = id; patch(id, { live: true }); }
           if (!on) hearDrop.current = setTimeout(() => {
             const id = lt.id, tu = id ? turnsRef.current.find((x) => x.id === id) : undefined;
             if (alive.current && id && tu && !tu.said && !tu.reply && !tu.results.length && useVoice.getState().phase !== 'processing') { drop(id); lt.id = null; }
           }, 2500);
         },
-        onTurnStart: () => { if (!alive.current) return; if (!lt.id) { const id = openTurn(lt.said); lt.id = id; patch(id, { live: true }); } go('processing'); },
+        onTurnStart: () => { if (!alive.current) return; if (!lt.id) { setPageNext(turnsRef.current.length); const id = openTurn(lt.said); lt.id = id; patch(id, { live: true }); } go('processing'); },
         onReplyText: (text) => { if (alive.current && lt.id) patch(lt.id, { reply: text }); dustMood.current = moodOf(text); },
         onSpeaking: (on) => { if (!alive.current) return; setSpeaking(on); if (on) setDoing(''); if (liveRef.current) go(on ? 'idle' : lt.id ? 'processing' : 'listening'); },
         onUsage: (u) => recordFee(liveCost(u)),
@@ -700,7 +705,10 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // talking live, from the first frame (also while it connects): the ChatGPT-like screen, never the old buttons in between
   const liveUi = liveWanted && !liveFailed.current && !typing;
   // (a bubble still waiting for its first word doesn't count: a cough mustn't move the orb up and back down)
-  const chatting = liveUi && turns.some((x) => x.said || x.reply || x.results.length);
+  // (while you are still talking, no text: the orb listens big in the middle; a bubble still waiting for its first word
+  // doesn't count either, so a cough doesn't move the orb)
+  const shown = liveUi ? turns.slice(page) : turns;
+  const chatting = liveUi && pageNext === page && shown.some((x) => x.reply || x.results.length || x.done || (x.said && phase === 'processing'));
   const big = liveUi ? !chatting : !showing && !thinking && !typing; // typing: the orb steps up and the box gets the room
   // (Aven's own Reduce motion too, not only the phone's: the glide and the fade are instant then)
   const calm = useReducedMotion() || document.documentElement.dataset.motion === 'reduce';
@@ -710,8 +718,11 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const calmRef = useRef(calm); calmRef.current = calm;
   const hand = useMemo(() => new OrbHand(() => handEl.current, {
     calm: () => calmRef.current,
-    follow: (dx, dy) => [rubber(dx, 34), dy > 0 ? dy * 0.85 : rubber(dy, 40)],
+    follow: (dx, dy) => [rubber(dx, 34), dy > 0 ? dy * 0.85 : rubber(dy, 60)],
+    // down far enough (or flicked down): it goes away. Up (or flicked up): the whole conversation, in the Coach, where you can
+    // also type (the orb is your voice, the Coach is the page you read and write on)
     release: (_x, y, vy) => {
+      if (y < -34 || (vy < -0.5 && y < -14)) { haptic('light'); toCoach.current = true; useUI.getState().swap(1, 'coach'); return true; }
       if (y < 120 && !(vy > 0.5 && y > 40)) return false;
       haptic('light'); useUI.getState().pop(); return true; // (it leaves from where your finger let it go)
     },
@@ -727,7 +738,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const [crisp, setCrisp] = useState(false);
   const [heard, setHeard] = useState(false); // your voice was heard this visit: the greeting has gone back into the orb
   const dustWanted = liveUi && present;
-  useEffect(() => { if (!dustWanted) { setDustOn(false); return; } const id = setTimeout(() => setDustOn(true), calm ? 0 : 480); return () => clearTimeout(id); }, [dustWanted]); // eslint-disable-line
+  useEffect(() => { if (!dustWanted) { setDustOn(false); return; } const id = setTimeout(() => setDustOn(true), calm ? 0 : 120); return () => clearTimeout(id); }, [dustWanted]); // eslint-disable-line
   useEffect(() => { orbHide(dustOn && dustOk, calm); }, [dustOn, dustOk]); // eslint-disable-line
   useEffect(() => () => orbHide(false, true), []);
   const greetRef = useRef<HTMLDivElement>(null);
@@ -741,7 +752,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     levels: () => liveRef.current?.levels() ?? null,
     get hold() { return touch.current.hold; }, get press() { return touch.current.hold ? 1 : 0; }, get tap() { return touch.current.tap; },
     get lean(): [number, number] { return [hand.x, hand.y]; }, get beat() { return dustBeat.current; }, get mood() { return dustMood.current; },
-    greet: dustOn && liveActive && !chatting && !heard, onVoice: () => setHeard(true),
+    greet: dustOn && liveActive && !chatting && !heard && turns.length === 0, onVoice: () => setHeard(true),
   };
   // what it's doing, in a word (the orb says it too, in light): listening, thinking, speaking
   const liveLabel = renewing ? t('Reconnecting…') : muted ? t('Muted') : !liveActive ? '' : speaking ? t('Speaking') : phase === 'processing' ? doing || t('Thinking…') : phase === 'listening' ? t('Listening') : '';
@@ -795,7 +806,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
 
         {/* the sphere: big while it listens, it steps up and out of the way once there is something to read */}
         <div
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: big ? 26 : 6, transition: 'margin .45s cubic-bezier(.22,1,.36,1)', ...(liveUi && !chatting ? { flex: 1, marginTop: 6, paddingBottom: 24 } : {}) }}>
+          style={{ order: liveUi && chatting ? 3 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: big ? 26 : 6, ...(liveUi && chatting ? { paddingBottom: 10 } : {}), transition: calm ? 'none' : 'margin .45s cubic-bezier(.22,1,.36,1)', ...(liveUi && !chatting ? { flex: 1, marginTop: 6, paddingBottom: 24 } : {}) }}>
           {/* (it glides from the middle to the top when the conversation starts: position by transform, the size as before) */}
           <motion.button layout={calm ? false : 'position'} layoutDependency={chatting} transition={{ layout: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }} aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={() => { if (dragged.current) { dragged.current = false; return; } tapSphere(); }} disabled={thinking && !liveActive} className="voice-orb"
             // (a finger on it: the dust nearby leans towards it while held; a tap scatters it, and it swirls back)
@@ -803,7 +814,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
             onPointerMove={(e) => { if (hand.move(e)) { dragged.current = true; touch.current.hold = null; } else if (touch.current.hold) touch.current.hold = orbUnits(e); }}
             onPointerUp={() => { orbPress(false); if (touch.current.hold) { const [x, y] = touch.current.at; touch.current.tap = { n: touch.current.tap.n + 1, x, y }; } touch.current.hold = null; hand.up(); }}
             onPointerCancel={() => { orbPress(false); touch.current.hold = null; hand.up(); }}
-            style={{ position: 'relative', borderRadius: 999, touchAction: 'none', width: orbSize, height: orbSize, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
+            style={{ position: 'relative', borderRadius: 999, touchAction: 'none', width: orbSize, height: orbSize, transition: calm ? 'none' : 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
             {/* its light: a close halo and a soft pool just under it, as if it hovers over glass (gradients only: no blur,
                 nothing animated but its fade in) */}
             <span ref={handEl} className="orb-hand" style={{ position: 'absolute', inset: 0 }}>
@@ -818,29 +829,29 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           </div>}
           {/* its greeting, written in its dust first; the crisp words fade in over the dust once it has written them, and
               go the moment you start talking (the dust takes them back into the orb). Its room is kept: nothing jumps. */}
-          {liveUi && !chatting && dustOk && <div ref={greetRef} className="dust-greet" style={{ opacity: crisp ? 1 : 0, transition: calm ? 'none' : `opacity ${crisp ? '.5s' : '.15s'} var(--ease-out)` }}>
+          {liveUi && !chatting && dustOk && <div ref={greetRef} className="dust-greet" aria-hidden={turns.length > 0} style={{ opacity: crisp && turns.length === 0 ? 1 : 0, transition: calm ? 'none' : `opacity ${crisp ? '.5s' : '.15s'} var(--ease-out)` }}>
             {t('What can I do for you?')}
           </div>}
         </div>
-        {!liveUi && <div style={{ textAlign: 'center', marginTop: big ? 14 : 8 }}>
+        {!liveUi && <div style={{ order: 1, textAlign: 'center', marginTop: big ? 14 : 8 }}>
           <div className="micro" aria-live="polite" style={{ color: phase === 'listening' ? 'var(--ac-text)' : undefined }}>{label}</div>
         </div>}
         {/* what the camera sees (it sends a picture a second while this shows) */}
         {camStream && liveActive && (
           <video aria-label={t('Camera')} autoPlay muted playsInline ref={(v) => { if (v && v.srcObject !== camStream) v.srcObject = camStream; }}
-            style={{ alignSelf: 'center', marginTop: 10, width: 'min(58vw, 220px)', aspectRatio: '3 / 4', objectFit: 'cover', borderRadius: 'var(--r-md)' }} />
+            style={{ order: 1, alignSelf: 'center', marginTop: 10, width: 'min(58vw, 220px)', aspectRatio: '3 / 4', objectFit: 'cover', borderRadius: 'var(--r-md)' }} />
         )}
 
         {/* (room round its content, so the typing box's focus glow is not clipped into hard edges by the scrolling) */}
-        <div ref={talkRef} style={{ position: 'relative', flex: liveUi && !chatting ? '0 0 0' : 1, minHeight: 0, overflowY: 'auto', margin: '14px -12px 0', padding: '0 12px 26px' }} className="hide-scroll fade-top fade-bottom">
+        <div ref={talkRef} style={{ order: 2, position: 'relative', flex: liveUi && !chatting ? '0 0 0' : 1, minHeight: 0, overflowY: 'auto', margin: '14px -12px 0', padding: '0 12px 26px' }} className="hide-scroll fade-top fade-bottom">
           {/* talking live: one conversation like ChatGPT (Omar, 25 Oct). Your words come in word by word in your bubble as you
               say them; its answer writes in under it; everything of this visit stays, newest at the bottom. */}
           {liveUi && (
             // (the conversation fades in once the orb has glided up and shrunk: a first bubble shown while it was still big
             // sat low and then slid up with it)
             <motion.div className="exchange-list" initial={{ opacity: 0 }} animate={{ opacity: chatting ? 1 : 0 }} transition={calm ? { duration: 0 } : { duration: 0.3, delay: chatting ? 0.4 : 0, ease: [0.2, 0.7, 0.2, 1] }}>
-              {turns.map((tu, i) => {
-                const newest = i === turns.length - 1;
+              {shown.map((tu, i) => {
+                const newest = i === shown.length - 1;
                 const cards = tu.results.length > 0 && (
                   <div className="stack gap12">
                     {tu.results.map((r, k) => (
@@ -944,7 +955,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           </AnimatePresence>
         </div>
 
-        <div style={{ padding: '0 0 calc(var(--sab) + 18px)' }}>
+        <div style={{ order: 4, padding: '0 0 calc(var(--sab) + 18px)' }}>
           {/* Tap to interrupt while it speaks (always there, only faded: nothing under it jumps when the voice starts or stops) */}
           {liveUi && (
             <div style={{ display: 'grid', placeItems: 'center', marginBottom: 10 }}>
