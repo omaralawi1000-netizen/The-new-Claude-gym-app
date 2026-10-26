@@ -87,8 +87,8 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     const legSets = r ? r.items.reduce((n, it) => n + (LEGS.includes(map.get(it.exerciseId)?.muscles?.[0] as MuscleGroup) ? it.workingSets : 0), 0) : 0;
     if (r && legSets >= 6) add({ id: `legs-after-mat:${today}:${r.id}`, kind: 'suggestion', icon: 'wrestle', priority: 70,
       title: t('{routine} after hard wrestling', { routine: r.name }),
-      body: t('{n} leg sets the day after the mat. Lighter legs today, or swap the day?', { n: legSets }),
-      action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I wrestled hard yesterday and today is {routine} with {n} leg sets. Make the legs lighter today, or move it.', { routine: r.name, n: legSets }) } } });
+      body: t('{n} leg sets the day after the mat. Swap the day?', { n: legSets }),
+      action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I wrestled hard yesterday and today is {routine} with {n} leg sets. Should I move it?', { routine: r.name, n: legSets }) } } });
   }
 
   // a lift that has stopped improving
@@ -120,15 +120,15 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     }
   }
 
-  // a long run of weeks without a lighter one (8+ weeks hitting the plan)
+  // a long run of weeks on plan (8+): a real win, said as one (never a push for a lighter week: 25 Oct, honest voice)
   const target = d.schedule.mode === 'rotation' ? d.schedule.rotation.perWeek : Object.values(d.schedule.weekly).filter(Boolean).length;
   if (target) {
     const wk = weeklyTraining(done, today, 10, d.settings.weekStart).slice(0, -1);
     let run = 0; for (let i = wk.length - 1; i >= 0 && wk[i].sessions >= target; i--) run++;
-    if (run >= 8) add({ id: `deload:${wk[wk.length - 1].start}`, kind: 'suggestion', icon: 'moon', priority: 35,
+    if (run >= 8) add({ id: `deload:${wk[wk.length - 1].start}`, kind: 'suggestion', icon: 'bolt', priority: 35,
       title: t('{n} hard weeks in a row', { n: run }),
-      body: t('A lighter week now and then lets you come back stronger.'),
-      action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I have trained {n} weeks in a row without a lighter week. Should I deload? Plan it if so.', { n: run }) } } });
+      body: t('Every week on plan. That is what builds strength.'),
+      action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: t('I have hit my plan {n} weeks in a row. How are my lifts doing?', { n: run }) } } });
   }
 
   // ── food ───────────────────────────────────────────────────

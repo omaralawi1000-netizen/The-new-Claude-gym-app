@@ -3218,3 +3218,50 @@ up with a swipe and it reacts to my swipe, not just an animation, and maybe a bo
   the ribbon unspools back out into the ring. Under the orb a line says what it is doing, from the function it called
   ("Looking at your food…", "Logging your sets…", "Searching the web…"; `doingLine` in Voice.tsx, Danish in da.ts), each
   new line fading in over the last. Muted or reconnecting, the ring dims to 40% and quietens.
+
+## Living coach, step 1: an honest voice (25 Oct 2026)
+The plan for a real, living coach is `docs/living-coach-plan.md` (Omar's decisions, six steps, progress table, next step).
+Omar said go for step 1 only. He wants a coach that criticises honestly, praises real wins and picks its own tone; no fixed
+tone or message counts, no rules per topic, going over the calories said once like any coach, and never "train lighter".
+- **How the Coach talks** (`handbook.ts` `COACH_STYLE`): the tone is its own call for the moment (warm for a real win,
+  plain for a first miss, firmer when the same miss keeps happening but never about a choice made on purpose, calm after a
+  bad night), misses named with their numbers when they matter, and one NEVER list: how their body looks, food shame,
+  "train lighter or do less" (HOW YOU COACH keeps its few exceptions), claims the data can't show. Round 3 (Omar: "I want
+  this to be very good"): a real question gets the verdict first, then only the facts that carry it and one next step;
+  every bit of praise is counted exactly ("PRs on two of three days", never "every day"); when what they say doesn't fit
+  DATA it says so in a few words and still answers. No line counts in the prompt (Omar removed them on 20 Oct).
+- **Skipped sets** (`stats.ts` `skippedSets`, a DATA line): planned working sets left undone in the last 7 days, from
+  `plannedSets` at the finish. An exercise of the routine missing from the workout is named but never counted (it may be
+  a swap or 0 sets done), and only when the workout has nothing from outside the routine and the routine wasn't changed
+  since. Workouts saved before `plannedSets` existed aren't judged. When nothing was skipped, DATA says
+  that too, so the Coach can praise it exactly.
+- **Stalled lifts:** named plainly; a change is offered only when it would help (no more "a short lighter block").
+- **A little over the calories** (`eating.ts` `overToday`, `overLine` = at least 200 kcal and 10 % of the target; `eatingWatch.ts` `sayOver`): that much over the day's target but not heavy → one plain toast, once that day (`marks.overSaid`), only with heavy-day notices On:
+  "340 kcal over today. Fine now and then." / "…, 2 of the last 7 days." (a heavy day this week counts) / "…, 3 of the last 7 days. That adds up." A heavy day
+  keeps its own decision. EATING PATTERNS gives the Coach every day over in the last 7 (a little or heavy) and the total.
+- **It all works together** (Omar, 25 Oct: "I want it all to work together"): the skipped-sets and days-over lines sit in
+  `buildCoachContext`, the one summary the Coach chat, Today's notes and the weekly review read (the heavy-day verdict
+  gets `overDaysLine` too), so they count the same sets and days. `COACH_NEVER` is one list in both `COACH_STYLE` and
+  `TASK_STYLE`. A stalled lift gets the app's own reset everywhere (the workout screen's ~5 % for a fresh run at the top
+  of the rep range). The wrestling nudge, planned-day warnings and the workout briefing no longer say "lighter legs".
+  The earlier "answers disagree" was the exam, not the app: each question had built its own fake week; now the honest
+  questions share one (`honestWeek`) so their answers can be checked against each other.
+- Exam: `honest-week`, `honest-plan`, `honest-count`, `honest-repeat`, `honest-squat`, `honest-food`, `honest-focus`,
+  `honest-night` (one shared week) and `honest-clean` (`scripts/exam/questions.ts`). Unit tests: `tests/honestVoice.test.ts`.
+- **Weekly review** (`weekReview.ts`): two new candidates for its one focus, `skipped` (3+ planned sets skipped) and
+  `over` (3+ of 7 days over the calorie target), from the same `skippedSets` / `overDays` as the Coach.
+- **No "lighter week" left:** the 8-weeks-on-plan nudge praises the streak and asks how the lifts are doing; the
+  handbook's plateau tip offers a lighter week only when they ask for one.
+- **Rounds 4–7 (fresh judges 7 → 7.5 → 7.5 → 8; every must-fix done):** DATA has ONE week window, "today and the 6
+  days before", for the day-by-day line, skipped sets and days over, plus that week's own averages next to true
+  maintenance, protein days counted ("3 of 6; under on Wed −3, Fri −8, Sat −6 g"), the lifts behind each PR, and a line
+  saying "this week" means that window. The weekly review passes its own Mon–Sun week (`buildCoachContext(..., { week })`)
+  and gets no rolling averages. Skipped sets say which exercise (1st, 2nd…); why they were skipped is a guess, and last
+  night's sleep only touches today. A stalled lift gets exactly what the workout screen will offer next (its reset or its
+  next target, from the routine's own rep range: `liftHint` / `suggestProgression`). Days over say how much was logged
+  after 20:00. Praise never says "across the board" / "every day" unless DATA counts it all. "I'll still train today"
+  after a short night gets an answer and one tip, not only a question. A weekly-review focus on skipped sets or days over
+  is ticked only with evidence (`met()` null otherwise). When DATA is too long, only the lines that don't fit are left
+  out, and they are named.
+- Exam round 3 adds `honest-praise` (praise must be counted exactly). Before/after: live main in a git worktree vs the
+  branch, on Gemini through `scripts/exam/_ba.test.ts` (a local scratch file, never committed; see the plan doc).

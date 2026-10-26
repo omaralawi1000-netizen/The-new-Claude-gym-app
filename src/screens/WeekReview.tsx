@@ -6,7 +6,7 @@ import { useUI, haptic } from '../state/ui';
 import { useAi, solOn } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { addDays, dayKey, fmtDate, startOfWeek } from '../lib/dates';
-import { reviewWeekEnd } from '../lib/stats';
+import { nutritionByDay, reviewWeekEnd } from '../lib/stats';
 import { candidates, localVerdict, met, reviewNumbers, storedReview, type Candidate, type ReviewNumbers } from '../lib/weekReview';
 import { fmtNum, fmtSigned, kgToDisplay } from '../lib/units';
 import { Sheet, SheetHead } from '../ui/Sheet';
@@ -96,7 +96,7 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
       const week = [
         `WEEK ${n.from}…${n.to}: ${n.sessions} workouts (week before ${n.prevSessions}), ${n.planned} planned, ${n.missed} planned missed, ${n.wrestling} wrestling, ${n.sets} working sets, ${n.records} records, streak ${n.streak} weeks with 2+ workouts.`,
         `Sets per muscle (usual week in brackets): ${muscles || 'none'}.`,
-        `Food: logged on ${n.loggedDays} of 7 days${n.proteinAvg !== null ? `; on logged days ${Math.round(n.kcalAvg ?? 0)} kcal and ${Math.round(n.proteinAvg)} g protein a day (targets ${d.settings.goals.kcal} kcal, ${d.settings.goals.protein} g)` : ''}. Days not logged are unknown, not zero.`,
+        `Food: logged on ${n.loggedDays} of 7 days${n.proteinAvg !== null ? `; on logged days ${Math.round(n.kcalAvg ?? 0)} kcal and ${Math.round(n.proteinAvg)} g protein a day (targets ${d.settings.goals.kcal} kcal, ${d.settings.goals.protein} g)` : ''}${d.settings.goals.protein ? `; protein at or above target on ${nutritionByDay(d.entries, n.from, n.to).filter((x) => x.logged && Math.round(x.protein) >= d.settings.goals.protein!).length} of ${n.loggedDays} logged days` : ''}. Days not logged are unknown, not zero.`,
         `Weight: ${n.weightPct === null ? 'not enough weigh-ins' : `${n.weightPct > 0 ? '+' : ''}${n.weightPct}% a week (trend)`}.`,
         // heavy days this week against the 3 before, and true maintenance (lib/eating.ts, lib/maintenance.ts)
         (() => {
@@ -109,7 +109,7 @@ export function WeekReviewSheet({ props }: { props: { end?: string } }) {
       ].join('\n');
       const cand = `CANDIDATES (id — what it is):\n${cands.map((c) => `${c.id} — ${t(c.key, c.vars as Record<string, string | number>)}`).join('\n') || '(none: the week went well)'}`;
       const last = prev ? `LAST WEEK'S PRIORITIES: ${prev.priorities.map((p) => { const ok = met(p.id, n, d.settings.goals.protein); return `${p.text} → ${ok === null ? 'unknown' : ok ? 'done' : 'not done'}`; }).join('; ') || 'none'}` : 'LAST WEEK: no review.';
-      const ctx = `${week}\n\n${cand}\n\n${last}\n\n${memoryBlock(d, name)}\n\n${learnedBlock(name, (id) => id)}\n\nDATA:\n${buildCoachContext(d, today, name, musclesOf)}`;
+      const ctx = `${week}\n\n${cand}\n\n${last}\n\n${memoryBlock(d, name)}\n\n${learnedBlock(name, (id) => id)}\n\nDATA:\n${buildCoachContext(d, today, name, musclesOf, { week: { from: n.from, to: n.to } })}`;
       const b0 = brainFor({ big: true, surface: 'coach', signal: ac.signal });
       const r = b0 ? await thinkJson({ ...b0, sol: b0.sol ? { ...b0.sol, effort: 'high' } : undefined }, { system: `${REVIEW_SYSTEM(lang)}\n\n${HOW_TO_TALK}\n\n${HANDBOOK_CORE}`, prompt: ctx, schema: REVIEW_SCHEMA, name: 'week_review' }).then((raw) => readReview(raw, cands.map((c) => c.id))).catch(() => null) : null;
       clearTimeout(limit);

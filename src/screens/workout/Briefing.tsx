@@ -34,7 +34,7 @@ function useFmt() {
 /** The words of one line (without the lift's name). */
 function lineText(l: BriefLine, t: T, set: (kg: number | undefined, reps: number) => string): string {
   if (l.kind === 'health') return l.text;
-  if (l.kind === 'wrestle') return t('Wrestling tomorrow: keep the legs a little lighter');
+  if (l.kind === 'wrestle') return t('Wrestling tomorrow');
   const h = l.hint;
   if (l.kind === 'record' && h.record) return t('{set} · your heaviest yet', { set: set(h.record.kg, h.record.reps) });
   if (l.kind === 'stall' && h.stall) return t('Stuck at {from} · or reset to {to}', { from: set(h.stall.from.kg, h.stall.from.reps), to: set(h.stall.to.kg, h.stall.to.reps) });
