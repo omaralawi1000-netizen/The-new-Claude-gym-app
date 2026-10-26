@@ -1552,7 +1552,7 @@ const kgNum = (x: string) => Number(x.replace(',', '.'));
  *  bodyweight ("82 → 80 kg", "make the 74 kg class", "lose 2 kg"), a date (YYYY-MM-DD), or that it was reached or dropped. */
 export function goalFromText(text: string, until: string | undefined, old: MemoryNote | undefined, lang: 'en' | 'da'): GoalArg | undefined {
   // (reached only when the words say the goal is: "halfway reached" isn't)
-  if (old?.goal && !old.goal.status && /^\s*(?:(?:goal|mål)\s*)?(?:reached|achieved|completed|done|nået|naet)\b|\b(?:goal|mål)\s+(?:reached|achieved|completed|nået|naet)\b|\bhit it\b/i.test(text)) return { metric: old.goal.metric, status: 'done' };
+  if (old?.goal && !old.goal.status && /^\s*(?:(?:goal|mål)\s*)?(?:reached|achieved|completed|done|nået|naet)\b|\b(?:goal|mål)\s+(?:reached|achieved|completed|nået|naet)\b|\(\s*(?:reached|achieved|nået)\b|\b(?:reached|nået)\s+(?:on\s+|den\s+)?\d|\bhit it\b/i.test(text)) return { metric: old.goal.metric, status: 'done' };
   if (old?.goal && !old.goal.status && /\b(dropped|gave up|given up|abandoned|droppet|opgivet)\b/i.test(text)) return { metric: old.goal.metric, status: 'dropped' };
   const by = text.match(/\b(\d{4}-\d{2}-\d{2})\b/)?.[1] ?? until;
   // (pounds too: the goal is kept in kg)

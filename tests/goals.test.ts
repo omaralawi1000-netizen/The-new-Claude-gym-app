@@ -284,6 +284,7 @@ describe('goal words read by the app (when the model leaves out the goal field)'
     expect(goalFromText('Goal: bench press 100 kg by 2027-06-01', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100 });
     expect(goalFromText('Goal: 82 → 80 kg, halfway reached', undefined, running, 'en')?.status).toBeUndefined();
     expect(goalFromText('Goal reached: 82 → 80 kg', undefined, running, 'en')?.status).toBe('done');
+    expect(goalFromText('Goal: 82 → 81 kg by 26 Oct (reached 19 Oct at 80.7 kg)', undefined, running, 'en')?.status).toBe('done');
   });
 });
 
