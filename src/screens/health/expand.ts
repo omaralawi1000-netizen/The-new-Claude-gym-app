@@ -106,7 +106,7 @@ export class Expander {
       const r = this.box(x), gone = lane(r) || (sentGone && !!x.closest('.hx-sent'));
       // closing: a row a landing copy passes over waits, unseen, until it has passed (one animation per element: Chrome can
       // leave a row stuck at 0 when several opacity animations on it are cancelled together)
-      const c = paths ? clearAfter(r, paths, at) : 0, c0 = Math.min(0.6, c), held = (p: number) => (c <= 0 ? 1 : ss((p - c0) / 0.25));
+      const c = paths ? clearAfter(r, paths, at) : 0, c0 = Math.min(0.38, c), held = (p: number) => (c <= 0 ? 1 : ss((p - c0) / 0.2));
       // only the part on screen counts: a line below the screen's edge is under the page too, and stays hidden until home is back
       const h = this.e.root.clientHeight, t = Math.max(0, r.y), bt = Math.min(h, r.y + r.h), off = bt - t < 1;
       const kf = Array.from({ length: N + 1 }, (_, i) => { const p = i / N; return { offset: p, opacity: off ? (paths && p === 1 ? 1 : 0) : +(ss(1 - cover(t, bt, win(at(p))) * m(p)) * held(p) * (gone ? 1 - ss(p / k) : 1)).toFixed(4) }; });
@@ -248,17 +248,17 @@ export class Expander {
     });
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
     st.dim.forEach((x, i) => {
-      const p = x === st.src ? 0.2 : 0.7; // the row's words come back as the card clears off it (a pill: its number lands inside it)
+      const p = x === st.src ? 0.2 : 0.42; // the row's words come back as the card clears off it (a pill: its number lands inside it)
       x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0';
-      out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: p }, { opacity: 1, offset: p + 0.2 }, { opacity: 1 }], { duration: D, delay: 70, easing: 'linear' }));
+      out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: p }, { opacity: 1, offset: p + 0.18 }, { opacity: 1 }], { duration: D, delay: 70, easing: 'linear' }));
     });
     L.forEach((l, i) => out.unshift(this.anim(l, [{ transform: fromL[i] }, { transform: wf[i] }], { duration: D, delay: 70, easing: E })));
     // the material clears between 25 % and 80 %: the section is already back underneath, so close ends on the settled screen
     // the page stays a card while its edges start to uncover home, then clears from 12 % to 45 % as home comes back under
     // it (never an empty box: its words leave as home's arrive)
     // the card stays a card (its edges uncover home) until it is nearly the row, then clears onto it
-    const m0 = Number(matO), mo = (p: number) => m0 * (1 - ss((p - 0.7) / 0.22));
-    out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: 0.7 }, { opacity: 0, offset: 0.92 }, { opacity: 0 }], { duration: D, delay: 70, easing: 'linear' }));
+    const m0 = Number(matO), mo = (p: number) => m0 * (1 - ss((p - 0.45) / 0.22));
+    out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: 0.45 }, { opacity: 0, offset: 0.67 }, { opacity: 0 }], { duration: D, delay: 70, easing: 'linear' }));
     // where the window is now (its layers' moves), and where it lands: the row
     const h = this.e.root.clientHeight, ty = (t: string) => (t === 'none' ? 0 : new DOMMatrix(t).f);
     const t0 = ty(fromL[0]), b0 = ty(fromL[1]) + h + t0, wr = this.box(st.src), wt = Math.max(0, Math.min(h - 1, wr.y)), wb = Math.max(wt + 1, Math.min(h, wr.y + wr.h));
