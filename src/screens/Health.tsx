@@ -7,16 +7,23 @@
  * Scores (lib/scores.ts) are measured against his own normal, never 100 for a 7-hour night, and never tell him to train
  * lighter. Plan: /mnt/project-files/health/plan/build-plan.md. Mock: /mnt/project-files/health/concepts/mock-v8.html.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useScreenStore } from '../lib/hooks';
 import { useT, useLang, type TFn } from '../lib/i18n';
 import { useToday } from '../lib/derive';
-import { addDays, fmtDate, fmtTime } from '../lib/dates';
+import { addDays, diffDays, fmtDate, fmtTime } from '../lib/dates';
 import { fmtNum, fmtSigned, kgToDisplay } from '../lib/units';
 import { ACTIVITY_LABEL } from '../lib/activity';
 import type { ActivityLog, Lang } from '../lib/types';
 import type { Score } from '../lib/scores';
 import { useHealthView, type HealthView } from './health/data';
+import { activeGoals, goalState, holdKcal, tracked, type GoalState, type Pace } from '../lib/goals';
+import { healthNote, rankNotes, type Nudge } from '../lib/nudges';
+import { cachedInsights, runNudge } from '../ui/CoachPin';
+import { exerciseMap } from '../state/store';
+import { exName } from './workout/common';
+import { LOGO } from '../ui/logoDots';
+import type { AppData } from '../lib/types';
 import { C, Hypnogram, NightHeart, Ribbon, RouteLine, ScoreRing, Spark, StepsDay, Trace, WeekStrip, useWidth } from './health/charts';
 import { Expander } from './health/expand';
 import { ProgressBody } from './Progress';
@@ -27,11 +34,14 @@ import { useUI } from '../state/ui';
 import './health/health.css';
 
 type K = 'ready' | 'sleep' | 'heart' | 'move' | 'week' | 'body' | 'training';
-const ORDER: K[] = ['ready', 'sleep', 'heart', 'move', 'week', 'body', 'training'];
+// (no Ready on the screen: Omar dropped readiness on 16 Oct and the Coach line on top says what matters; 26 Oct)
+const ORDER: K[] = ['sleep', 'heart', 'move', 'week', 'body', 'training'];
 const COL: Record<K, string> = { ready: '#f6f7fb', sleep: C.sleep, heart: C.heart, move: C.move, week: C.cardio, body: C.body, training: C.train };
 const NAME: Record<K, string> = { ready: 'Ready', sleep: 'Sleep', heart: 'Heart', move: 'Steps', week: 'This week', body: 'Body', training: 'Training' };
 
 /** 432 min → "7 h 12" (the hour sign in Danish is t) */
+/** within this many minutes of the usual night is "about your usual", on the Coach line and the Sleep page alike */
+const USUAL_BAND = 30;
 const hm = (min: number, lang: Lang) => { const m = Math.round(min); const h = Math.floor(m / 60); return h ? `${h} ${lang === 'da' ? 't' : 'h'}${m % 60 ? ` ${String(m % 60).padStart(2, '0')}` : ''}` : `${m} min`; };
 const EO = 'cubic-bezier(.22,.8,.2,1)';
 const reduced = () => { const m = document.documentElement.dataset.motion; return m === 'reduce' || (m !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches); };
@@ -104,7 +114,7 @@ export function HealthScreen() {
   // while the page closes, a tap on it lands on what is under it (the section it is closing into, or another)
   const passTap = (ev: React.MouseEvent) => {
     const st = eng.current?.st; if (!st?.closing) return;
-    const hit = document.elementsFromPoint(ev.clientX, ev.clientY).map((x) => x.closest<HTMLElement>('.hx-sec,.hx-pill')).find(Boolean);
+    const hit = document.elementsFromPoint(ev.clientX, ev.clientY).map((x) => x.closest<HTMLElement>('.hx-sec,.hx-pill[data-k]')).find(Boolean);
     if (hit && !det.current?.contains(hit)) tap(hit.dataset.k as K, hit);
   };
 
@@ -116,7 +126,8 @@ export function HealthScreen() {
       <div ref={scr} className={`screen hx-screen${v.loaded ? '' : ' hx-wait'}`}>
         <div className="hx-top hx-ln"><h1 className="hx-title">{t('Health')}</h1></div>
         <div className="hx-date hx-ln">{fmtDate(today, lang, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-        <Sentence v={v} t={t} lang={lang} onTap={tap} />
+        <CoachLine v={v} d={s} today={today} t={t} lang={lang} onTap={tap} />
+        <GoalCard d={s} today={today} t={t} lang={lang} />
         {v.ribbon && <RibbonBlock v={v} t={t} lang={lang} />}
         {shown.map((k) => <Section key={k} k={k} v={v} t={t} lang={lang} onTap={tap} />)}
         {!v.hasWatch && <p className="hx-note">{t('Connect your watch in Settings → Watch, and sleep, heart and steps fill in here.')}</p>}
@@ -170,6 +181,8 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     for (const w of words) { const m = mid(w); const l = lines.find((x) => Math.abs(mid(x[0]) - m) < 16); if (l) l.push(w); else lines.push([w]); }
     const steps = [[...el.querySelectorAll<HTMLElement>('.hx-ln')], ...lines];
     steps.forEach((g, i) => g.forEach((w) => rise(w, 60 + Math.min(i, 5) * 60)));
+    // the goal card under the Coach's line, one step after its last line
+    const goal = el.querySelector('.hx-goal'); if (goal) rise(goal, 60 + Math.min(steps.length, 6) * 60);
   }, [scr, v.hasWatch, hasRibbon, v.body.kg, v.ready, v.loaded]);
 
   // the ribbon plays the day once, slowly: the night steps down, the heart thread draws, the steps hill rises, now lands
@@ -216,34 +229,167 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     }
     fresh.forEach((x) => { x.style.opacity = '0'; io.current!.observe(x); });
   });
-  useEffect(() => () => { io.current?.disconnect(); io.current = null; }, []);
+  useEffect(() => () => { io.current?.disconnect(); io.current = null; seen.current.clear(); }, []);
 }
 
 function Pill({ k, children, onTap }: { k: K; children: ReactNode; onTap: (k: K, el: HTMLElement) => void }) {
   return <span className="hx-pill hx-w" data-k={k} style={{ ['--c' as string]: COL[k] }} onClick={(e) => { e.stopPropagation(); onTap(k, e.currentTarget); }}><i /><span data-share="num">{children}</span></span>;
 }
 
-/** the plain sentence on top, its numbers as pills that open their page */
-function Sentence({ v, t, lang, onTap }: { v: HealthView; t: TFn; lang: Lang; onTap: (k: K, el: HTMLElement) => void }) {
-  const parts: { tpl: string; k?: K; val?: string }[] = [];
-  if (v.night) {
-    const d = v.night.usual ? v.night.asleep - v.night.usual : undefined;
-    parts.push({ tpl: d === undefined ? t('You slept {x}.') : Math.abs(d) < 15 ? t('You slept {x}, about your usual.') : t(d > 0 ? 'You slept {x}, {d} more than usual.' : 'You slept {x}, {d} less than usual.', { d: hm(Math.abs(d), lang) }), k: 'sleep', val: hm(v.night.asleep, lang) });
+/** the Coach's orb, small: the logo's own dots (ui/logoDots.ts) in the live orb's colours (ui/Sphere.tsx: its light is
+ *  --ac-2, its shade --ac at 30 %), so it is the same orb as the tab bar's, whatever the area's accent */
+const ORB_DOTS = LOGO.map((p) => ({ ...p, f: Math.round(Math.max(0, Math.min(1, (p.rgb[1] - 52) / (178 - 52))) * 100) }));
+function MiniOrb({ size = 24 }: { size?: number }) {
+  return <svg className="hx-orb" width={size} height={size} viewBox="-1.1 -1.1 2.2 2.2" aria-hidden>{ORB_DOTS.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={p.r} style={{ fill: `color-mix(in srgb, var(--ac-2) ${p.f}%, color-mix(in srgb, var(--ac) 30%, #000))` }} />)}</svg>;
+}
+
+/** a sentence with one number in it drawn as a pill: words wrap and rise one by one */
+function Words({ tpl, pill }: { tpl: string; pill?: ReactNode }) {
+  return <>{tpl.split(/(\{x\})/).map((seg, j) => seg === '{x}' ? <span key={j}>{pill}</span> : seg.split(/(\s+)/).map((w, n) => (w.trim() ? <span key={`${j}-${n}`} className={j > 0 && n === 0 && /^[,.;:!?)]/.test(w) ? 'hx-w hx-tight' : 'hx-w'}>{w}</span> : w)))}</>;
+}
+
+/** what the Coach's second sentence is about, by its note: the colour of its number */
+const NOTE_COL = (n: Nudge) => (n.id.startsWith('protein:') ? 'var(--c-protein, #e0b07a)' : n.id.startsWith('over:') ? 'var(--c-kcal, #f5e2b8)' : n.id.startsWith('stall:') ? C.train : C.body);
+const sentenceOf = (x: string) => (/[.!?…]$/.test(x.trim()) ? x.trim() : `${x.trim()}.`);
+
+/**
+ * The Coach speaking, on top of Health (Omar 26 Oct, "build it around the coach"): last night against his usual, then the
+ * one thing Today's notes put first (lib/nudges.ts rankNotes, the same ranking as Today's pin; goals are left to the card
+ * under it, app chores to Today). Built on the phone from the same facts the Coach uses; opening Health asks nothing.
+ */
+function CoachLine({ v, d, today, t, lang, onTap }: { v: HealthView; d: AppData; today: string; t: TFn; lang: Lang; onTap: (k: K, el: HTMLElement) => void }) {
+  const hour = new Date().getHours();
+  // once per store change, not on every section open (those renders land in the frame before the open animation)
+  const note = useMemo(() => {
+    const map = exerciseMap(d.exercises);
+    return healthNote(rankNotes(d, today, hour, t, lang, (id) => { const e = map.get(id); return e ? exName(e, lang) : '?'; }, cachedInsights(today)));
+  }, [d, today, hour, t, lang]);
+  // the goal the card shows (its first tracked one)
+  const goalWarn = useMemo(() => { const m = cardGoal(d, today); const g = m?.goal && goalState(d, m, today); return !!g && (WARN.has(g.pace) || (g.daysLeft !== undefined && g.daysLeft < 0 && g.pace !== 'reached')); }, [d, today]);
+  const night = v.night;
+  // last night: "about your usual" within 30 min of the median of the 30 nights before (lib/recovery.ts usualSleep)
+  let p1: ReactNode = null;
+  if (night) {
+    const d0 = night.usual ? night.asleep - night.usual : undefined;
+    const tpl = d0 === undefined ? t('You slept {x}.') : Math.abs(d0) < USUAL_BAND ? t('You slept {x}, about your usual.') : t(d0 > 0 ? 'You slept {x}, {d} more than usual.' : 'You slept {x}, {d} less than usual.', { d: hm(Math.abs(d0), lang) });
+    p1 = <Words tpl={tpl} pill={<Pill k="sleep" onTap={onTap}>{hm(night.asleep, lang)}</Pill>} />;
   }
-  if (v.heart.rest !== undefined) parts.push({ tpl: t('Your heart rested at {x}.'), k: 'heart', val: String(v.heart.rest) });
-  if (v.steps.today !== undefined) parts.push({ tpl: t("You've walked {x} steps."), k: 'move', val: fmtNum(v.steps.today, lang, 0) });
-  if (!parts.length) parts.push({ tpl: v.hasWatch ? t('Your watch fills this in as it syncs.') : t('Your day, from your watch and your training.') });
+  let p2: ReactNode = null;
+  if (note) {
+    const run = () => { if (note.action) runNudge(note.action.run, today); };
+    p2 = note.say
+      ? <Words tpl={note.say.tpl} pill={<span className="hx-pill hx-w" style={{ ['--c' as string]: NOTE_COL(note), cursor: note.action ? undefined : 'default' }} onClick={note.action ? (e) => { e.stopPropagation(); run(); } : undefined}><i /><span>{note.say.x}</span></span>} />
+      : <Words tpl={sentenceOf(note.title)} />;
+  }
+  if (!p1 && !p2) p1 = <Words tpl={v.hasWatch ? t('Your watch fills this in as it syncs.') : goalWarn ? t('Here is where your goal stands.') : t('Nothing needs your attention right now.')} />;
   return (
-    <p className="hx-sent">
-      {parts.map((p, i) => (
-        <span key={i}>
-          {p.tpl.split(/(\{x\})/).map((seg, j) => seg === '{x}' && p.k ? <Pill key={j} k={p.k} onTap={onTap}>{p.val}</Pill> : seg.split(/(\s+)/).map((w, n) => (w.trim() ? <span key={`${j}-${n}`} className="hx-w">{w}</span> : w)))}
-          {i < parts.length - 1 ? ' ' : ''}
-        </span>
-      ))}
-    </p>
+    <>
+      <div className="hx-coach hx-ln"><MiniOrb />{t('Coach')}</div>
+      <p className="hx-sent">{p1}{p1 && p2 ? ' ' : ''}{p2}</p>
+    </>
   );
 }
+
+// t() on each, so the Danish check (scripts/i18n-keys.mjs) sees every label
+const PACE = (t: TFn): Record<Pace, string> => ({ reached: t('Reached'), ready: t('Ready to test'), 'on pace': t('On pace'), ahead: t('Ahead'), behind: t('Behind'), 'too fast': t('Faster than safe'), 'wrong way': t('Wrong way'), slow: t('Slow'), stalled: t('Stalled'), 'date passed': t('Date passed'), 'too early': t('Too early to tell') });
+
+/** paces that need something from him: the pill gets a coral rim (white words, no wash) so it reads at a glance */
+/** the time left as he'd say it: days under a week, weeks after; nothing on the day or after it */
+/** the goal the card shows, and the Coach line checks: the first tracked one, else the first */
+const cardGoal = (d: AppData, today: string) => { const all = activeGoals(d, today); return all.filter(tracked)[0] ?? all[0]; };
+const timeLeft = (n: number | undefined, t: TFn) => (n === undefined || n <= 0 ? '' : n === 1 ? t('1 day') : n < 7 ? t('{n} days', { n }) : Math.round(n / 7) === 1 ? t('1 week') : t('{n} weeks', { n: Math.round(n / 7) }));
+const WARN = new Set<Pace>(['behind', 'too fast', 'wrong way', 'stalled', 'date passed']);
+
+/** why a goal can't be judged yet, as the one thing that helps (never "log food" where food can't count) */
+function earlyLine(st: GoalState, t: TFn): string {
+  switch (st.whyCode) {
+    case 'young': case 'fewWeighIns': return st.eating ? t('Weigh in most mornings and the Coach can judge it.') : t('Log a few days of food or weigh in most mornings, and the Coach can judge it.');
+    case 'noWeighIns': return t('Weigh in once and the Coach can judge it.');
+    case 'stale': return t('Weigh in again and the Coach can judge it.');
+    case 'fewInWindow': return t('A few more weigh-ins and the Coach can judge it.');
+    case 'notTrained': case 'liftUntrained': return t('Train it once and the Coach can judge it.');
+    case 'fewWorkouts': return t('A few more workouts with it and the Coach can judge it.');
+    case 'noExercise': return t('Tell the Coach which lift it is, and it follows it here.');
+    case 'untracked': return t('No number to follow, so the Coach checks in with you instead.');
+    default: return t('The Coach can judge it soon.');
+  }
+}
+
+/**
+ * The goal the Coach follows, right under its line: the same numbers as the Coach and Today (lib/goals.ts goalState,
+ * the first tracked goal, as the Coach's "My goal" chip picks it). A thin outline, no fill: it is part of the Coach's
+ * voice, not another card. Tap it to ask the Coach how it is going.
+ */
+const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; today: string; t: TFn; lang: Lang }) {
+  const goals = activeGoals(d, today).filter(tracked);
+  const m = cardGoal(d, today);
+  const u = d.settings.units.weight;
+  const kg = (x: number) => `${fmtNum(kgToDisplay(x, u), lang, 1)}\u00a0${u}`;
+  const ask = (prompt: string) => useUI.getState().push('coach', { ask: prompt });
+  if (!m) {
+    return (
+      <button className="hx-goal press" onClick={() => ask(t('I want to set a goal. Ask me what I’m working toward and help me make it concrete.'))}>
+        <div className="hx-ghead"><span className="hx-gt">{t('What are we working on?')}</span><span className="hx-gchev">›</span></div>
+        <div className="hx-gline">{t('Tell the Coach a goal and it follows it here.')}</div>
+      </button>
+    );
+  }
+  const name0 = m.text.replace(/^(goal|mål)\s*:\s*/i, '').replace(/^\p{Ll}/u, (c) => c.toUpperCase());
+  // a goal saved without a plan (no number, no date: "a muscle-up"): its words, and the Coach checks in
+  if (!m.goal) return (
+    <button className="hx-goal press" onClick={() => ask(t('How am I doing on my goal “{goal}”? Be honest.', { goal: name0 }))}>
+      <div className="hx-ghead"><span className="hx-gt">{name0}</span><span className="hx-gchev">›</span></div>
+      <div className="hx-gline">{t('No number to follow, so the Coach checks in with you instead.')}</div>
+    </button>
+  );
+  const st0 = goalState(d, m, today);
+  // the date has gone by and it isn't reached: say so, whatever the pace (lib/goals.ts keeps judging the pace for the Coach)
+  const over = !!st0 && st0.daysLeft !== undefined && st0.daysLeft < 0 && st0.pace !== 'reached';
+  const st = st0 && over ? { ...st0, pace: 'date passed' as Pace } : st0;
+  const name = name0;
+  const by = m.goal.by ? fmtDate(m.goal.by, lang, { day: 'numeric', month: 'short' }) : undefined;
+  const lift = m.goal.metric === 'lift';
+  const ex = m.exerciseIds?.[0] ? exerciseMap(d.exercises).get(m.exerciseIds[0]) : undefined; // a deleted lift: just the weight
+  const gone = lift && !!m.exerciseIds?.[0] && !ex; // ...and no verdict on a lift that isn't there
+  const what = m.goal.target === undefined ? name : lift ? `${ex ? `${exName(ex, lang)} ` : ''}${kg(m.goal.target)}${(m.goal.reps ?? 1) > 1 ? ` × ${m.goal.reps}` : ''}` : kg(m.goal.target);
+  const title = by && m.goal.target !== undefined ? t('{what} by {date}', { what, date: by }).replace(/ (\d)/g, '\u00a0$1') : what;
+  let line = '';
+  let bar: { start: number; now: number; target: number } | undefined;
+  if (st) {
+    const left = st.now !== undefined && st.target !== undefined ? Math.abs(st.target - st.now) : undefined;
+    if (st.pace === 'reached') {
+      const h = holdKcal(d, st, today);
+      line = h ? (h.first ? t('{a} kcal for a week, then about {b} to hold it.', { a: fmtNum(h.first, lang, 0), b: fmtNum(h.hold, lang, 0) }) : t('About {b} kcal a day to hold it.', { b: fmtNum(h.hold, lang, 0) })) : t('Tell the Coach what is next.');
+    } else if (lift && m.exerciseIds?.[0] && !ex) line = earlyLine({ ...st, whyCode: 'noExercise' }, t);
+    else if (over) line = t('Tell the Coach how it went.');
+    else if (st.pace === 'too early' && !st.next) line = earlyLine(st, t);
+    else if (st.byFood && st.now !== undefined && st.scaleKg !== undefined) line = t('About {now} by what you eat · scale {scale}', { now: kg(st.now), scale: kg(st.scaleKg) });
+    else if (lift && st.now !== undefined && left !== undefined) line = [t('Best set worth {n}', { n: kg(st.now) }), st.now < st.target! - 0.05 ? t('{n} to go', { n: kg(left) }) : '', timeLeft(st.daysLeft, t)].filter(Boolean).join(' · ');
+    else if (left !== undefined) {
+      // the pace it needs against the pace it has, so every pill shows its evidence (the date is in the title)
+      const wk = (x: number) => `${x < 0 ? '−' : '+'}${fmtNum(Math.abs(kgToDisplay(x, u)), lang, 1)}\u00a0${u}`;
+      const why = st.need !== undefined && st.rate !== undefined ? t('needs {a}/wk, now {b}/wk', { a: wk(st.need), b: wk(st.rate).replace(/\u00a0\S+$/, '') }) : '';
+      line = [t('{n} to go', { n: kg(left) }), !why ? timeLeft(st.daysLeft, t) : '', why || (d.settings.goals.kcal ? t('{n} kcal target', { n: fmtNum(d.settings.goals.kcal, lang, 0) }) : '')].filter(Boolean).join(' · ');
+    }
+    if (!line && st.pace === 'date passed') line = t('Tell the Coach how it went.');
+    // (not while judged on food: that "now" is an estimate, the line above says so)
+    if (!st.byFood && st.start !== undefined && st.now !== undefined && st.target !== undefined && st.pace !== 'too early' && st.start !== st.target) bar = { start: st.start, now: st.now, target: st.target };
+  } else line = t('No number to follow, so the Coach checks in with you instead.');
+  const more = goals.length > 1 ? goals.length - 1 : 0;
+  const col = lift ? C.cardio : C.body;
+  const f = bar ? Math.max(0, Math.min(1, (bar.now - bar.start) / (bar.target - bar.start))) : 0;
+  // where the date says he should be today: the gap to the knob is the evidence for Behind (a still tick, no motion)
+  const span = bar && m.goal.startDate && m.goal.by ? diffDays(m.goal.by, m.goal.startDate) : 0;
+  const exp = span > 0 ? Math.max(0, Math.min(1, diffDays(today, m.goal.startDate!) / span)) : undefined;
+  return (
+    <button className="hx-goal press" style={{ ['--c' as string]: col }} onClick={() => ask(t('How am I doing on my goal “{goal}”? Be honest.', { goal: name }))}>
+      <div className="hx-ghead"><span className="hx-gt">{title}</span>{st && !gone && st.whyCode !== 'untracked' ? <span className={`hx-gpace${WARN.has(st.pace) ? ' hx-gwarn' : ''}`}>{PACE(t)[st.pace]}</span> : <span className="hx-gchev">›</span>}</div>
+      {bar && <div className="hx-gbar" style={{ ['--f' as string]: f }}><span className="hx-gnow">{(lift ? t('{n} now', { n: fmtNum(kgToDisplay(bar.now, u), lang, 1) }) : t('{n} trend', { n: fmtNum(kgToDisplay(bar.now, u), lang, 1) }))}</span>{exp !== undefined && <b className="hx-gexp" style={{ left: `${exp * 100}%` }} />}<i /></div>}
+      {bar && <div className="hx-gends"><span>{fmtNum(kgToDisplay(bar.start, u), lang, 1)}&nbsp;{u}</span><span>{fmtNum(kgToDisplay(bar.target, u), lang, 1)}&nbsp;{u}</span></div>}
+      {(line || more > 0) && <div className="hx-gline">{line}{more > 0 && <>{line ? ' · ' : ''}<b>{t('+{n} more', { n: more })}</b></>}</div>}
+    </button>
+  );
+});
 
 function RibbonBlock({ v, t, lang }: { v: HealthView; t: TFn; lang: Lang }) {
   const [ref, w] = useWidth<HTMLDivElement>(384);
@@ -262,12 +408,7 @@ function Section({ k, v, t, lang, onTap }: { k: K; v: HealthView; t: TFn; lang: 
   const wu = useScreenStore().settings.units.weight;
   const W = w; // the section itself reaches the screen's edges, so its charts do too
   let body: ReactNode = null;
-  if (k === 'ready') {
-    const r = v.ready!;
-    body = r.learning !== undefined
-      ? <><div className="hx-n hx-n46" data-share="num">{r.learning}<small>/ 14</small></div><div className="hx-sub">{t('Learning your normal: {n} of 14 days. Ready appears once Aven knows it.', { n: r.learning })}</div></>
-      : <div className="hx-rowc"><div><div className="hx-n hx-n46" data-share="num"><Roll text={String(r.score)} /><small>{t(r.band)}</small></div><div className="hx-sub">{readyLine(r, t)}</div></div><div data-share="chart"><ScoreRing value={r.score} color="#f6f7fb" size={64} /></div></div>;
-  } else if (k === 'sleep') {
+  if (k === 'sleep') {
     const n = v.night!;
     body = <>
       <div className="hx-n hx-n46" data-share="num"><Roll text={hm(n.asleep, lang)} /></div>
@@ -311,16 +452,6 @@ function Section({ k, v, t, lang, onTap }: { k: K; v: HealthView; t: TFn; lang: 
   );
 }
 
-const READY_WHY: Record<string, string> = {
-  hrv: 'Your HRV is under your normal.',
-  restHr: 'Your resting heart rate is above your usual.',
-  sleep: "Last night's sleep is holding it back.",
-  load: 'Your last 7 days were harder than your usual weeks.',
-  breathing: 'You are breathing faster than usual.',
-  oxygen: 'Your blood oxygen was low last night.',
-  temp: 'Your skin was warmer than normal last night. Often the first sign of getting ill.',
-};
-function readyLine(r: Score, t: TFn) { return r.low && READY_WHY[r.low] ? t(READY_WHY[r.low]) : t('Everything is inside your normal range.'); }
 const PART: Record<string, string> = { duration: 'Length', deep: 'Deep sleep', rem: 'REM sleep', rest: 'Restfulness', timing: 'Timing', heart: 'Heart rate', hrv: 'HRV', restHr: 'Resting heart rate', sleep: 'Sleep', load: 'Recovered from training' };
 
 function Parts({ s, t }: { s: Score; t: TFn }) {
@@ -343,21 +474,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
   const wu = useScreenStore().settings.units.weight;
   const W = w + 40;
   let out: ReactNode = null;
-  if (k === 'ready' && v.ready) {
-    const r = v.ready;
-    out = r.learning !== undefined ? <>
-      <div className="hx-lab"><i />{t('Ready')}</div>
-      <div className="hx-n hx-n56" data-share="num">{r.learning}<small>/ 14</small></div>
-      <h3 className="hx-dt hx-rise">{t('Learning your normal')}</h3>
-      <p className="hx-dsub hx-rise">{t('Ready compares today with your own last 60 days: HRV, resting heart rate, sleep and training load. It needs 14 days of watch data first.')}</p>
-    </> : <>
-      <div className="hx-lab"><i />{t('Ready today')}</div>
-      <div className="hx-rowc"><div><div className="hx-n hx-n56" data-share="num">{r.score}<small>{t(r.band)}</small></div></div><div data-share="chart"><ScoreRing value={r.score} color="#f6f7fb" size={88} /></div></div>
-      <h3 className="hx-dt hx-rise">{readyLine(r, t)}</h3>
-      <p className="hx-dsub hx-rise">{t('Measured against your own last 60 days.')}</p>
-      <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('What it is made of (100 is best)')}</div><Parts s={r} t={t} /></div>
-    </>;
-  } else if (k === 'sleep' && v.night) {
+  if (k === 'sleep' && v.night) {
     const n = v.night, sc = n.score;
     const st: [string, number, string][] = [[t('Deep'), n.stages.deep, '#7d6bff'], [t('REM'), n.stages.rem, '#c7b8ff'], [t('Light'), n.stages.light, '#a8b4ff'], [t('Awake'), n.stages.awake, '#ff9a7a']];
     const mx = Math.max(1, st.reduce((a, x) => a + x[1], 0)); // each stage as a share of the night
@@ -371,7 +488,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
       <div className="hx-sub">{fmtTime(n.session.start, lang)} → {fmtTime(n.session.end, lang)}</div>
       <div className="hx-bleed hx-hyp" data-share="chart"><Hypnogram night={n.session} w={W} /></div>
       <h3 className="hx-dt hx-rise">{head}</h3>
-      {diff !== undefined && <p className="hx-dsub hx-rise">{Math.abs(diff) < 15 ? t('About your usual {u}.', { u: hm(n.usual!, lang) }) : t(diff > 0 ? '{d} more than your usual {u}.' : '{d} less than your usual {u}.', { d: hm(Math.abs(diff), lang), u: hm(n.usual!, lang) })}</p>}
+      {diff !== undefined && <p className="hx-dsub hx-rise">{Math.abs(diff) < USUAL_BAND ? t('About your usual {u}.', { u: hm(n.usual!, lang) }) : t(diff > 0 ? '{d} more than your usual {u}.' : '{d} less than your usual {u}.', { d: hm(Math.abs(diff), lang), u: hm(n.usual!, lang) })}</p>}
       {sc && <div className="hx-panel hx-rise"><div className="hx-rowc"><div><div className="hx-ptitle" style={{ margin: 0 }}>{t('Sleep score')}</div><div className="hx-n" style={{ fontSize: 40, fontWeight: 300, marginTop: 4 }}>{sc.score}<small>/100 · {t(sc.band)}</small></div>{sc.cap && sc.capMin && <div className="hx-sub" style={{ marginTop: 4, textWrap: 'balance' }}>{t('Under {h} of sleep it stays at most {n}.', { h: hm(sc.capMin, lang), n: sc.cap })}</div>}</div><ScoreRing value={sc.score} color={C.sleep} /></div><div style={{ marginTop: 14 }}><Parts s={sc} t={t} /></div><div className="hx-sub" style={{ marginTop: 10 }}>{t('Length counts for 30%, each of the others 10–15%.')}</div></div>}
       <div className="hx-panel hx-rise"><div className="hx-stages">{st.map(([name, m, c]) => <div key={name} className="hx-strow"><b style={{ color: c }}>{name}</b><div className="hx-sbar"><span className="hx-sb" style={{ ['--sc' as string]: c, width: `${Math.round((m / mx) * 100)}%` }} /></div><span>{hm(m, lang)}</span></div>)}</div></div>
       <div className="hx-panel hx-rise"><div className="hx-ptitle">{n.usual ? t('The last 14 nights · usual {u}', { u: hm(n.usual, lang) }) : t('The last 14 nights')}</div>

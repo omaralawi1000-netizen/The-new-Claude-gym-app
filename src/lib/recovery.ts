@@ -32,6 +32,11 @@ export function recoveryOff(health: HealthDay[], today: string): OffSignal[] {
   return out;
 }
 
+/** His usual sleep: the median of the 30 nights before today (3 at least). The one definition the Coach and Health share. */
+export function usualSleep(health: HealthDay[] | undefined, today: string): number | undefined {
+  return usual((health ?? []).filter((d) => diffDays(today, d.date) >= 1 && diffDays(today, d.date) <= 30).map((d) => d.sleepMin).filter((x): x is number => x !== undefined));
+}
+
 function addDay(day: string, n: number): string {
   const d = new Date(`${day}T12:00:00`);
   d.setDate(d.getDate() + n);
@@ -59,7 +64,7 @@ export function recoveryLines(health: HealthDay[] | undefined, today: string): s
   const parts: string[] = [];
   if (rh) parts.push(`resting HR ${rh.v} (${rh.date}; usual ${usual('restHr') !== undefined ? Math.round(usual('restHr')!) : '?'})`);
   if (hv) parts.push(`HRV ${hv.v} ms (${hv.date}; usual ${usual('hrv') !== undefined ? Math.round(usual('hrv')!) : '?'})`);
-  const us = usual('sleepMin');
+  const us = usualSleep(hs, today);
   if (us !== undefined) parts.push(`usual sleep ${hm(us)}`);
   if (parts.length) L.push(`Recovery: ${parts.join(', ')}. ("usual" = the median of the 30 days before today.)`);
   // 4-week trends: the last 2 weeks against the 2 before

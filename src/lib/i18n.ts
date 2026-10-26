@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { useStore } from '../state/store';
 import type { Lang } from './types';
 import { solLabel } from './openai';
@@ -40,7 +40,8 @@ export function useLang(): Lang {
 }
 export function useT(): TFn {
   const lang = useLang();
-  useSyncExternalStore(onDanish, danishReady, danishReady); // re-rendered once the Danish strings have arrived
-  return makeT(lang);
+  const ready = useSyncExternalStore(onDanish, danishReady, danishReady); // re-rendered once the Danish strings have arrived
+  // the same function until the language or the strings change, so memoised screens (Health's goal card) can skip renders
+  return useMemo(() => makeT(lang), [lang, ready]);
 }
 export const tNow: TFn = (k, v) => makeT(useStore.getState().settings.language)(k, v);
