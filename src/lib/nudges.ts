@@ -177,8 +177,10 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     // (a weigh-in days away and only a little over: what is left is gut content and water, not fat at a safe pace)
     const closeCall = !lift && st.daysLeft !== undefined && st.daysLeft <= 7 && st.now !== undefined && Math.abs(st.target! - st.now) <= st.now * 0.025;
     if (closeCall) { /* the body's days left says it */ } else if (st.need !== undefined && (st.pace === 'behind' || st.pace === 'wrong way' || st.dateUnsafe)) body.push(st.dateUnsafe ? t('The date needs {need} a week, faster than is safe.', { need: kg(Math.abs(st.need)) }) : t('The date needs {need} a week.', { need: kg(Math.abs(st.need)) }));
-    if (st.pace === 'too early' && st.why?.includes('weigh-in') && !st.eating) body.push(t('Weigh in most mornings so the pace can be judged.'));
-    const TITLE: Record<Pace, string> = { reached: 'Goal reached: {goal}', 'on pace': 'On pace: {goal}', ahead: 'Ahead of pace: {goal}', behind: 'Behind pace: {goal}', 'too fast': losing ? 'Faster than safe: {goal}' : 'Faster than planned: {goal}', 'wrong way': 'Going the wrong way: {goal}', slow: 'Slow: {goal}', stalled: 'Stalled: {goal}', 'date passed': 'Date passed: {goal}', 'too early': 'Too early to tell: {goal}' };
+    // (only when the weigh-ins are few: someone who weighs in daily doesn't need telling)
+    const lately = d.weights.filter((w) => w.date > addDays(today, -7) && w.date <= today).length;
+    if (st.pace === 'too early' && st.why?.includes('weigh-in') && !st.eating && lately < 4) body.push(t('Weigh in most mornings so the pace can be judged.'));
+    const TITLE: Record<Pace, string> = { reached: 'Goal reached: {goal}', ready: 'Ready to test: {goal}', 'on pace': 'On pace: {goal}', ahead: 'Ahead of pace: {goal}', behind: 'Behind pace: {goal}', 'too fast': losing ? 'Faster than safe: {goal}' : 'Faster than planned: {goal}', 'wrong way': 'Going the wrong way: {goal}', slow: 'Slow: {goal}', stalled: 'Stalled: {goal}', 'date passed': 'Date passed: {goal}', 'too early': st.short ? 'Coming up: {goal}' : 'Too early to tell: {goal}' };
     const off = st.pace === 'behind' || st.pace === 'stalled' || st.pace === 'too fast' || st.pace === 'wrong way' || st.pace === 'date passed';
     add({ id: `goal:${m.id}:${st.pace}`, kind: off ? 'warning' : 'insight', icon: lift ? 'bolt' : 'scale', priority: off ? 75 : st.pace === 'reached' ? 80 : 32,
       title: t(TITLE[st.pace], { goal: short }), body: body.join(' ') || undefined,

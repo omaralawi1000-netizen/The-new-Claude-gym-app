@@ -82,7 +82,7 @@ export type AgentAction =
   | { type: 'delete_activity'; kind?: string | null; day?: string | null }
   | { type: 'delete_weight'; day?: string | null }
   | { type: 'add_note'; text: string; kind: 'training' | 'nutrition'; day?: string | null }
-  | { type: 'remember'; text: string; kind: MemoryKind; exercise?: string | null; /** the MEMORY number this replaces */ replaces?: number | null; /** last day it applies */ until?: string | null; /** a goal with a number the app follows */ goal?: GoalArg | null }
+  | { type: 'remember'; text: string; kind: MemoryKind; exercise?: string | null; /** the MEMORY number this replaces */ replaces?: number | null; /** last day it applies */ until?: string | null; /** a goal with a number the app follows */ goal?: GoalArg | null; /** a goal's agreed plan, in a few words */ plan?: string }
   | { type: 'forget'; memory?: number | null; target?: string | null }
   | { type: 'show_exercise'; exercise: string }
   | { type: 'propose_recipe'; name: string; servings: number; foods: AgentFood[]; steps: string[] }
@@ -324,7 +324,9 @@ function validateOne(a: any, out: AgentAction[]) {
         const n = typeof a.memory === 'number' ? a.memory : typeof a.memory === 'string' && /^\d{1,3}$/.test(a.memory.trim()) ? Number(a.memory.trim()) : null;
         const until = typeof a.until === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(a.until.trim()) ? a.until.trim() : null;
         const goal = goalArg(a.goal);
-        if (text) out.push({ type: 'remember', text, kind: goal ? 'goal' : MEMORY_KINDS.includes(a.kind) ? a.kind : 'other', exercise: str(a.exercise, 60) ?? null, replaces: n, until, ...(goal ? { goal } : {}) });
+        // (the plan as a plain field too: a model that leaves the goal object out still fills a flat one)
+        const plan = str(a.goalPlan, 160) ?? goal?.plan;
+        if (text) out.push({ type: 'remember', text, kind: goal ? 'goal' : MEMORY_KINDS.includes(a.kind) ? a.kind : 'other', exercise: str(a.exercise, 60) ?? null, replaces: n, until, ...(goal ? { goal: { ...goal, ...(plan ? { plan } : {}) } } : {}), ...(plan ? { plan } : {}) });
         break;
       }
       case 'show_exercise': { const exercise = str(a.exercise, 60); if (exercise) out.push({ type: 'show_exercise', exercise }); break; }
@@ -1487,10 +1489,15 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
   const seen = a.replaces ? (ctx.memAtStart ?? st.memory)[a.replaces - 1] : undefined;
   const old = (seen && st.memory.find((m) => m.id === seen.id)) || st.memory.find((m) => sameNote(m.text, a.text));
   // a goal note without its numbers (a model that left goal out): read from its words — "Goal: 82 → 80 kg by 2026-11-16"
-  const g00 = a.goal ?? (a.kind === 'goal' ? goalFromText(a.text, a.until ?? undefined, old, lang) : undefined);
+  const g00 = a.goal ?? (a.kind === 'goal' ? goalFromText(a.text, a.until ?? undefined, old, lang, ctx.today) : undefined);
   // (a running goal's line rewritten to say it was reached ends it, whatever the goal field says: "…reached at 80.8 kg")
   const saysDone = !!old?.goal && !old.goal.status && /\b(reached|achieved|nået)\b/i.test(a.text) && !/\b(halfway|half|almost|nearly|not|næsten|halvvejs|ikke)\b/i.test(a.text);
-  const g0 = g00 && saysDone && !g00.status ? { ...g00, metric: old!.goal!.metric, status: 'done' as const } : g00;
+  const g01 = g00 && saysDone && !g00.status ? { ...g00, metric: old!.goal!.metric, status: 'done' as const } : g00;
+  // (a weight class is a ceiling, never a weight to climb to: "86 kg class" while 82 kg is already made, no pace)
+  const clsNum = Number(a.text.match(/(\d{2,3}(?:[.,]\d+)?)\s*kg\s*(?:weight\s*)?(?:class|-?klassen?|vægtklasse)/i)?.[1]?.replace(',', '.'));
+  const nowKg = g01?.metric === 'weight' ? goalStart(useStore.getState(), { metric: 'weight' }, undefined, ctx.today) : undefined;
+  const g0 = g01 && g01.metric === 'weight' && g01.target !== undefined && clsNum === g01.target && nowKg !== undefined && g01.target > nowKg ? { metric: 'other' as const, ...(g01.by ? { by: g01.by } : {}), ...(g01.plan ? { plan: g01.plan } : {}) } : g01;
+  if (g0 && a.plan && !g0.plan) g0.plan = a.plan;
   const ex = a.exercise ? findExercise(a.exercise, lang) : g0?.exercise;
   // a goal keeps its date in goal.by (it is followed up after the date too, never just dropped like a temporary note)
   const tillRaw = g0 && !g0.by && a.until ? a.until : undefined;
@@ -1562,7 +1569,7 @@ const LIFT_WORDS = /\b(bench|squat|deadlift|overhead press|ohp|military press|pu
 const kgNum = (x: string) => Number(x.replace(',', '.'));
 /** A goal's numbers read from its words, when the model didn't give them: a lift ("Bench Press 47.5 → 80 kg"), a
  *  bodyweight ("82 → 80 kg", "make the 74 kg class", "lose 2 kg"), a date (YYYY-MM-DD), or that it was reached or dropped. */
-export function goalFromText(text: string, until: string | undefined, old: MemoryNote | undefined, lang: 'en' | 'da'): GoalArg | undefined {
+export function goalFromText(text: string, until: string | undefined, old: MemoryNote | undefined, lang: 'en' | 'da', today?: string): GoalArg | undefined {
   // (reached only when the words say the goal is: "halfway reached" isn't)
   if (old?.goal && !old.goal.status && /^\s*(?:(?:goal|mål)\s*)?(?:reached|achieved|completed|done|nået|naet)\b|\b(?:goal|mål)\s+(?:reached|achieved|completed|nået|naet)\b|\(\s*(?:reached|achieved|nået)\b|\b(?:reached|nået)\s+(?:on\s+|den\s+)?\d|\bhit it\b/i.test(text)) return { metric: old.goal.metric, status: 'done' };
   if (old?.goal && !old.goal.status && /\b(dropped|gave up|given up|abandoned|droppet|opgivet)\b/i.test(text)) return { metric: old.goal.metric, status: 'dropped' };
@@ -1587,7 +1594,8 @@ export function goalFromText(text: string, until: string | undefined, old: Memor
   if (arrow) return { metric: 'weight', target: toKg(arrow[2], arrow[3]), ...(by ? { by } : {}) };
   const cls = text.match(/(\d{2,3}(?:[.,]\d+)?)\s*kg\s*(?:weight\s*)?(?:class|-?klassen?|vægtklasse)/i) ?? text.match(/\b(?:under|below|weigh in at|make)\s+(\d{2,3}(?:[.,]\d+)?)\s*kg/i);
   // (a weight class is a goal to reach only with its weigh-in date: "wrestles in the 74 kg class" is a fact about them)
-  if (cls && by) return { metric: 'weight', target: kgNum(cls[1]), by };
+  // (a class above where they are is made already: a ceiling, not a weight to climb to)
+  if (cls && by) { const now = today ? goalStart(useStore.getState(), { metric: 'weight' }, undefined, today) : undefined; const c = kgNum(cls[1]); return now !== undefined && c > now ? { metric: 'other', by } : { metric: 'weight', target: c, by }; }
   const rel = text.match(/\b(lose|losing|drop|cut|shed|tabe|tab|gain|gaining|put on|add|bulk|tage på|tag på)\s+(?:about\s+|around\s+|ca\.?\s+)?(\d{1,2}(?:[.,]\d+)?)\s*(kg|lbs?)\b/i);
   if (rel) return { metric: 'weight', delta: (/^(gain|put|add|bulk|tag)/i.test(rel[1]) ? 1 : -1) * toKg(rel[2], rel[3]), ...(by ? { by } : {}) };
   return by ? { metric: 'other', by } : undefined;
@@ -2279,6 +2287,11 @@ function doSetting(a: Extract<AgentAction, { type: 'set_setting' }>, ctx: AgentC
 export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promise<AgentResult[]> {
   const ctx: AgentCtx = { ...ctxIn, memAtStart: ctxIn.memAtStart ?? [...useStore.getState().memory] };
   const out: AgentResult[] = [];
+  // a goal saved with new calorie or protein targets in the same answer: those targets are its plan, when it has none
+  const set = (k: string) => actions.flatMap((a) => (a.type === 'set_setting' ? [...(a.key ? [{ key: a.key, value: a.value ?? '' }] : []), ...(a.pairs ?? [])] : [])).find((p) => p.key === k)?.value;
+  const kc = Number(set('kcalGoal')), pr = Number(set('proteinGoal'));
+  const fromSet = [kc > 0 ? `${kc.toLocaleString('en-US')} kcal` : '', pr > 0 ? `${pr} g protein` : ''].filter(Boolean).join(', ');
+  if (fromSet) actions = actions.map((a) => (a.type === 'remember' && (a.kind === 'goal' || a.goal) && !a.plan && !a.goal?.plan ? { ...a, plan: fromSet } : a));
   for (const a of actions) {
     try {
       switch (a.type) {

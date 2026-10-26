@@ -102,7 +102,7 @@ export function goalStart(d: Pick<AppData, 'weights' | 'health' | 'sessions'>, p
   return undefined;
 }
 
-export type Pace = 'reached' | 'on pace' | 'ahead' | 'behind' | 'too fast' | 'wrong way' | 'slow' | 'stalled' | 'date passed' | 'too early';
+export type Pace = 'reached' | 'ready' | 'on pace' | 'ahead' | 'behind' | 'too fast' | 'wrong way' | 'slow' | 'stalled' | 'date passed' | 'too early';
 export interface GoalState {
   note: MemoryNote;
   metric: GoalPlan['metric'];
@@ -113,6 +113,8 @@ export interface GoalState {
   daysIn: number; daysLeft?: number;
   /** kg a week, + up, − down: from the scale's trend or the lift's sets */
   rate?: number; rateBasis?: string;
+  /** a weight goal two weeks away or less (a weigh-in): judged on the morning scale */
+  short?: boolean;
   /** a weight goal judged on its food: what its own weigh-ins say so far (mostly water this early) */
   scaleRate?: number;
   /** a lift goal: the same best set for this many workouts, since that date */
@@ -173,7 +175,9 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
     const recent = slS !== null ? since : four;
     // where they are now: on that line when there is one (a smoothed average lags a steady loss by about half a kilo),
     // else the smoothed trend
-    const now = slS !== null ? median(recent.map((w) => w.kg + slS * diffDays(last.date, w.date)))! : scaleNow(ws, today);
+    // a goal two weeks away or less (a weigh-in): the morning scale is what counts, not a line through the weeks
+    const short = !!g.by && diffDays(g.by, startDate) <= 14;
+    const now = short && diffDays(today, last.date) <= 3 ? last.kg : slS !== null ? median(recent.map((w) => w.kg + slS * diffDays(last.date, w.date)))! : scaleNow(ws, today);
     const stale = diffDays(today, last.date);
     // (where it started: as saved, else the trend the day it was set)
     const start = g.start ?? trend.filter((p) => p.date <= startDate).at(-1)?.kg ?? trend.find((p) => p.date >= startDate)?.kg;
@@ -188,6 +192,9 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
     const last3 = ws.slice(-3);
     const there = (kg: number) => (dir < 0 ? kg <= g.target! + 0.05 : kg >= g.target! - 0.05);
     if (there(now) || (last3.length === 3 && last3.every((w) => there(w.kg)))) return { ...st, pace: 'reached' };
+    // (a short goal is made by one morning on or before its day)
+    if (short && ws.some((w) => w.date >= startDate && w.date <= g.by! && there(w.kg))) return { ...st, pace: 'reached' };
+    if (short) st.short = true;
     if (stale > 10) return { ...st, pace: daysLeft !== undefined && daysLeft < 0 ? 'date passed' : 'too early', why: `no weigh-in for ${stale} days` };
     const left = g.target - now;
     if (daysLeft !== undefined && daysLeft > 0) st.need = r2((left / daysLeft) * 7);
@@ -235,7 +242,12 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
   const st: GoalState = { ...base, start: start !== undefined ? r1(start) : undefined, now: nowTop ? r1(nowTop.e) : undefined, target: r1(targetE) };
   st.stalled = stalledLifts(d.sessions, today).some((s) => s.exerciseId === id);
   if (!nowTop) return { ...st, why: 'not trained in the last 8 weeks' };
-  if (nowTop.e >= targetE - 0.05) return { ...st, pace: 'reached' };
+  // reached: a real set at it (a heavy single, double or triple is only proven by doing it); the estimate alone says it is
+  // there to test
+  const reps = g.reps ?? 1;
+  const did = tops.some((x) => x.date >= startDate && x.kg >= g.target! - 0.01 && x.reps >= reps) || liftTops(d, id, startDate, today).some((x) => x.kg >= g.target! - 0.01 && x.reps >= reps);
+  if (did || (reps > 3 && nowTop.e >= targetE - 0.05)) return { ...st, pace: 'reached' };
+  if (nowTop.e >= targetE - 0.05) return { ...st, pace: 'ready', why: `the estimate from their sets is there; only a real ${r1(g.target)} kg × ${reps} proves it` };
   // a plateau: no better best set since the best was first reached, for 4+ workouts over 2+ weeks (the goal lift is
   // always checked, not only the 3 stalls DATA lists)
   const top = best(tops)!;
@@ -270,7 +282,12 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
 export function goalCalories(d: Data, st: GoalState, today: string): string | undefined {
   if (st.metric !== 'weight' || st.target === undefined) return undefined;
   const m = goalMaintenance(d, st.note.goal?.startDate ?? today, today);
-  if (st.pace === 'reached') return m ? `To hold it: about TRUE MAINTENANCE ${fmtK(m.kcal)} kcal a day (${m.confidence} confidence).` : undefined;
+  if (st.pace === 'reached') {
+    if (!m) return undefined;
+    const cur = d.settings.goals.kcal;
+    const half = cur && Math.abs(m.kcal - cur) >= 300 ? rk((m.kcal + cur) / 2) : undefined;
+    return `To hold it: about TRUE MAINTENANCE ${fmtK(m.kcal)} kcal a day (${m.confidence} confidence)${half ? `; from the ${fmtK(cur!)} target, about ${fmtK(half)} for a week first, then maintenance (the scale jumps a little with the extra food: water and glycogen)` : ''}.`;
+  }
   const now = st.now ?? st.start;
   if (!now) return undefined;
   const sex = d.settings.body?.sex;
@@ -319,6 +336,7 @@ function paceTable(d: Data, today: string): string | undefined {
 const fmtPace = (x: number) => `${x > 0 ? '+' : ''}${r2(x)} kg/week`;
 const STATUS: Record<Pace, string> = {
   reached: 'REACHED',
+  ready: 'READY TO TEST (the estimate says it is there)',
   'on pace': 'ON PACE',
   ahead: 'AHEAD of pace',
   behind: 'BEHIND pace',
@@ -418,7 +436,6 @@ export function goalWatchLines(d: Data, today: string, exName: (id: string) => s
   const losing = run.filter((m) => m.goal.metric === 'weight').map((m) => goalState(d, m, today)!).filter((st) => (st.start ?? st.now) !== undefined);
   const cutting = losing.length ? losing.some((st) => st.target! < (st.start ?? st.now)!) : profile === 'fatloss';
   const L: string[] = [];
-  const head = sinceGoal ? `since the goal started on ${startDate}` : 'the last 2 weeks';
 
   // sleep and recovery: the last 7 days against their usual (the median of the 30 days before them)
   const hs = (d.health ?? []).filter((h) => diffDays(today, h.date) >= 0);
@@ -473,13 +490,13 @@ export function goalWatchLines(d: Data, today: string, exName: (id: string) => s
   const gym = d.sessions.filter((s) => s.status === 'done' && s.date >= from && s.date <= today).length;
   const sk = skippedSets(d, today, 14);
   const stalls = stalledLifts(d.sessions, today).map((s) => exName(s.exerciseId));
-  L.push(`Training ${head}: ${gym} gym workouts; planned working sets skipped in the last 14 days: ${sk.workouts ? `${sk.skipped} of ${sk.planned}` : 'no planned workouts to judge'}${stalls.length ? `; stalled: ${stalls.join(', ')}` : ''}.`);
+  L.push(`Training ${foodHead}: ${gym} gym workouts; planned working sets skipped in the last 14 days: ${sk.workouts ? `${sk.skipped} of ${sk.planned}` : 'no planned workouts to judge'}${stalls.length ? `; stalled: ${stalls.join(', ')}` : ''}.`);
   return [`GOAL WATCH (what a coach keeps an eye on while ${run.length ? 'a goal runs' : `their profile goal (${profile}) runs`}; bring up what is off without being asked, early, with the numbers; never by telling them to train lighter or do fewer sets):`, ...L.map((x) => `- ${x}`)];
 }
 
 /** One short line for a goal's progress (Coach memory, Today's note): "81.9 → 80.4 kg · behind". */
 export function goalShort(st: GoalState, t: (k: string, v?: Record<string, string | number>) => string, kg: (x: number) => string): string {
-  const word: Record<Pace, string> = { reached: t('reached'), 'on pace': t('on pace'), ahead: t('ahead of pace'), behind: t('behind pace'), 'too fast': t('faster than safe'), 'wrong way': t('going the wrong way'), slow: t('slow'), stalled: t('stalled'), 'date passed': t('date passed'), 'too early': t('too early to tell') };
+  const word: Record<Pace, string> = { reached: t('reached'), ready: t('ready to test'), 'on pace': t('on pace'), ahead: t('ahead of pace'), behind: t('behind pace'), 'too fast': t('faster than safe'), 'wrong way': t('going the wrong way'), slow: t('slow'), stalled: t('stalled'), 'date passed': t('date passed'), 'too early': t('too early to tell') };
   if (st.metric === 'other' || st.target === undefined) return '';
   const nums = st.now !== undefined ? `${kg(st.now)} → ${kg(st.target)}` : `→ ${kg(st.target)}`;
   return `${nums} · ${word[st.pace]}`;

@@ -336,3 +336,31 @@ describe('judge round 2, second pass', () => {
   });
 });
 
+describe('judge round 3 (26 Oct)', () => {
+  it('a class above where they are is not a weight to climb to', async () => {
+    useStore.setState({ weights: weighIns(20, 82.5, -0.1) });
+    await act({ type: 'remember', kind: 'goal', text: 'Weigh-in: 86 kg class on 2026-12-06', goal: { metric: 'weight', target: 86, by: '2026-12-06' } });
+    expect(data().memory[0].goal!.metric).toBe('other');
+  });
+  it('a lift goal is only reached by a real set; the estimate says it is ready to test', () => {
+    useStore.setState({ sessions: [0, 1, 2, 3, 4].map((i) => session(addDays(today, -20 + i * 4), [['bench-press', 82.5 + i * 0.5, 6]])), memory: [{ id: 'g', kind: 'goal', text: 'Goal: bench 100', at: 0, exerciseIds: ['bench-press'], goal: { metric: 'lift', target: 100, reps: 1, by: addDays(today, 100), startDate: addDays(today, -21) } }] });
+    expect(goalState(data(), data().memory[0], today)!.pace).toBe('ready');
+    useStore.setState({ sessions: [...data().sessions, session(addDays(today, -1), [['bench-press', 100, 1]])] });
+    expect(goalState(data(), data().memory[0], today)!.pace).toBe('reached');
+  });
+  it('a weigh-in goal is made by one morning on or before its day, and is judged on the morning scale', () => {
+    const ws = [...weighIns(20, 82, 0).filter((w) => w.date <= addDays(today, -5)), { id: 'm1', date: addDays(today, -3), kg: 81.2, at: 0 }, { id: 'm2', date: addDays(today, -1), kg: 80.6, at: 0 }];
+    useStore.setState({ weights: ws, memory: [{ id: 'g', kind: 'goal', text: 'Weigh-in: 81 kg class', at: 0, goal: { metric: 'weight', target: 81, by: addDays(today, 1), startDate: addDays(today, -5) } }] });
+    expect(goalState(data(), data().memory[0], today)!.pace).toBe('reached');
+    useStore.setState({ weights: ws.slice(0, -1) });
+    const st = goalState(data(), data().memory[0], today)!;
+    expect(st.now).toBe(81.2);
+    expect(st.short).toBe(true);
+  });
+  it('a goal saved with new targets in the same answer keeps them as its plan', async () => {
+    useStore.setState({ weights: weighIns(20, 82.5, -0.3) });
+    await runActions(validateAgent({ reply: '', actions: [{ type: 'remember', kind: 'goal', text: 'Goal: 81.8 → 80 kg by 2026-11-30' }, { type: 'set_setting', settings: [{ key: 'kcalGoal', value: 2460 }, { key: 'proteinGoal', value: 180 }] }] })!.actions, ctx());
+    expect(data().memory[0].goal!.plan).toBe('2,460 kcal, 180 g protein');
+  });
+});
+

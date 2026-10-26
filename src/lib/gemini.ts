@@ -316,6 +316,7 @@ export const AGENT_SCHEMA = {
       which: { type: 'STRING', nullable: true, enum: ['current', 'last'], description: 'log_current_set: current = the set they are on now (it gets ticked), last = the set they just finished' }, text: { type: 'STRING', nullable: true, description: 'add_note: the note. remember: one short third-person line, e.g. "Doesn\'t do a separate leg day; wrestling covers legs."' },
       memory: { type: 'STRING', nullable: true, description: 'forget: the number of the MEMORY line to drop, e.g. "3". remember: the number of the MEMORY line the new fact replaces (it changed)' },
       until: { type: 'STRING', nullable: true, description: 'remember: for a temporary thing (sick, travelling, sore this week), the last day it applies, YYYY-MM-DD (a goal\'s date goes in goal.by instead)' },
+      goalPlan: { type: 'STRING', nullable: true, description: 'remember (kind goal): the plan agreed, in a few words with its numbers ("2,460 kcal, 180 g protein"; "77.5 × 6, 7, 8 then 80 × 5")' },
       goal: { type: 'OBJECT', nullable: true, description: 'remember (kind goal): the number the app follows. weight = bodyweight target; lift = a weight on the bar for one exercise (put the exercise in exercise); other = no number. status done / dropped when they reached it or gave it up (memory = its line)', properties: {
         metric: { type: 'STRING', enum: ['weight', 'lift', 'other'] },
         target: { type: 'NUMBER', nullable: true, description: 'weight: target bodyweight in kg; lift: kg on the bar' },
