@@ -3110,3 +3110,8 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* talking live, the dust behind redraws every frame: nothing on this screen blurs what is behind it (it would blur again at
    every frame), the same as the tab screens */
 .voice.live .plinth, .voice.live .btn, .voice.live .chip, .voice.live .glass { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.frost canvas[data-now] { transition: none; } /* (the picture kept from the last visit, on a fresh start: no fade, frost.ts) */
+/* the glass's own grain, which moves with the card: it reads as frost, and it breaks up the copy's colour steps (the copy is
+   blurred, so the page's grain under it is gone and its soft gradients banded, Omar 25 Oct). Finer than the page's grain. */
+.frost::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: var(--frost-grain, 0.03);
+  background: var(--frost-dots, none); image-rendering: pixelated; }

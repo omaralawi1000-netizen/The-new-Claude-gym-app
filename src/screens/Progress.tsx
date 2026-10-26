@@ -20,6 +20,11 @@ type Range = '4w' | '12w' | '6m' | 'all';
 const DAYS: Record<Range, number> = { '4w': 28, '12w': 84, '6m': 182, all: 3650 };
 
 export function ProgressScreen() {
+  return <div className="screen"><ProgressBody /></div>;
+}
+
+/** the charts themselves: the Progress tab's content, now the Training page inside Health */
+export function ProgressBody() {
   const t = useT();
   const lang = useLang();
   const s = useScreenStore(); // paused while the live workout covers the page
@@ -86,7 +91,7 @@ export function ProgressScreen() {
   const wLabel = (d: string) => fmtDate(d, lang, { day: 'numeric', month: 'short' });
 
   return (
-    <div className="screen">
+    <>
       <header>
         <Seg value={range} onChange={setRange} options={[{ value: '4w', label: t('4 weeks') }, { value: '12w', label: t('12 weeks') }, { value: '6m', label: t('6 months') }, { value: 'all', label: t('All') }]} />
       </header>
@@ -197,6 +202,6 @@ export function ProgressScreen() {
         </Section>
       )}
       </>}
-    </div>
+    </>
   );
 }
