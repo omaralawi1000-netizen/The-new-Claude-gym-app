@@ -35,6 +35,8 @@
 .hx-gbar::after { content: ''; position: absolute; left: 0; right: 0; bottom: 3px; height: 4px; border-radius: 2px; background: var(--c); transform-origin: left; transform: scaleX(var(--f)); }
 .hx-gbar i { position: absolute; bottom: 0; left: calc(var(--f) * 100%); width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--c); z-index: 1; }
 .hx-gnow { position: absolute; top: 0; left: clamp(28px, calc(var(--f) * 100%), calc(100% - 28px)); transform: translateX(-50%); font: 500 12px/1 var(--f-ui); color: var(--c); white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* where the bar starts and ends, so its fill is a number he can check */
+.hx-gends { display: flex; justify-content: space-between; margin-top: 4px; font: 500 11px var(--f-ui); color: var(--tx3); font-variant-numeric: tabular-nums; }
 .hx-gline { margin-top: 8px; font-size: 14px; color: var(--tx2); text-wrap: pretty; font-variant-numeric: tabular-nums; }
 .hx-gline b { font-weight: 500; color: var(--tx); }
 .hx-goal + .hx-rib { margin-top: 18px; }

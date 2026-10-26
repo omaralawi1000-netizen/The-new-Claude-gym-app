@@ -2078,6 +2078,7 @@ export const da: Record<string, string> = {
  "Date passed": "Datoen er passeret",
  "Too early to tell": "For tidligt at sige",
  "1 day": "1 dag",
+ "Tell the Coach how it went.": "Fortæl Coachen hvordan det gik.",
  "Here is where your goal stands.": "Her står dit mål.",
  "1 week": "1 uge",
  "Tell the Coach which lift it is, and it follows it here.": "Fortæl Coachen hvilket løft det er, så følger den det her.",

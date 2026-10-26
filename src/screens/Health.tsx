@@ -265,7 +265,7 @@ function CoachLine({ v, d, today, t, lang, onTap }: { v: HealthView; d: AppData;
     return healthNote(rankNotes(d, today, hour, t, lang, (id) => { const e = map.get(id); return e ? exName(e, lang) : '?'; }, cachedInsights(today)));
   }, [d, today, hour, t, lang]);
   // the goal the card shows (its first tracked one)
-  const goalWarn = useMemo(() => { const m = activeGoals(d, today).filter(tracked)[0]; const p = m && goalState(d, m, today)?.pace; return !!p && WARN.has(p); }, [d, today]);
+  const goalWarn = useMemo(() => { const m = cardGoal(d, today); const p = m?.goal && goalState(d, m, today)?.pace; return !!p && WARN.has(p); }, [d, today]);
   const night = v.night;
   // last night: "about your usual" within 30 min of the median of the 30 nights before (lib/recovery.ts usualSleep)
   let p1: ReactNode = null;
@@ -295,6 +295,8 @@ const PACE = (t: TFn): Record<Pace, string> => ({ reached: t('Reached'), ready: 
 
 /** paces that need something from him: the pill gets a coral rim (white words, no wash) so it reads at a glance */
 /** the time left as he'd say it: days under a week, weeks after; nothing on the day or after it */
+/** the goal the card shows, and the Coach line checks: the first tracked one, else the first */
+const cardGoal = (d: AppData, today: string) => { const all = activeGoals(d, today); return all.filter(tracked)[0] ?? all[0]; };
 const timeLeft = (n: number | undefined, t: TFn) => (n === undefined || n <= 0 ? '' : n === 1 ? t('1 day') : n < 7 ? t('{n} days', { n }) : Math.round(n / 7) === 1 ? t('1 week') : t('{n} weeks', { n: Math.round(n / 7) }));
 const WARN = new Set<Pace>(['behind', 'too fast', 'wrong way', 'stalled', 'date passed']);
 
@@ -319,9 +321,8 @@ function earlyLine(st: GoalState, t: TFn): string {
  * voice, not another card. Tap it to ask the Coach how it is going.
  */
 const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; today: string; t: TFn; lang: Lang }) {
-  const all = activeGoals(d, today);
-  const goals = all.filter(tracked);
-  const m = goals[0] ?? all[0];
+  const goals = activeGoals(d, today).filter(tracked);
+  const m = cardGoal(d, today);
   const u = d.settings.units.weight;
   const kg = (x: number) => `${fmtNum(kgToDisplay(x, u), lang, 1)}\u00a0${u}`;
   const ask = (prompt: string) => useUI.getState().push('coach', { ask: prompt });
@@ -342,10 +343,11 @@ const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; tod
     </button>
   );
   const st = goalState(d, m, today);
-  const name = m.text.replace(/^(goal|mål)\s*:\s*/i, '');
+  const name = name0;
   const by = m.goal.by ? fmtDate(m.goal.by, lang, { day: 'numeric', month: 'short' }) : undefined;
   const lift = m.goal.metric === 'lift';
   const ex = m.exerciseIds?.[0] ? exerciseMap(d.exercises).get(m.exerciseIds[0]) : undefined; // a deleted lift: just the weight
+  const gone = lift && !!m.exerciseIds?.[0] && !ex; // ...and no verdict on a lift that isn't there
   const what = m.goal.target === undefined ? name : lift ? `${ex ? `${exName(ex, lang)} ` : ''}${kg(m.goal.target)}${(m.goal.reps ?? 1) > 1 ? ` × ${m.goal.reps}` : ''}` : kg(m.goal.target);
   const title = by && m.goal.target !== undefined ? t('{what} by {date}', { what, date: by }).replace(/ (\d)/g, '\u00a0$1') : what;
   let line = '';
@@ -365,15 +367,18 @@ const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; tod
       const why = st.need !== undefined && st.rate !== undefined ? t('needs {a}/wk, now {b}', { a: wk(st.need), b: wk(st.rate).replace(/\u00a0\S+$/, '') }) : '';
       line = [t('{n} to go', { n: kg(left) }), !why && st.daysLeft !== undefined && st.daysLeft > 0 ? (st.daysLeft === 1 ? t('1 day') : t('{n} days', { n: st.daysLeft })) : '', why || (d.settings.goals.kcal ? t('{n} kcal target', { n: fmtNum(d.settings.goals.kcal, lang, 0) }) : '')].filter(Boolean).join(' · ');
     }
-    if (st.start !== undefined && st.now !== undefined && st.target !== undefined && st.pace !== 'too early' && st.start !== st.target) bar = { start: st.start, now: st.now, target: st.target };
+    if (!line && st.pace === 'date passed') line = t('Tell the Coach how it went.');
+    // (not while judged on food: that "now" is an estimate, the line above says so)
+    if (!st.byFood && st.start !== undefined && st.now !== undefined && st.target !== undefined && st.pace !== 'too early' && st.start !== st.target) bar = { start: st.start, now: st.now, target: st.target };
   } else line = t('No number to follow, so the Coach checks in with you instead.');
   const more = goals.length > 1 ? goals.length - 1 : 0;
   const col = lift ? C.cardio : C.body;
   const f = bar ? Math.max(0, Math.min(1, (bar.now - bar.start) / (bar.target - bar.start))) : 0;
   return (
     <button className="hx-goal press" style={{ ['--c' as string]: col }} onClick={() => ask(t('How am I doing on my goal “{goal}”? Be honest.', { goal: name }))}>
-      <div className="hx-ghead"><span className="hx-gt">{title}</span>{st ? <span className={`hx-gpace${WARN.has(st.pace) ? ' hx-gwarn' : ''}`}>{PACE(t)[st.pace]}</span> : <span className="hx-gchev">›</span>}</div>
+      <div className="hx-ghead"><span className="hx-gt">{title}</span>{st && !gone ? <span className={`hx-gpace${WARN.has(st.pace) ? ' hx-gwarn' : ''}`}>{PACE(t)[st.pace]}</span> : <span className="hx-gchev">›</span>}</div>
       {bar && <div className="hx-gbar" style={{ ['--f' as string]: f }}><span className="hx-gnow">{(lift ? t('{n} now', { n: fmtNum(kgToDisplay(bar.now, u), lang, 1) }) : t('{n} trend', { n: fmtNum(kgToDisplay(bar.now, u), lang, 1) }))}</span><i /></div>}
+      {bar && <div className="hx-gends"><span>{fmtNum(kgToDisplay(bar.start, u), lang, 1)}</span><span>{fmtNum(kgToDisplay(bar.target, u), lang, 1)}</span></div>}
       {(line || more > 0) && <div className="hx-gline">{line}{more > 0 && <>{line ? ' · ' : ''}<b>{t('+{n} more', { n: more })}</b></>}</div>}
     </button>
   );

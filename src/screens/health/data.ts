@@ -102,8 +102,8 @@ export interface HealthView {
 export function goalWeight(data: AppData, today: string): { now?: number; rate?: number } {
   const m = activeGoals(data, today).filter(tracked).find((x) => x.goal.metric === 'weight');
   const st = m ? goalState(data, m, today) : undefined;
-  // (a goal still judged on its food: its "now" is what he eats, not the scale, so Body keeps the weigh-in)
-  return st && st.pace !== 'too early' && !st.byFood ? { now: st.now, rate: st.rate } : {};
+  if (st?.byFood) return { now: st.scaleKg, rate: st.scaleRate }; // the same scale number the card names
+  return st && st.pace !== 'too early' ? { now: st.now, rate: st.rate } : {};
 }
 
 export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | null; today: string; now: number; label: (a: ActivityLog) => string; gw?: { now?: number; rate?: number } }): HealthView {
