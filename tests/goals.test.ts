@@ -476,7 +476,7 @@ describe('judge round 6 (26 Oct)', () => {
     const late = (date: string, kcal: number): FoodEntry => ({ ...entry(date, kcal), mealId: 'snacks', at: new Date(`${date}T21:30:00`).getTime() });
     const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); return new Date(`${date}T12:00:00`).getDay() === 0 ? [entry(date, 2000), late(date, 1500)] : [entry(date, 2100)]; }).flat();
     useStore.setState({ weights: weighIns(28, 82, 0), entries, memory: [{ id: 'a', kind: 'other', text: 'Age: 24 (as of 2026-10-01)', at: 0 }] });
-    expect(goalLines(data(), today, name).join('\n')).toMatch(/Sundays average 3,500 kcal, against 2,100 on the other days, mostly food after 20:00: 1,500 kcal on those days vs 0/);
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Sundays average 3,500 kcal, against 2,100 on the other days, mostly food after 21:00: 1,500 kcal on those days vs 0/);
     expect(goalWatchLines(data(), today, name).join('\n')).toMatch(/MUST SAY THIS TURN \(once, with the numbers\): no strength training in the last 2 weeks during a cut/);
     await act({ type: 'remember', kind: 'goal', text: `Weigh-in: 81 kg class on ${addDays(today, 5)}`, goal: { metric: 'weight', target: 81, by: addDays(today, 5) } });
     expect(goalLines(data(), today, name).join('\n')).toMatch(/Cut-off: the morning before \(2026-10-29\) over 81\.5 kg → the next class up/);
@@ -494,5 +494,13 @@ describe('judge round 7 (26 Oct)', () => {
     const kgs = [70, 72.5, 75, 77.5, 77.5, 77.5, 77.5, 77.5, 77.5];
     useStore.setState({ sessions: kgs.map((kg, i) => session(addDays(today, -40 + i * 5), [['bench-press', kg, 5]])), memory: [{ id: 'b', kind: 'goal', text: 'Goal: bench 100', at: 0, exerciseIds: ['bench-press'], goal: { metric: 'lift', target: 100, reps: 1, by: addDays(today, 200), startDate: addDays(today, -12) } }] });
     expect(goalLines(data(), today, name).join('\n')).toMatch(/When you change its plan: save it in the same answer \(remember with memory = 1 and goal\.plan/);
+  });
+});
+
+describe('judge round 8 (26 Oct)', () => {
+  it('a habit on 4 nights a week is named as that, not as the weekend', () => {
+    const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); const w = new Date(`${date}T12:00:00`).getDay(); return [0, 2, 4, 5].includes(w) ? [entry(date, 1800), { ...entry(date, 100), mealId: 'snacks' }, { ...entry(date, 1500), mealId: 'snacks', at: new Date(`${date}T21:30:00`).getTime() }] : [entry(date, 1800), { ...entry(date, 100), mealId: 'snacks' }]; }).flat();
+    useStore.setState({ weights: weighIns(28, 75, 0), entries });
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/4 days a week \(Sun, Tue, Thu, Fri\) average 3,400 kcal, against 1,900 on the other days, mostly food after 21:00/);
   });
 });

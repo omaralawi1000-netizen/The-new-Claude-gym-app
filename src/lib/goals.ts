@@ -417,7 +417,7 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
     if (!g || !tracked(m)) {
       const left = g?.by ? diffDays(g.by, today) : undefined;
       const lg = loggingLine(d, m, today);
-      L.push(`- [memory ${num(m)}] "${m.text}"${g?.by ? left! >= 0 ? `, by ${g.by} (${left} days left)` : `, its last day was ${g.by} (${-left!} day${left === -1 ? '' : 's'} ago): OVER, not yet closed` : ''}${g?.startDate ? `, set ${g.startDate}` : ''}: no number the app can track, so no pace; ${left !== undefined && left < 0 ? 'how it went is in DATA' : 'follow up from what DATA shows'}.${lg ? ` ${lg}` : ''}`);
+      L.push(`- [memory ${num(m)}] "${m.text}"${g?.by ? left! >= 0 ? `, by ${g.by} (${left! + 1} day${left === 0 ? '' : 's'} left including today)` : `, its last day was ${g.by} (${-left!} day${left === -1 ? '' : 's'} ago): OVER, not yet closed` : ''}${g?.startDate ? `, set ${g.startDate}` : ''}: no number the app can track, so no pace; ${left !== undefined && left < 0 ? 'how it went is in DATA' : 'follow up from what DATA shows'}.${lg ? ` ${lg}` : ''}`);
       continue;
     }
     const st = goalState(d, m, today)!;
@@ -464,13 +464,15 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
     if (st.metric === 'weight' && st.daysLeft !== undefined && st.daysLeft <= 7 && st.now !== undefined && Math.abs(tg - st.now) <= st.now * 0.025 && st.pace !== 'reached') parts.push(`(${st.daysLeft} days to its date and ${r1(Math.abs(tg - st.now))} kg (${Math.round((Math.abs(tg - st.now) / st.now) * 1000) / 10} %) to go: what can still change this week is mostly food in the gut and water, not fat.)`);
     if (g.plan) parts.push(`Plan agreed: ${g.plan}.`);
     // (days far over the target since it started, and what made them: a habit the plan named that kept going)
+    let bigBehind = false;
     const tk = d.settings.goals.kcal;
     if (st.metric === 'weight' && tk && tg < (st.start ?? st.now ?? tg)) {
       const bigD = foodDays(d, g.startDate, today).filter((x) => x.kcal >= tk + 500);
       if (bigD.length >= 2) {
         const rest = foodDays(d, g.startDate, today).filter((x) => x.kcal < tk + 500).map((x) => x.date);
         const what = rest.length ? habitSlot(d, bigD.map((x) => x.date), rest) : undefined;
-        parts.push(`Days far over the target since it started: ${bigD.map((x) => `${WEEKDAY[wdOf(x.date)].slice(0, 3)} ${fmtK(x.kcal)}`).join(', ')}${what ? ` (${what.label}: ${fmtK(what.hi)} kcal on them vs ${fmtK(what.lo)} on the other days)` : ''}. If the plan already named this habit, its cap didn't hold: give one new concrete tactic for the habit itself (what changes about that food or that evening), not the same cap again.`);
+        parts.push(`${st.pace === 'behind' ? 'MUST SAY THIS TURN: ' : ''}Days far over the target since it started: ${bigD.map((x) => `${WEEKDAY[wdOf(x.date)].slice(0, 3)} ${fmtK(x.kcal)}`).join(', ')}${what ? ` (${what.label}: ${fmtK(what.hi)} kcal on them vs ${fmtK(what.lo)} on the other days)` : ''}. If the plan already named this habit, its cap didn't hold: give one new concrete tactic for the habit itself (what changes about that food or that evening), not the same cap again.`);
+        if (st.pace === 'behind') bigBehind = true;
       }
     }
     // (the check-in, worked out here so every plan has the same rule: every 2 weeks from its start)
@@ -481,6 +483,11 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
       if (!g.by || ck <= g.by) parts.push(`Check-in ${ck} (every 2 weeks): the scale's pace under half of what the date needs then → ${down ? '150 kcal less' : '150 kcal more'}; past the safe pace → ${down ? '150 kcal more' : '150 kcal less'}; else no change.`);
       // (behind on a cut while sleep or HRV is off: eating less now costs strength; the later date is the call)
       const rOff = recovery(d, today).off.filter((x) => /^(sleep|HRV)/.test(x));
+      // (behind because of a few big days: those days are the fix, not fewer calories on all the others)
+      if (down && bigBehind && !rOff.length) {
+        hold = true;
+        parts.push(`RECOMMEND: keep the current target${st.atTarget?.eta ? ` (it lands around ${st.atTarget.eta})` : ''} and fix the days far over it with the tactic above; don't offer fewer calories on the other days.${st.atTarget?.eta && g.by && st.atTarget.eta > g.by ? ` Offer to move the date to ${st.atTarget.eta} (remember with memory = ${num(m)}, goal.by ${st.atTarget.eta}), or keep it if those days are fixed from now.` : ''}`);
+      }
       if (down && st.pace === 'behind' && rOff.length) {
         hold = true;
         parts.push(`RECOMMEND (recovery is off: ${rOff.join(', ')}): keep the current target${st.atTarget?.eta ? ` and accept landing around ${st.atTarget.eta}` : ''}, and fix the days far over it; eating less while sleep or HRV is down costs strength. Don't offer fewer calories now.${st.atTarget?.eta ? ` Offer to move the date to ${st.atTarget.eta} (remember with memory = ${num(m)}, goal.by ${st.atTarget.eta}), so the app follows the same date.` : ''}`);
@@ -521,7 +528,7 @@ function habitLine(d: Data, today: string, caps?: string): string | undefined {
   const all = avg(days.map((x) => x.kcal))!;
   const by = new Map<number, number[]>();
   for (const x of days) (by.get(wdOf(x.date)) ?? by.set(wdOf(x.date), []).get(wdOf(x.date))!).push(x.kcal);
-  const high = [...by].filter(([, ks]) => ks.length >= 2).map(([w, ks]) => ({ w, k: avg(ks)! })).filter((x) => x.k >= all + 300).sort((a, b) => b.k - a.k).slice(0, 2);
+  const high = [...by].filter(([, ks]) => ks.length >= 2).map(([w, ks]) => ({ w, k: avg(ks)! })).filter((x) => x.k >= all + 300).sort((a, b) => a.w - b.w);
   const rest = avg(days.filter((x) => !high.some((h) => h.w === wdOf(x.date))).map((x) => x.kcal));
   const g = d.settings.goals;
   const hit = g.protein ? days.filter((x) => Math.round(x.protein) >= g.protein!).length : undefined;
@@ -529,16 +536,19 @@ function habitLine(d: Data, today: string, caps?: string): string | undefined {
   const isHigh = (date: string) => high.some((h) => h.w === wdOf(date));
   const hiD = days.filter((x) => isHigh(x.date)).map((x) => x.date), loD = days.filter((x) => !isHigh(x.date)).map((x) => x.date);
   const what = high.length && loD.length ? habitSlot(d, hiD, loD) : undefined;
-  const pat = high.length && rest !== undefined ? `${high.map((h) => `${WEEKDAY[h.w]}s average ${fmtK(h.k)} kcal`).join(' and ')}, against ${fmtK(rest)} on the other days${what ? `, mostly ${what.label}: ${fmtK(what.hi)} kcal on those days vs ${fmtK(what.lo)} on the others` : ''}${caps ? `; a cap for those days that still holds a plan: its daily target + 300 (${caps})` : g.kcal ? `; a cap for those days that still holds a plan: its daily target + 300 (now ${fmtK(g.kcal + 300)})` : ''}` : `no day of the week clearly over the others (all within 300 kcal of the ${fmtK(all)} average)`;
+  // (every day of the week that qualifies: a habit on 4 nights is not "the weekend"; judge round 8)
+  const named = high.length >= 3 ? `${high.length} days a week (${high.map((h) => WEEKDAY[h.w].slice(0, 3)).join(', ')}) average ${fmtK(avg(high.map((h) => h.k))!)} kcal` : high.map((h) => `${WEEKDAY[h.w]}s average ${fmtK(h.k)} kcal`).join(' and ');
+  const pat = high.length && rest !== undefined ? `${named}, against ${fmtK(rest)} on the other days${what ? `, mostly ${what.label}: ${fmtK(what.hi)} kcal on those days vs ${fmtK(what.lo)} on the others` : ''}${caps ? `; a cap for those days that still holds a plan: its daily target + 300 (${caps})` : g.kcal ? `; a cap for those days that still holds a plan: its daily target + 300 (now ${fmtK(g.kcal + 300)})` : ''}` : `no day of the week clearly over the others (all within 300 kcal of the ${fmtK(all)} average)`;
   return `What most likely breaks a plan (last 4 weeks, ${days.length} finished logged days): ${pat}${hit !== undefined ? `; protein at or above ${g.protein} g on ${hit} of ${days.length} days` : ''}. A plan names this habit with these numbers, never another.`;
 }
 
 /** On the big days against the others: the food after 20:00, or the one meal, that makes most of the difference. */
 function habitSlot(d: Pick<AppData, 'entries'>, hi: string[], lo: string[]) {
-  const late = (e: AppData['entries'][number]) => new Date(e.at).getHours() >= 20;
+  // (late: after 21:00, so a late dinner isn't counted as the habit)
+  const late = (e: AppData['entries'][number]) => new Date(e.at).getHours() >= 21;
   const per = (dates: string[], f: (e: AppData['entries'][number]) => boolean) => { const set = new Set(dates); let k = 0; for (const e of d.entries) if (set.has(e.date) && f(e)) k += e.nutrients.kcal ?? 0; return k / dates.length; };
   const meals = [...new Set(d.entries.filter((e) => hi.includes(e.date)).map((e) => e.mealId))];
-  const opts = [{ label: 'food after 20:00', f: late }, ...meals.map((m) => ({ label: `the ${m} meal`, f: (e: AppData['entries'][number]) => e.mealId === m }))]
+  const opts = [{ label: 'food after 21:00', f: late }, ...meals.map((m) => ({ label: `the ${m} meal`, f: (e: AppData['entries'][number]) => e.mealId === m }))]
     .map((o) => ({ label: o.label, hi: per(hi, o.f), lo: per(lo, o.f) })).sort((a, b) => (b.hi - b.lo) - (a.hi - a.lo));
   return opts[0] && opts[0].hi - opts[0].lo >= 250 ? opts[0] : undefined;
 }
