@@ -4,7 +4,9 @@ import { DustEngine, type DustState, type RGB } from './engine';
 /** What the orb screen tells Stardust every frame (read when it draws, not on render). */
 export interface DustLive {
   on: boolean; listen: boolean; think: boolean; speak: boolean; quiet: boolean;
-  levels: () => { in: number; bands: Float32Array; out: number } | null;
+  levels: () => { in: number; bands: Float32Array; out: number; obands?: Float32Array } | null;
+  /** the mood of what it is saying (-1 serious … 1 glad) */
+  mood: number;
   hold: [number, number] | null; press: number; tap: { n: number; x: number; y: number }; lean: [number, number];
   beat: number; greet: boolean;
   /** your voice was heard (while the greeting shows): it goes back into the orb */
@@ -95,7 +97,7 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
       if (worker) post({ text: arr }, [arr.buffer]); else eng?.setText(arr);
     };
 
-    const bands: number[] = new Array(16).fill(0);
+    const bands: number[] = new Array(16).fill(0), obands: number[] = new Array(16).fill(0);
     let voiceFor = 0;
     const tick = () => {
       if (stopped || (!worker && !eng)) return; // (it couldn't draw: nothing more to do)
@@ -108,7 +110,7 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
       // whichever of the two runs first in a frame)
       const slot = el.parentElement ?? el, r = slot.getBoundingClientRect(), [mx, my] = slot === el ? [0, 0] : L.lean;
       const lv = L.levels();
-      if (lv) for (let i = 0; i < 16; i++) bands[i] = lv.bands[i] ?? 0;
+      if (lv) for (let i = 0; i < 16; i++) { bands[i] = lv.bands[i] ?? 0; obands[i] = lv.obands?.[i] ?? 0; }
       // (your voice for a moment, not a click or a breath, takes the greeting back into the orb)
       if (L.greet) { sendText(); voiceFor = (lv?.in ?? 0) > 0.16 ? voiceFor + 1 : 0; if (voiceFor > 12) L.onVoice(); }
       const st: DustState = {
@@ -117,7 +119,7 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
         // (the sphere fills two thirds of the orb's place, as the usual orb does)
         cx: r.left + r.width / 2 + mx, cy: r.top + r.height / 2 + my, r: (r.width / 2) * 0.66,
         on: L.on ? 1 : 0, listen: L.listen, think: L.think, speak: L.speak, quiet: L.quiet,
-        vin: lv?.in ?? 0, bands, vout: lv?.out ?? 0,
+        vin: lv?.in ?? 0, bands, vout: lv?.out ?? 0, obands, mood: L.mood,
         hold: L.hold, press: L.press, tap: L.tap, lean: L.lean, beat: L.beat, greet: L.greet,
         reduced: reducedQ.matches || document.documentElement.dataset.motion === 'reduce', colors,
       };

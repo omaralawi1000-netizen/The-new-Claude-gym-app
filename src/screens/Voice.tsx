@@ -22,6 +22,7 @@ import { uid } from '../lib/nutrition';
 import { appendExchange, dropFailed, markInThread, readThread, threadSaid, threadTurns } from '../lib/thread';
 import { SphereSlot, mirrorOrb, orbPress, orbTap, holdOrbSize, orbVoiceSource, orbBeat, orbHide } from '../ui/Sphere';
 import { Stardust, type DustLive } from '../ui/stardust/Stardust';
+import { moodOf } from '../ui/stardust/mood';
 import { mirrorProgress, useEngage } from '../ui/engage';
 import { kb, watchFocus } from '../ui/keyboard';
 import { Veil, VOICE_VEIL, mirrorVeil } from '../ui/Veil';
@@ -317,6 +318,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // what it is doing while it thinks, in a few words (Omar's reference, 26 Oct: the assistant says live what it is working on)
   const [doing, setDoing] = useState('');
   const dustBeat = useRef(0); // a log done, for Stardust's sweep of the success colour
+  const dustMood = useRef(0); // the mood of what it is saying (its colour leans with it while it speaks)
   const liveTurn = useRef<{ id: string | null; said: string }>({ id: null, said: '' });
   const blobRef = useRef<Blob | null>(null);
   const handle = useRef<SpeechHandle | null>(null);
@@ -446,7 +448,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           }, 2500);
         },
         onTurnStart: () => { if (!alive.current) return; if (!lt.id) { const id = openTurn(lt.said); lt.id = id; patch(id, { live: true }); } go('processing'); },
-        onReplyText: (text) => { if (alive.current && lt.id) patch(lt.id, { reply: text }); },
+        onReplyText: (text) => { if (alive.current && lt.id) patch(lt.id, { reply: text }); dustMood.current = moodOf(text); },
         onSpeaking: (on) => { if (!alive.current) return; setSpeaking(on); if (on) setDoing(''); if (liveRef.current) go(on ? 'idle' : lt.id ? 'processing' : 'listening'); },
         onUsage: (u) => recordFee(liveCost(u)),
         onReconnecting: (on) => { if (alive.current) setRenewing(on); },
@@ -738,7 +740,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     on: dustOn, listen: liveActive && phase === 'listening' && !speaking, think: phase === 'processing' && !speaking, speak: speaking, quiet: muted || renewing,
     levels: () => liveRef.current?.levels() ?? null,
     get hold() { return touch.current.hold; }, get press() { return touch.current.hold ? 1 : 0; }, get tap() { return touch.current.tap; },
-    get lean(): [number, number] { return [hand.x, hand.y]; }, get beat() { return dustBeat.current; },
+    get lean(): [number, number] { return [hand.x, hand.y]; }, get beat() { return dustBeat.current; }, get mood() { return dustMood.current; },
     greet: dustOn && liveActive && !chatting && !heard, onVoice: () => setHeard(true),
   };
   // what it's doing, in a word (the orb says it too, in light): listening, thinking, speaking
