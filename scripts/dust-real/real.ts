@@ -51,11 +51,14 @@ function state(s: number): DustState {
   const [dx, dy] = dragAt(s);
   const thinking = s >= T.think && s < T.speak, speaking = s >= T.speak && s < T.speak + L.out.length / FPS;
   const m = s >= T.voice && s < T.voiceEnd ? at(L.mic, s - T.voice) : s >= T.voice2 && s < T.voice2 + 3.4 ? at(L.mic, s - T.voice2 + 0.4) : null;
-  if (s >= T.tap && tapN === 0) tapN = 1;
+  tapN = s >= T.tap ? 2 : s >= 3.0 ? 1 : 0; // (a tap on the big orb while it greets, and one on the small one)
   return {
     w: CW, h: CH, dpr: DPR, cx: base.cx + dx, cy: base.cy + dy, r: base.r,
     on: 1, listen: !thinking && !speaking, think: thinking, speak: speaking, quiet: false,
     vin: m ? m[0] : 0, bands: m ? m.slice(1) : new Array(16).fill(0), vout: speaking ? at(L.out, s - T.speak) : 0,
+    // (its voice's pitches, shaped from its loudness: a low voice with bright edges; glad news while it speaks)
+    obands: Array.from({ length: 16 }, (_, i) => (speaking ? at(L.out, s - T.speak) : 0) * Math.max(0, (i < 3 ? 1.1 : i < 11 ? 0.8 : 0.45) + 0.3 * Math.sin(i * 0.9 + s * 7))),
+    mood: speaking ? 0.85 : 0,
     hold: null, press: (s >= T.drag && s < T.let) ? 1 : 0, tap: { n: tapN, x: 0.35, y: 0.3 }, lean: [dx, dy], beat: s >= T.speak + 1.5 ? 1 : 0,
     greet: s < T.voice + 0.3, reduced: false, colors,
   };

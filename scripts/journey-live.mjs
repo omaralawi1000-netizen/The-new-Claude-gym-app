@@ -5,7 +5,15 @@
 // talking shows only the answer now with your words below (like Gemini); typing shows the whole conversation.
 import { launch, wait, skipOnboarding, loadDemo } from './lib.mjs';
 import assert from 'node:assert/strict';
-const { b, p, errors } = await launch({});
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+// (a silent microphone: the fake one beeps, and a beep is a voice, which starts a fresh page and clears the last answer,
+// like ChatGPT; journey-hear.mjs covers a voice)
+const quiet = join(tmpdir(), 'aven-silence.wav'), n = 32000;
+const wav = Buffer.alloc(44 + n * 2); wav.write('RIFF', 0); wav.writeUInt32LE(36 + n * 2, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(n * 2, 40); writeFileSync(quiet, wav);
+const { b, p, errors } = await launch({ args: [`--use-file-for-fake-audio-capture=${quiet}`] });
 const setups = [];
 const sent = { audio: 0, toolResponses: [] };
 const silence = Buffer.alloc(4800).toString('base64'); // 0.1 s at 24 kHz
@@ -101,8 +109,11 @@ assert.equal(renewed.length, 1, 'reconnected once');
 assert.equal(renewed[0].sessionResumption.handle, `h${setups.indexOf(renewed[0])}`, 'the conversation carried over');
 assert.match(JSON.stringify(sent.toolResponses[1] ?? ''), /protein|kcal|Food/i, 'the look-up answered from the data');
 assert(await p.getByText('Du mangler omkring 60 gram.').isVisible(), 'the second answer shows');
-assert(await p.getByText('Logget: 200 g skyr.').isVisible(), 'the whole conversation stays (like ChatGPT)');
-assert(await p.getByText('hvor meget protein mangler jeg').isVisible() && await p.getByText('log 200 g skyr').isVisible(), 'both of your sentences');
+// (like ChatGPT's voice mode, Omar's recording 26 Oct: each new thing you say starts a fresh page; the earlier exchange is in
+// the Coach chat)
+await wait(p, 800);
+assert(!(await p.getByText('Logget: 200 g skyr.').isVisible()), 'the last exchange made room for the new one');
+assert(await p.getByText('hvor meget protein mangler jeg').isVisible() && !(await p.getByText('log 200 g skyr').isVisible()), 'your new sentence, on its own page');
 assert(await p.getByRole('button', { name: 'Mute' }).isVisible() && await p.getByRole('button', { name: 'Camera on' }).isVisible(), 'mute and camera');
 await p.screenshot({ path: 'shots/live-2-talking.png' });
 // no typing box any more (typing is the Coach's job), and the orb and the bottom light hear the conversation

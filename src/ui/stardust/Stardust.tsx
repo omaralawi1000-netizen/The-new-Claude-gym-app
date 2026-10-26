@@ -4,7 +4,9 @@ import { DustEngine, type DustState, type RGB } from './engine';
 /** What the orb screen tells Stardust every frame (read when it draws, not on render). */
 export interface DustLive {
   on: boolean; listen: boolean; think: boolean; speak: boolean; quiet: boolean;
-  levels: () => { in: number; bands: Float32Array; out: number } | null;
+  levels: () => { in: number; bands: Float32Array; out: number; obands?: Float32Array } | null;
+  /** the mood of what it is saying (-1 serious … 1 glad) */
+  mood: number;
   hold: [number, number] | null; press: number; tap: { n: number; x: number; y: number }; lean: [number, number];
   beat: number; greet: boolean;
   /** your voice was heard (while the greeting shows): it goes back into the orb */
@@ -95,8 +97,8 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
       if (worker) post({ text: arr }, [arr.buffer]); else eng?.setText(arr);
     };
 
-    const bands: number[] = new Array(16).fill(0);
-    let voiceFor = 0;
+    const bands: number[] = new Array(16).fill(0), obands: number[] = new Array(16).fill(0);
+    let voiceFor = 0, stage: HTMLElement | null = null;
     const tick = () => {
       if (stopped || (!worker && !eng)) return; // (it couldn't draw: nothing more to do)
       raf = requestAnimationFrame(tick);
@@ -106,18 +108,25 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
       if (L.on) gone = false;
       // (its place without the finger's move, plus the move as it is right now: the move is read live, never a frame late
       // whichever of the two runs first in a frame)
-      const slot = el.parentElement ?? el, r = slot.getBoundingClientRect(), [mx, my] = slot === el ? [0, 0] : L.lean;
+      const slot = el.parentElement ?? el, s0 = slot.getBoundingClientRect(), [mx, my] = slot === el ? [0, 0] : L.lean;
+      // (seamless from the dock: while the orb is still flying up to its place, or flying home, the dust is where the orb is
+      // drawn on its way, the same size; once it has landed it follows its place and your finger exactly)
+      stage = stage?.isConnected ? stage : document.querySelector<HTMLElement>('.sphere-stage');
+      const g = stage?.getBoundingClientRect();
+      const flying = !!g && g.width > 2 && !L.hold && Math.abs(mx) + Math.abs(my) < 0.5
+        && (Math.abs(g.left + g.width / 2 - (s0.left + s0.width / 2)) + Math.abs(g.top + g.height / 2 - (s0.top + s0.height / 2)) > 2 || Math.abs(g.width - s0.width) > 2);
+      const r = flying ? g! : s0;
       const lv = L.levels();
-      if (lv) for (let i = 0; i < 16; i++) bands[i] = lv.bands[i] ?? 0;
+      if (lv) for (let i = 0; i < 16; i++) { bands[i] = lv.bands[i] ?? 0; obands[i] = lv.obands?.[i] ?? 0; }
       // (your voice for a moment, not a click or a breath, takes the greeting back into the orb)
       if (L.greet) { sendText(); voiceFor = (lv?.in ?? 0) > 0.16 ? voiceFor + 1 : 0; if (voiceFor > 12) L.onVoice(); }
       const st: DustState = {
         at: performance.timeOrigin + performance.now(),
         w: canvas.clientWidth || window.innerWidth, h: canvas.clientHeight || window.innerHeight, dpr: Math.min(2.5, window.devicePixelRatio || 1),
         // (the sphere fills two thirds of the orb's place, as the usual orb does)
-        cx: r.left + r.width / 2 + mx, cy: r.top + r.height / 2 + my, r: (r.width / 2) * 0.66,
+        cx: r.left + r.width / 2 + (flying ? 0 : mx), cy: r.top + r.height / 2 + (flying ? 0 : my), r: (r.width / 2) * 0.66,
         on: L.on ? 1 : 0, listen: L.listen, think: L.think, speak: L.speak, quiet: L.quiet,
-        vin: lv?.in ?? 0, bands, vout: lv?.out ?? 0,
+        vin: lv?.in ?? 0, bands, vout: lv?.out ?? 0, obands, mood: L.mood,
         hold: L.hold, press: L.press, tap: L.tap, lean: L.lean, beat: L.beat, greet: L.greet,
         reduced: reducedQ.matches || document.documentElement.dataset.motion === 'reduce', colors,
       };

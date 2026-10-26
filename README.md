@@ -3444,3 +3444,25 @@ Omar, 11:47: "focus on polish and perfect it first"; 15:22: out of OpenAI credit
   new plan is saved on the goal when only the routine got it (`savePlanFromGoals`); a setting already at its value makes no card.
 - Prompt: plans ~110 words, follow-ups ~80, at most three numbers a sentence; weigh-in odds are "likely or tight", never a
   promise; no diet weeks or numbers for under-18s.
+
+### Stardust v3 and the ChatGPT-style page (26 Oct 2026, Beta)
+Omar: "use all of this [a cinematic-orb spec] to improve it… generally alive", plus a ChatGPT voice-mode recording: no text
+while he talks, swipes it decides, seamless from the dock. Built inside the existing engine (no Three.js: it would run on the
+page's main thread and add full-screen glow passes over the glass):
+- **Voice split** like a body hears it: low (the core swells on the shared BOUNCY spring), middle (fine fast ripples over the
+  surface), high (sparkle quickens on its own clock), each scaled by its own slowly falling peak so quiet and loud voices both
+  move it fully and nothing clips. Listening reads your bands, speaking its own (`levels().obands`).
+- **Mood colour** (`ui/stardust/mood.ts`, EN + DA words, `tests/mood.test.ts`): while it speaks its colour leans, in its own
+  palette, brighter towards its second colour for glad news, deeper accent for serious.
+- **Wake:** each time it turns to listen it gathers into a bright core and opens again (0.9 s, calm).
+- **Glow only on the hottest specks** (a small core in a wide faint halo); a deeper resting colour (less white mixed in).
+- **Tap shockwaves:** a ring of light travels round the sphere from where you touched (4 at once), off under Reduce motion.
+- **Weight:** big slow noise forms under the dust, fine fast ripples over them.
+- **Quality:** if the phone misses frames the dust thins a step, eased over a second with the specks past the cut fading out.
+- **Page like ChatGPT** (`Voice.tsx` page/pageNext): each new thing you say starts a fresh page; while you talk there is no
+  text and the orb listens big in the middle (its greeting only before the first exchange); once it answers, your words and
+  its answer sit above and the orb is small at the bottom. The last exchange fades before the next page; it stays in the
+  Coach chat.
+- **Swipes:** down puts it away (as before); up opens the Coach chat (the whole conversation, and typing).
+- **Seamless from the dock:** the dust appears 120 ms after opening and rides with the orb as it flies up (it follows the drawn
+  orb, `.sphere-stage`, until it lands, then its place and your finger).

@@ -69,8 +69,8 @@ export interface LiveSession {
   hush: () => void;
   /** a typed message and its answer (from the Coach), so it knows about them when you speak again */
   note: (said: string, reply: string) => void;
-  /** how loud you are (0..1) and your voice in 16 bands, and how loud its voice is (0..1), right now: for the orb */
-  levels: () => { in: number; bands: Float32Array; out: number };
+  /** how loud you are (0..1) and your voice in 16 bands, and how loud its voice is (0..1) and its 16 bands, right now: for the orb */
+  levels: () => { in: number; bands: Float32Array; out: number; obands: Float32Array };
 }
 
 const withTimeout = <T,>(p: Promise<T>, ms: number) => new Promise<T>((ok, no) => { const t = setTimeout(() => no(new Error('timeout')), ms); p.then((v) => { clearTimeout(t); ok(v); }, (e) => { clearTimeout(t); no(e); }); });
@@ -117,9 +117,9 @@ export async function startLive(o: { key: string; system: string; voice?: string
   const inAn = inCtx.createAnalyser(); inAn.fftSize = 256; inAn.smoothingTimeConstant = 0.6;
   const outAn = outCtx.createAnalyser(); outAn.fftSize = 256; outAn.smoothingTimeConstant = 0.7;
   outAn.connect(outCtx.destination);
-  const inBuf = new Uint8Array(inAn.frequencyBinCount), outBuf = new Uint8Array(outAn.fftSize);
-  const bands = new Float32Array(16);
-  let lvAt = 0, lvLast: { in: number; bands: Float32Array; out: number } | null = null;
+  const inBuf = new Uint8Array(inAn.frequencyBinCount), outBuf = new Uint8Array(outAn.fftSize), outFreq = new Uint8Array(outAn.frequencyBinCount);
+  const bands = new Float32Array(16), obands = new Float32Array(16);
+  let lvAt = 0, lvLast: { in: number; bands: Float32Array; out: number; obands: Float32Array } | null = null;
   let cam: MediaStream | null = null, camTimer: ReturnType<typeof setInterval> | null = null;
   const camOff = () => { if (camTimer) clearInterval(camTimer); camTimer = null; cam?.getTracks().forEach((tr) => tr.stop()); cam = null; };
   const cleanupAudio = () => { camOff(); stream.getTracks().forEach((tr) => tr.stop()); void inCtx.close().catch(() => {}); void outCtx.close().catch(() => {}); };
@@ -335,7 +335,10 @@ export async function startLive(o: { key: string; system: string; voice?: string
       // its own: loudness of what plays
       outAn.getByteTimeDomainData(outBuf);
       let e = 0; for (let k = 0; k < outBuf.length; k++) { const d = (outBuf[k] - 128) / 128; e += d * d; }
-      lvLast = { in: Math.min(1, (sum / 16) * 1.8), bands, out: Math.min(1, Math.sqrt(e / outBuf.length) * 4) };
+      // and its voice's own pitches (≈90 Hz–4.5 kHz in 16 bands), so its low voice and its bright sounds move it differently
+      outAn.getByteFrequencyData(outFreq);
+      for (let i = 0; i < 16; i++) { const a = 1 + i * 3; let x = 0; for (let k = a; k < a + 3; k++) x += outFreq[k]; obands[i] = stopped ? 0 : Math.max(0, x / (3 * 255) - 0.1) / 0.9; }
+      lvLast = { obands, in: Math.min(1, (sum / 16) * 1.8), bands, out: Math.min(1, Math.sqrt(e / outBuf.length) * 4) };
       return lvLast;
     },
     note: (said, reply) => {

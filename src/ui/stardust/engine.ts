@@ -35,6 +35,10 @@ export interface DustState {
   listen: boolean; think: boolean; speak: boolean; quiet: boolean;
   /** your voice (0…1) and its 16 pitches; its voice */
   vin: number; bands: number[]; vout: number;
+  /** its voice's 16 pitches (what plays) */
+  obands?: number[];
+  /** the mood of what it is saying (-1 serious … 1 glad; ui/stardust/mood.ts) */
+  mood?: number;
   /** a finger held on it (orb units, y up; null: none); taps (a counter and where); the finger's move (css px) */
   hold: [number, number] | null; press: number;
   tap: { n: number; x: number; y: number };
@@ -64,7 +68,9 @@ export class DustEngine {
   // the motion, smoothed by time (fast attack, slow release), so it reads the same at 60 or 120 frames a second
   private s = { listen: 0, think: 0, speak: 0, quiet: 0, vin: 0, vout: 0, bands: new Float32Array(16), prevIn: 0, prevOut: 0, lastSyl: -9,
     syl: [-1, -1, -1, -1], sylA: [0, 0, 0, 0], hsyl: [-1, -1, -1, -1], hsylA: [0, 0, 0, 0], lastHeard: -9, rot: 0, scale: 1, scaleV: 0, attn: 0, quietFor: 9, lx: 0, ly: 0, lvx: 0, lvy: 0,
-    hold: 0, hx: 0, hy: 0, tapN: -1, tapAge: 99, tx: 0, ty: 0, beatN: -1, doneAge: 99, appear: 0, write: 0, unwrite: 0, crisp: 0 };
+    hold: 0, hx: 0, hy: 0, tapN: -1, tapAge: 99, tx: 0, ty: 0,
+    bass: 0, bassV: 0, bassT: 0, mid: 0, high: 0, peak: [0.2, 0.2, 0.2], mood: 0, wake: 9, wasListen: false,
+    imp: new Float32Array(16).fill(-1), impK: 0, twP: 0, qShown: 1, q: 1, dts: [] as number[], slowFor: 0, fastFor: 0, beatN: -1, doneAge: 99, appear: 0, write: 0, unwrite: 0, crisp: 0 };
   /** called when the words are fully written (true) or start leaving (false): the page shows or hides the crisp text */
   onCrisp: (on: boolean) => void = () => {};
   private crispOn = false;
@@ -126,6 +132,25 @@ export class DustEngine {
     s.vin += (vin - s.vin) * k(vin > s.vin ? 22 : 6);
     s.vout += (vout - s.vout) * k(vout > s.vout ? 18 : 5);
     for (let i = 0; i < 16; i++) { const b = st.listen && !st.quiet ? st.bands[i] ?? 0 : 0; s.bands[i] += (b - s.bands[i]) * k(b > s.bands[i] ? 14 : 4); }
+    // the voice that is sounding, split like a body hears it: low (bass: the core swells, heavy and a little overshooting on
+    // a spring), middle (the voice itself: fine fast ripples over the surface), high (s, t, breath: sparkle). Each is scaled
+    // by its own slowly falling peak, so a quiet voice and a loud one both move it fully, and nothing ever clips.
+    {
+      const src = st.speak ? st.obands : st.listen && !st.quiet ? st.bands : null;
+      const avg = (a: number, b: number) => { let x = 0; if (src) for (let i = a; i <= b; i++) x += src[i] ?? 0; return x / (b - a + 1); };
+      const raw = [avg(0, 2), avg(3, 10), avg(11, 15)];
+      const g = raw.map((v, i) => { s.peak[i] = Math.max(v, s.peak[i] * Math.exp(-dt / 4), 0.12); return Math.min(1, v / s.peak[i]) * (v > 0.03 ? 1 : 0); });
+      s.bassT += (g[0] - s.bassT) * k(g[0] > s.bassT ? 18 : 5);
+      for (let rem = dt; rem > 1e-6; rem -= 1 / 240) { const h = Math.min(rem, 1 / 240); s.bassV += (-BOUNCY_K * (s.bass - s.bassT) - BOUNCY_C * s.bassV) * h; s.bass += s.bassV * h; }
+      s.mid += (g[1] - s.mid) * k(g[1] > s.mid ? 20 : 6);
+      s.high += (g[2] - s.high) * k(g[2] > s.high ? 26 : 7);
+      if (red) { s.bass = s.bassT * 0.5; s.bassV = 0; }
+    }
+    // the mood of its answer, eased over about 1.5 s (its colour leans warmer or deeper while it speaks)
+    s.mood += ((st.mood ?? 0) - s.mood) * k(0.8);
+    // waking: each time it turns to listen (it opens, or it finished answering) it gathers in to a bright core and opens again
+    s.twP += dt * s.high * 4; // (sparkle quickens by its own clock, so a change never jumps its phase)
+    if (st.listen && !s.wasListen && !red) s.wake = 0; s.wasListen = st.listen; s.wake += dt;
     // a syllable: a sudden rise in a voice (its own runs out through it, yours is drawn in)
     if (vout - s.prevOut > 0.08 && vout > 0.18 && this.t - s.lastSyl > 0.16) { s.lastSyl = this.t; s.syl.unshift(0); s.syl.pop(); s.sylA.unshift(Math.min(1, 0.45 + vout)); s.sylA.pop(); }
     if (vin - s.prevIn > 0.06 && vin > 0.14 && this.t - s.lastHeard > 0.14) { s.lastHeard = this.t; s.hsyl.unshift(0); s.hsyl.pop(); s.hsylA.unshift(Math.min(1, 0.5 + vin)); s.hsylA.pop(); }
@@ -148,7 +173,16 @@ export class DustEngine {
     // a finger held; a tap; a log done
     s.hold += ((st.hold ? 1 : 0) - s.hold) * k(st.hold ? 8 : 4);
     if (st.hold) { s.hx = st.hold[0]; s.hy = st.hold[1]; }
-    if (st.tap.n !== s.tapN) { if (s.tapN >= 0) { s.tapAge = 0; s.tx = st.tap.x; s.ty = st.tap.y; } s.tapN = st.tap.n; } else s.tapAge += dt;
+    if (st.tap.n !== s.tapN) {
+      if (s.tapN >= 0) {
+        s.tapAge = 0; s.tx = st.tap.x; s.ty = st.tap.y;
+        // a shockwave from where you touched it, travelling round the sphere (where the tap is on its face, as a direction)
+        const x = Math.max(-1, Math.min(1, st.tap.x)), y = Math.max(-1, Math.min(1, st.tap.y)), z = Math.sqrt(Math.max(0, 1 - x * x - y * y)), l = Math.hypot(x, y, z) || 1;
+        if (!red) { const j = (s.impK++ % 4) * 4; s.imp[j] = x / l; s.imp[j + 1] = y / l; s.imp[j + 2] = z / l; s.imp[j + 3] = 0; }
+      }
+      s.tapN = st.tap.n;
+    } else s.tapAge += dt;
+    for (let j = 3; j < 16; j += 4) if (s.imp[j] >= 0) s.imp[j] = s.imp[j] > 2 ? -1 : s.imp[j] + dt;
     if (st.beat !== s.beatN) { if (s.beatN >= 0) s.doneAge = 0; s.beatN = st.beat; } else s.doneAge += dt;
     // its words: written out of its dust, then (when you start talking) flowing back in
     if (st.greet && s.appear > 0.3) { s.write = Math.min(2.2, s.write + dt / 1.5); s.unwrite = 0; }
@@ -175,6 +209,9 @@ export class DustEngine {
     gl.uniform1f(U('uListen'), s.listen); gl.uniform1f(U('uThink'), s.think); gl.uniform1f(U('uSpeak'), s.speak);
     gl.uniform1f(U('uAppear'), s.appear); gl.uniform1f(U('uAttn'), s.attn); gl.uniform1f(U('uQuiet'), s.quiet);
     gl.uniform1f(U('uDone'), s.doneAge < 1.3 ? s.doneAge / 1.3 : 0);
+    gl.uniform1f(U('uBass'), red ? 0 : Math.max(0, s.bass)); gl.uniform1f(U('uMid'), red ? 0 : s.mid); gl.uniform1f(U('uHigh'), red ? 0 : s.high);
+    gl.uniform1f(U('uMood'), s.mood * s.speak); gl.uniform1f(U('uTwP'), s.twP); gl.uniform1f(U('uWake'), s.wake < 1.2 ? s.wake : -1);
+    gl.uniform4fv(U('uImp'), s.imp);
     gl.uniform4f(U('uHeard'), s.hsyl[0], s.hsyl[1], s.hsyl[2], s.hsyl[3]); gl.uniform4f(U('uHeardA'), s.hsylA[0], s.hsylA[1], s.hsylA[2], s.hsylA[3]);
     // (a small orb at the top of the conversation: a little brighter and its specks a touch bigger, so it is still dust, not haze)
     gl.uniform1f(U('uSmall'), Math.max(0, Math.min(1, (60 - st.r) / 28)));
@@ -187,8 +224,22 @@ export class DustEngine {
     gl.uniform1f(U('uReduce'), red ? 1 : 0);
     const c = st.colors;
     gl.uniform3f(U('uAc'), ...c.ac); gl.uniform3f(U('uAlt'), ...c.alt); gl.uniform3f(U('uOk'), ...c.ok); gl.uniform1f(U('uDark'), c.dark ? 1 : 0);
-    // (fewer specks when the orb is small: the same look, a fraction of the work)
-    const count = Math.round(N * Math.max(0.3, Math.min(1, st.r / 80)));
+    // (fewer specks when the orb is small: the same look, a fraction of the work; and fewer again if this phone is missing
+    // frames: the screen's own frame time is the quickest of the last two seconds, a second of frames well over it thins the
+    // dust a step, four smooth seconds bring a step back)
+    s.dts.push(dt); if (s.dts.length > 240) s.dts.shift();
+    if (s.dts.length > 120 && !red) {
+      let lo = 1, sum = 0; for (const x of s.dts) lo = Math.min(lo, x); for (let i = s.dts.length - 30; i < s.dts.length; i++) sum += s.dts[i];
+      const avg = sum / 30;
+      s.slowFor = avg > lo * 1.4 ? s.slowFor + dt : 0; s.fastFor = avg < lo * 1.12 ? s.fastFor + dt : 0;
+      if (s.slowFor > 1.5) { s.q = Math.max(0.5, s.q - 0.1); s.slowFor = 0; s.dts.length = 0; }
+      if (s.fastFor > 4 && s.q < 1) { s.q = Math.min(1, s.q + 0.05); s.fastFor = 0; }
+    }
+    // (the share drawn eases over about a second, and the specks past it fade out in a band: never a step you can see)
+    const want = s.q * Math.max(0.3, Math.min(1, st.r / 80));
+    s.qShown += (want - s.qShown) * (red ? 1 : k(3));
+    gl.uniform1f(U('uCut'), N * s.qShown); gl.uniform1f(U('uBand'), N * 0.08);
+    const count = Math.min(N, Math.round(N * Math.max(want, s.qShown) + N * 0.08));
     gl.drawArrays(gl.POINTS, 0, Math.max(count, s.write > 0 ? N : 0));
     return true;
   }
