@@ -3250,6 +3250,14 @@ rounds, each checked by a fresh judge that only suggests (6.5 → 7.5 → 8.0 �
   promise is counted (`loggingLine`: full days, days with a usual meal missing, days with nothing). Rules: a wrestler's
   weight goal 4 weeks out or less → ask if it's a weigh-in, with the plan; the goal weight is not "the class"; the class
   up never gets a made-up number; a school grade in memory means under 18; reached → offer to set the hold calories.
+- **Judge round 6 fixes:** the habit line names what makes the big days big (food after 20:00 or one meal, `habitSlot`)
+  and a cap (target + 300); a running cut lists the days far over target since it started, and asks for a new tactic
+  when the agreed cap didn't hold. A weigh-in gets a "Cut-off" morning (the day before, class + 0.5 kg). The planning
+  numbers say how many days a kilo takes at the fastest safe pace and at 0.5 kg a week (both offered for a too-fast ask),
+  and the protein range, with an offer to raise a target under it. GOAL WATCH raises no strength training in 2 weeks on a
+  cut. A logging promise gets a verdict ("broken on Tue and Wed; 3 days left") and a Today card ("Logging promise: 2 of
+  4 full days"). Today's "date needs" pace has two decimals. Rules: under 18 → coach or parent, no diet plan unless
+  asked, nothing saved without a yes; one question per reply; food numbers from GOAL WATCH's window.
 - Tests: `tests/goals.test.ts`. Before/after on Gemini Flash: `scripts/exam/_goals.test.ts` (scratch, never committed; a
   copy and `show.py` live in `/mnt/project-files/living-coach/tools/`), run as
   `G_OUT=dir G_TAG=after npx vitest run --config scripts/exam/vitest.config.ts scripts/exam/_goals.test.ts`.
