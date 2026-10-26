@@ -68,3 +68,18 @@ describe('dates in a reply are said in words (Flash wrote "lands around 2027-01-
     expect(readableDates('til 2026-12-24', 'da', '2026-10-26')).toBe('til 24. december');
   });
 });
+
+describe('one question, and a stated target is set (judge, 26 Oct)', () => {
+  it('two questions, or "…, or should I …?", is flagged; one is not', async () => {
+    const { answerProblems } = await import('../src/lib/answerCheck');
+    expect(answerProblems('What date in December is the weigh-in, or should I set this up for 1 December?', [], '')).toHaveLength(1);
+    expect(answerProblems('Is this for a weigh-in? Want me to set it up?', [], '')).toHaveLength(1);
+    expect(answerProblems('Is this for a wrestling weigh-in?', [], '')).toEqual([]);
+  });
+  it('"All set … Daily target: 2,460 kcal" with no set_setting is flagged', async () => {
+    const { answerProblems } = await import('../src/lib/answerCheck');
+    expect(answerProblems('All set up: 79.7 kg by 16 November.\n- Daily target: 2,460 kcal, 180 g protein.', [], '')).toHaveLength(1);
+    expect(answerProblems('All set up: 79.7 kg by 16 November.\n- Daily target: 2,460 kcal, 180 g protein.', [{ type: 'set_setting', pairs: [] } as any], '')).toEqual([]);
+    expect(answerProblems('Keep your 2,500 kcal target this week.', [], '')).toEqual([]);
+  });
+});

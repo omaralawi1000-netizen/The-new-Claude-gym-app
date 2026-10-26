@@ -51,8 +51,14 @@ export function answerProblems(reply: string, actions: AgentAction[], system: st
   if (PLAN_CLAIM.test(done) && !planSaved)
     out.push(goalNote ? 'The reply says the plan was updated, but the goal note carries no plan: put the new plan in goalPlan, in a few words with its numbers.'
       : 'The reply says the plan was saved, but nothing saves it: send remember (kind goal, memory = its line) with the new plan in goalPlan.');
-  if (TARGET_CLAIM.test(done) && !has('set_setting'))
+  // ("All set: … Daily target: 2,460 kcal" with nothing that sets it; Flash, 26 Oct)
+  const targetStated = /\b(?:all set|set up|done|saved|locked in)\b/i.test(done) && /\b(?:daily |calorie |kcal )?targets?\b[^.!?\n]{0,20}?(?:\d{1,2}[,.]\d{3}|\d{4})\s*kcal/i.test(done);
+  if ((TARGET_CLAIM.test(done) || targetStated) && !has('set_setting'))
     out.push('The reply says a target was set, but no set_setting sets it: send it (kcalGoal / proteinGoal), or offer it as a question instead.');
+  // one question, not two ("What date is the weigh-in, or should I set it up for the 1st?")
+  const asks = reply.split(/(?<=[.!?])\s+|\n+/).filter((x) => /\?\s*$/.test(x));
+  if (asks.length > 1 || asks.some((x) => /,?\s+(?:or|and)\s+(?:should|shall|do you want|want|would you like)\s+(?:I|me|you|us|to)\b/i.test(x)))
+    out.push('The reply asks more than one thing: keep only the one question that matters most now; say the rest as what you will do (or leave it out).');
   // (a real answer only: a short confirmation of a log is left alone)
   if (reply.length >= 250) {
     const said = numbers(reply);
