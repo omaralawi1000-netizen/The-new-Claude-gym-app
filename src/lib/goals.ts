@@ -369,7 +369,8 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
       const sinceSet = liftTops(d, m.exerciseIds![0], g.startDate, today).filter((x) => x.date > g.startDate || st.daysIn === 0).slice(-6);
       if (st.daysIn > 0) parts.push(sinceSet.length ? `Top sets since the goal was set: ${sinceSet.map((x) => `${r1(x.kg)} × ${x.reps}`).join(', ')}.` : 'Not trained since the goal was set.');
       // (the agreed plan, followed and not working: a fact the Coach must not answer with the same plan again)
-      if (g.plan && sinceSet.length >= 3 && st.start !== undefined && Math.max(...sinceSet.map((x) => x.e)) <= st.start + 0.05) parts.push(`No progress in the ${sinceSet.length} workouts since the plan was agreed: the plan as it is hasn't moved it.`);
+      const tried = sinceSet.filter((x) => st.now === undefined || x.e >= st.now * 0.975);
+      if (tried.length >= 3 && st.start !== undefined && Math.max(...sinceSet.map((x) => x.e)) <= st.start + 0.05) parts.push(`No progress in the ${tried.length} workouts at it since the goal was set${g.plan ? ' on the agreed plan' : ''}: the same next target each time hasn't moved it.`);
       const mt = trueMaintenance(d, today);
       const ate = foodDays(d, addDays(today, -14), today);
       const k = ate.length >= 5 ? avg(ate.map((x) => x.kcal))! : undefined;
