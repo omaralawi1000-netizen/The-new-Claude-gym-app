@@ -319,7 +319,14 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // frame the clock has cleared its title, two frames on from `listFrom` (where it used to start at a tenth, a frame late),
   // at 15 % (a list at a few % reads as nothing at all); and the card's "1 / 12" and play button hold where they were until
   // seven frames before that and go in six (`quick`), not 24 eased frames from the turn that left them faint for ten)
-  const quick = useRef<{ words: number; pop: number; s: number } | null>(null);
+  const quick = useRef<{ words: number; pop: number; s: number; dw: number; dp: number } | null>(null);
+  // (round 10b) the frame of the move a keyframe is being worked out for (`runMirror`'s `go`), counted from the move's first
+  // frame, the turn included; null: drawn as it comes (the frame the move sets off)
+  const moveFrame = useRef<number | null>(null);
+  // (round 10b) a turned opening's "1 / 12" and play button carry on the way they were going and ease to a stop over four
+  // frames, instead of stopping dead on the tap frame (judge r10 min-int f36-50: the button held at 44 % from the tap)
+  const COAST_N = 4;
+  const coast = (dv: number) => { const j = Math.min(COAST_N, moveFrame.current ?? 0); return dv * (j - (j * j) / (2 * COAST_N)); };
   const listV = (pp: number) => {
     const t = tOf.current, i = t!(pp);
     const kind = src.current[0]?.dataset.wk, late = kind === 'pill' ? 3 : 0;
@@ -368,7 +375,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     if (!t || ls.current !== 'D' || !from.current) return null;
     const n = PART_N[kind], i = t(pp);
     const qk = quick.current;
-    if (qk && !leaving.current && (kind === 'words' || kind === 'pop')) { const w0 = qk[kind]; return clamp01(w0 + (1 - w0) * sm((i - Math.max(0, qk.s - 7)) / 6)); }
+    if (qk && !leaving.current && (kind === 'words' || kind === 'pop')) { const w0 = clamp01(qk[kind] + coast(kind === 'pop' ? qk.dp : qk.dw)); return clamp01(w0 + (1 - w0) * sm((i - Math.max(0, qk.s - 7)) / 6)); }
     // (round 9: closing, the play button grows from three frames later than the rest, so it is never seen while the done
     // boxes' copies are still going: one orange speck seemed to jump 150 px into the other, judge r8 open-int f52-53)
     const v = !leaving.current ? sm(i / n) : kind === 'status' ? 1 - sm((i - tLand()) / n) : 1 - sm((i - tDep() - (kind === 'pop' ? 3 : kind === 'words' && turnedClose.current ? -1 : 0)) / n);
@@ -814,7 +821,14 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // (round 9: it is gone by the time the list is down to 30 %, three frames or so before the play button's own speck can be
   // seen: shrinking with the whole fade, it ended as an orange speck in the frame before that one grew 150 px away, one dot
   // seeming to jump, judge r8 open-int f52-53. At full colour all the way: faded, it went brown.)
-  const tickT = (pp: number) => { const v = sm((insideV(pp) - 0.3) / 0.7); return v >= 1 ? 'none' : `scale(${Math.max(0.001, v).toFixed(4)})`; };
+  // (round 10b: closing, its size follows the list's own opacity, eased, so the two end together: gone by 30 % it left set 1
+  // looking un-ticked inside a list still 36-90 % there, judge r10 minimise f21-25, swipe-min f62-65. Eased at its end as
+  // well, and under 6 % not drawn at all (a speck under a pixel smudged brown, r6), so it is gone three frames before the
+  // play button's own speck comes in beside it, as in round 9. Opening as before.)
+  const tickT = (pp: number) => {
+    const L = insideV(pp), v0 = leaving.current ? sm((L - 0.03) / 0.97) : sm((L - 0.3) / 0.7), v = leaving.current && v0 < 0.06 ? 0 : v0;
+    return v >= 1 ? 'none' : `scale(${Math.max(0.001, v).toFixed(4)})`;
+  };
   const ticksHid = useRef<HTMLElement[]>([]);
   const ticksDown = () => {
     for (const el of ticksHid.current) el.style.visibility = '';
@@ -1121,7 +1135,11 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const seen = (pp: number) => (morph ? Math.max(pp, F().inside[0]) : pp);
     // (all of it frame by frame, each part only while it changes: see engage.ts mirrorProgress `trim`)
     const o = { fill: 'forwards' as FillMode, hz: 120, trim: true };
-    const go = (el: Element | null | undefined, f: (pp: number) => Keyframe, _breaks?: number[], _perFrame?: boolean) => mirrorProgress(el, p0, p1, sp, vel, f, [], true, o);
+    // (the frame of this move each keyframe is for, `moveFrame`: read off in order, frame by frame, from the move's first)
+    const go = (el: Element | null | undefined, f: (pp: number) => Keyframe, _breaks?: number[], _perFrame?: boolean) => {
+      let j = 0;
+      try { return mirrorProgress(el, p0, p1, sp, vel, (pp) => { moveFrame.current = j++; return f(pp); }, [], true, o); } finally { moveFrame.current = null; }
+    };
     m.add(
       go(sheetRef.current, (pp) => ({ transform: aAt(pp) }), [], true),
       // (its corner fill is only there as the top passes the status bar; the copy of the card and the window's page only
@@ -1413,7 +1431,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   const startOpen = () => {
     // (round 7: opened again while it is still closing (a tap on the card it is shrinking into), it turns round from
     // exactly where it is, at its speed)
-    const turn = turning() && leaving.current, now = turn ? nowPV() : null, was = now ? snapNow(now.pp) : null, wasHero = turn ? heroNow() : {}, v0 = now ? now.v : 0;
+    const turn = turning() && leaving.current, now = turn ? nowPV() : null, was = now ? snapNow(now.pp) : null, was1 = now ? snapNow(now.pp - now.v / 120) : null, wasHero = turn ? heroNow() : {}, v0 = now ? now.v : 0;
     if (now) p.set(now.pp);
     cancelHand();
     const oid = ++moveId.current;
@@ -1440,7 +1458,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
         const pp = m.p0 + m.span * x, w = partV(pp, 'words'), b = partV(pp, 'pop');
         if ((w ?? 1) >= 0.97 && (b ?? 1) >= 0.9) { listFrom.current = t(pp); break; }
       }
-      if (was && listFrom.current !== null) quick.current = { words: was['part-words'] ?? 0, pop: was['part-pop'] ?? 0, s: listFrom.current + 2 };
+      if (was && listFrom.current !== null) {
+        const d = (k: string) => (was[k] ?? 0) - (was1?.[k] ?? was[k] ?? 0);
+        quick.current = { words: was['part-words'] ?? 0, pop: was['part-pop'] ?? 0, s: listFrom.current + 2, dw: d('part-words'), dp: d('part-pop') };
+      }
     }
     thaw(); pv.set(p0); flush(); cardAt(p0);
     launchHero(true, p0, 1, sp, v0, performance.now(), 0, wasHero);
