@@ -2091,7 +2091,7 @@ export const da: Record<string, string> = {
  "{n} kcal target": "mål {n} kcal",
  "{n} now": "{n} nu",
  "{n} of 7": "{n} af 7",
- "needs {a}/wk, now {b}": "kræver {a}/uge, nu {b}",
+ "needs {a}/wk, now {b}/wk": "kræver {a}/uge, nu {b}/uge",
  "{n} weeks": "{n} uger",
  "{what} Help me with those days. Be honest.": "{what} Hjælp mig med de dage. Vær ærlig.",
  "Your last 7 days averaged {x}, about {over} over your {target} target.": "Dine sidste 7 dage lå i snit på {x}, omkring {over} over dit mål på {target}.",

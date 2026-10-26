@@ -36,7 +36,8 @@
 .hx-gbar i { position: absolute; bottom: 0; left: calc(var(--f) * 100%); width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--c); z-index: 1; }
 .hx-gnow { position: absolute; top: 0; left: clamp(28px, calc(var(--f) * 100%), calc(100% - 28px)); transform: translateX(-50%); font: 500 12px/1 var(--f-ui); color: var(--c); white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* where the bar starts and ends, so its fill is a number he can check */
-.hx-gends { display: flex; justify-content: space-between; margin-top: 4px; font: 500 11px var(--f-ui); color: var(--tx3); font-variant-numeric: tabular-nums; }
+.hx-gexp { position: absolute; bottom: 1px; width: 1.5px; height: 8px; margin-left: -.75px; border-radius: 1px; background: var(--tx2); opacity: .5; }
+.hx-gends { display: flex; justify-content: space-between; margin-top: 4px; font: 500 11.5px var(--f-ui); color: var(--tx2); font-variant-numeric: tabular-nums; }
 .hx-gline { margin-top: 8px; font-size: 14px; color: var(--tx2); text-wrap: pretty; font-variant-numeric: tabular-nums; }
 .hx-gline b { font-weight: 500; color: var(--tx); }
 .hx-goal + .hx-rib { margin-top: 18px; }
@@ -69,7 +70,7 @@
 .hx-wk { display: grid; grid-template-columns: repeat(7, 1fr); margin-top: 12px; text-align: center; }
 .hx-wk .d { display: flex; flex-direction: column; align-items: center; gap: 5px; }
 .hx-wk .m { height: 34px; display: flex; flex-direction: column-reverse; align-items: center; gap: 4px; overflow: hidden; }
-.hx-wk b { font: 500 11px var(--f-ui); color: var(--tx3); }
+.hx-wk b { font: 500 11.5px var(--f-ui); color: var(--tx2); }
 .hx-wk b.today { color: var(--tx); }
 .hx-wk .mk { display: block; border-radius: 99px; width: 8px; height: 8px; flex: none; }
 .hx-wk .mk.wr { height: 18px; background: #ffd060; }
