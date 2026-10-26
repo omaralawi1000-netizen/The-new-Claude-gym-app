@@ -3220,6 +3220,8 @@ up with a swipe and it reacts to my swipe, not just an animation, and maybe a bo
   new line fading in over the last. Muted or reconnecting, the ring dims to 40% and quietens.
 
 ## Living coach, step 1: an honest voice (25 Oct 2026)
+
+## Living coach, step 1: an honest voice (25 Oct 2026, shipped v0.1.179 on 26 Oct)
 The plan for a real, living coach is `docs/living-coach-plan.md` (Omar's decisions, six steps, progress table, next step).
 Omar said go for step 1 only. He wants a coach that criticises honestly, praises real wins and picks its own tone; no fixed
 tone or message counts, no rules per topic, going over the calories said once like any coach, and never "train lighter".
