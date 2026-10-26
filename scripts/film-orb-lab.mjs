@@ -10,7 +10,7 @@ const b = await chromium.launch({ args: ['--enable-gpu', '--use-gl=angle', '--us
 const p = await b.newPage();
 p.on('pageerror', (e) => console.log('pageerror', e.message));
 p.on('console', (m) => { if (m.type() === 'error') console.log('console', m.text().slice(0, 600)); });
-await p.goto(`http://127.0.0.1:5173/scripts/orb-lab/index.html?o=${o}`); await p.waitForFunction(() => (window).lab, null, { timeout: 30000 });
+await p.goto(`http://127.0.0.1:5174/scripts/orb-lab/index.html?o=${o}`); await p.waitForFunction(() => (window).lab, null, { timeout: 30000 });
 await p.evaluate(() => window.lab.load());
 const n = await p.evaluate(() => window.lab.frames);
 const want = new Set(stills.map((s) => Math.round(s * 60)));
