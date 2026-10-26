@@ -40,8 +40,9 @@ describe('overeating on a cut, said with its days', () => {
     const o = overNote(data(), today, t, 'en')!;
     expect(o.id).toMatch(/^over:/);
     expect(o.priority).toBe(58);
-    expect(o.say!.x).toBe('3 of the last 7 days');
-    expect(o.say!.tpl).toMatch(/^On \{x\} you went 600\+ over your 2,300 target: \w+ 3,150, \w+ 3,400, \w+ 2,900\.$/);
+    expect(o.say!.x).toBe('3 of 7');
+    expect(o.say!.tpl).toBe('On {x} days you went 600+ over your 2,300 target.');
+    expect((o.action!.run as any).prompt).toMatch(/\w+ 3,150, \w+ 3,400, \w+ 2,900\./);
   });
 
   it('B: a steady few hundred over, not heavy, said as the average of the days logged', () => {

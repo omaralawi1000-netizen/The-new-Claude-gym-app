@@ -15,6 +15,7 @@
   font: 500 21px/1.25 var(--f-ui); color: color-mix(in srgb, var(--c) 70%, #fff); font-variant-numeric: tabular-nums; cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
 .hx-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); align-self: center; }
 .hx-pill > span { display: inline-block; }
+.hx-tight { margin-left: 3px; } /* punctuation right after a chip never touches its rim */
 .hx-note { font-size: 14px; color: var(--tx2); margin-top: 28px !important; }
 
 /* the Coach speaking on top (26 Oct): its orb, small, and its name; the sentence is the Coach's line */

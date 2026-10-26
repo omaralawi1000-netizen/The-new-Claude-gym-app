@@ -243,7 +243,7 @@ function MiniOrb({ size = 24 }: { size?: number }) {
 
 /** a sentence with one number in it drawn as a pill: words wrap and rise one by one */
 function Words({ tpl, pill }: { tpl: string; pill?: ReactNode }) {
-  return <>{tpl.split(/(\{x\})/).map((seg, j) => seg === '{x}' ? <span key={j}>{pill}</span> : seg.split(/(\s+)/).map((w, n) => (w.trim() ? <span key={`${j}-${n}`} className="hx-w">{w}</span> : w)))}</>;
+  return <>{tpl.split(/(\{x\})/).map((seg, j) => seg === '{x}' ? <span key={j}>{pill}</span> : seg.split(/(\s+)/).map((w, n) => (w.trim() ? <span key={`${j}-${n}`} className={j > 0 && n === 0 && /^[,.;:!?)]/.test(w) ? 'hx-w hx-tight' : 'hx-w'}>{w}</span> : w)))}</>;
 }
 
 /** what the Coach's second sentence is about, by its note: the colour of its number */
@@ -274,7 +274,7 @@ function CoachLine({ v, d, today, t, lang, onTap }: { v: HealthView; d: AppData;
   if (note) {
     const run = () => { if (note.action) runNudge(note.action.run, today); };
     p2 = note.say
-      ? <Words tpl={note.say.tpl} pill={<span className="hx-pill hx-w" style={{ ['--c' as string]: NOTE_COL(note) }} onClick={(e) => { e.stopPropagation(); run(); }}><i /><span>{note.say.x}</span></span>} />
+      ? <Words tpl={note.say.tpl} pill={<span className="hx-pill hx-w" style={{ ['--c' as string]: NOTE_COL(note), cursor: note.action ? undefined : 'default' }} onClick={note.action ? (e) => { e.stopPropagation(); run(); } : undefined}><i /><span>{note.say.x}</span></span>} />
       : <Words tpl={sentenceOf(note.title)} />;
   }
   if (!p1 && !p2) p1 = <Words tpl={v.hasWatch ? t('Your watch fills this in as it syncs.') : t('Nothing needs your attention right now.')} />;
@@ -286,7 +286,8 @@ function CoachLine({ v, d, today, t, lang, onTap }: { v: HealthView; d: AppData;
   );
 }
 
-const PACE: Record<Pace, string> = { reached: 'Reached', ready: 'Ready to test', 'on pace': 'On pace', ahead: 'Ahead', behind: 'Behind', 'too fast': 'Faster than safe', 'wrong way': 'Wrong way', slow: 'Slow', stalled: 'Stalled', 'date passed': 'Date passed', 'too early': 'Too early to tell' };
+// t() on each, so the Danish check (scripts/i18n-keys.mjs) sees every label
+const PACE = (t: TFn): Record<Pace, string> => ({ reached: t('Reached'), ready: t('Ready to test'), 'on pace': t('On pace'), ahead: t('Ahead'), behind: t('Behind'), 'too fast': t('Faster than safe'), 'wrong way': t('Wrong way'), slow: t('Slow'), stalled: t('Stalled'), 'date passed': t('Date passed'), 'too early': t('Too early to tell') });
 
 /** paces that need something from him: the pill gets a coral rim (white words, no wash) so it reads at a glance */
 const WARN = new Set<Pace>(['behind', 'too fast', 'wrong way', 'stalled', 'date passed']);
@@ -343,8 +344,13 @@ const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; tod
       line = h ? (h.first ? t('{a} kcal for a week, then about {b} to hold it.', { a: fmtNum(h.first, lang, 0), b: fmtNum(h.hold, lang, 0) }) : t('About {b} kcal a day to hold it.', { b: fmtNum(h.hold, lang, 0) })) : t('Tell the Coach what is next.');
     } else if (st.pace === 'too early' && !st.next) line = earlyLine(st, t);
     else if (st.byFood && st.now !== undefined && st.scaleKg !== undefined) line = t('About {now} by what you eat · scale {scale}', { now: kg(st.now), scale: kg(st.scaleKg) });
-    else if (lift && st.now !== undefined && left !== undefined) line = [t('Best set worth {n}', { n: kg(st.now) }), t('{n} to go', { n: kg(left) }), st.daysLeft !== undefined && st.daysLeft >= 0 ? t('{n} weeks', { n: Math.max(1, Math.round(st.daysLeft / 7)) }) : ''].filter(Boolean).join(' · ');
-    else if (left !== undefined) line = [t('{n} to go', { n: kg(left) }), st.daysLeft !== undefined && st.daysLeft >= 0 ? t('{n} days', { n: st.daysLeft }) : '', d.settings.goals.kcal ? t('{n} kcal target', { n: fmtNum(d.settings.goals.kcal, lang, 0) }) : ''].filter(Boolean).join(' · ');
+    else if (lift && st.now !== undefined && left !== undefined) line = [t('Best set worth {n}', { n: kg(st.now) }), t('{n} to go', { n: kg(left) }), st.daysLeft !== undefined && st.daysLeft >= 0 ? (Math.max(1, Math.round(st.daysLeft / 7)) === 1 ? t('1 week') : t('{n} weeks', { n: Math.round(st.daysLeft / 7) })) : ''].filter(Boolean).join(' · ');
+    else if (left !== undefined) {
+      // behind: by how much, as the pace it needs against the pace it has (a verdict with its evidence; the date is in the title)
+      const wk = (x: number) => `${x < 0 ? '−' : '+'}${fmtNum(Math.abs(kgToDisplay(x, u)), lang, 1)}\u00a0${u}`;
+      const why = st.pace === 'behind' && st.need !== undefined && st.rate !== undefined ? t('needs {a}/wk, now {b}', { a: wk(st.need), b: wk(st.rate).replace(/\u00a0\S+$/, '') }) : '';
+      line = [t('{n} to go', { n: kg(left) }), !why && st.daysLeft !== undefined && st.daysLeft > 0 ? (st.daysLeft === 1 ? t('1 day') : t('{n} days', { n: st.daysLeft })) : '', why || (d.settings.goals.kcal ? t('{n} kcal target', { n: fmtNum(d.settings.goals.kcal, lang, 0) }) : '')].filter(Boolean).join(' · ');
+    }
     if (st.start !== undefined && st.now !== undefined && st.target !== undefined && st.pace !== 'too early' && st.start !== st.target) bar = { start: st.start, now: st.now, target: st.target };
   } else line = t('No number to follow, so the Coach checks in with you instead.');
   const more = goals.length > 1 ? goals.length - 1 : 0;
@@ -352,7 +358,7 @@ const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; tod
   const f = bar ? Math.max(0, Math.min(1, (bar.now - bar.start) / (bar.target - bar.start))) : 0;
   return (
     <button className="hx-goal press" style={{ ['--c' as string]: col }} onClick={() => ask(t('How am I doing on my goal “{goal}”? Be honest.', { goal: name }))}>
-      <div className="hx-ghead"><span className="hx-gt">{title}</span>{st ? <span className={`hx-gpace${WARN.has(st.pace) ? ' hx-gwarn' : ''}`}>{t(PACE[st.pace])}</span> : <span className="hx-gchev">›</span>}</div>
+      <div className="hx-ghead"><span className="hx-gt">{title}</span>{st ? <span className={`hx-gpace${WARN.has(st.pace) ? ' hx-gwarn' : ''}`}>{PACE(t)[st.pace]}</span> : <span className="hx-gchev">›</span>}</div>
       {bar && <div className="hx-gbar" style={{ ['--f' as string]: f }}><span className="hx-gnow">{t('{n} now', { n: fmtNum(kgToDisplay(bar.now, u), lang, 1) })}</span><i /></div>}
       {(line || more > 0) && <div className="hx-gline">{line}{more > 0 && <>{line ? ' · ' : ''}<b>{t('+{n} more', { n: more })}</b></>}</div>}
     </button>
