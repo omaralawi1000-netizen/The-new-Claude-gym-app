@@ -16,6 +16,7 @@ import { buildCoachContext, AGENT_SYSTEM } from '../src/lib/coachContext';
 import { COACH_STYLE, COACH_NEVER, TASK_STYLE } from '../src/lib/handbook';
 import { addDays } from '../src/lib/dates';
 import { met, candidates, type ReviewNumbers } from '../src/lib/weekReview';
+import { personLines } from '../src/lib/person';
 import { loadDanish } from '../src/lib/i18n';
 import type { AppData, FoodEntry, WorkoutSession } from '../src/lib/types';
 
@@ -217,5 +218,19 @@ describe('round 7: exact protein days, evening overs', () => {
     const l = buildCoachContext(data(), today, (id) => id);
     expect(l.length).toBeLessThan(6700);
     expect(l).toMatch(/\(Left out for length: Routines\. Not known here, not "none"\.\)$/);
+  });
+});
+
+describe('eating rhythm: a log the day after is never called evening', () => {
+  it('splits what was logged after 20:00 from what was logged the next morning', () => {
+    const es: FoodEntry[] = [];
+    for (let i = 1; i <= 8; i++) {
+      const day = addDays(today, -i); const [y, m, dd] = day.split('-').map(Number);
+      es.push({ ...entry(day, 600), at: new Date(y, m - 1, dd, 12).getTime() });
+      es.push({ ...entry(day, 200), at: new Date(y, m - 1, dd, 21).getTime() });
+      es.push({ ...entry(day, 200), at: new Date(y, m - 1, dd + 1, 8).getTime() });
+    }
+    useStore.setState({ entries: es });
+    expect(personLines(data(), today).find((l) => l.startsWith('Eating rhythm'))).toBe("Eating rhythm: 20% of their logged calories were logged after 20:00 on the day; 20% were logged the day after (when they were eaten isn't known).");
   });
 });

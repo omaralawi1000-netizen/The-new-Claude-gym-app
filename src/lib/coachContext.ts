@@ -68,7 +68,7 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
   if (g.protein && full.length && !opts?.week) {
     // (compared on the number the day-by-day shows, and the days under named, so "even on the lower days" can be checked)
     const under = full.filter((x) => r0(x.protein) < g.protein!).map((x) => `${wd[new Date(`${x.date}T12:00:00`).getDay()]} −${g.protein! - r0(x.protein)}`);
-    L.push(`Protein at or above the ${g.protein} g target: ${full.length - under.length} of those ${full.length} days${under.length ? `; under on ${under.join(', ')} g` : ''}.`);
+    L.push(`Protein at or above the ${g.protein} g target: ${full.length - under.length} of those ${full.length} days${under.length ? `; under on ${under.join(', ')} g` : ''}. Say protein as this count; the average alone is not "at target".`);
   }
   L.push(opts?.week
     ? `"The week" here is WEEK ${opts.week.from}…${opts.week.to} above. The day-by-day line above and the skipped-sets and days-over lines below cover ${since} instead: quote them only for days inside WEEK; the week's counts and averages come from WEEK and CANDIDATES.`
