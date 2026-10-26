@@ -117,7 +117,7 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
     let airKey = '', airO = -1, hz = 0, lastT = performance.now(), shapeN = 0, topS = -1;
     let froze = { x: 0, y: 0, r: 0 }; // (the orb's place just before it sank: the horizon grows from there, not from its small slot)
     const paintAir = () => {
-      const c = (colors.dark ? colors.ac : colors.alt).map((x) => Math.round(Math.min(1, x / (colors.dark ? 1 : 0.75)) * 255)).join(',');
+      const c = colors.ac.map((x) => Math.round(Math.min(1, x / (colors.dark ? 1 : 0.62)) * 255)).join(','); // (the dust's own accent, in both themes)
       if (c === airKey) return; airKey = c;
       air.style.background = `radial-gradient(closest-side, rgba(${c},0) 76%, rgba(${c},.42) 84.5%, rgba(${c},.14) 90%, rgba(${c},0) 100%)`;
     };
