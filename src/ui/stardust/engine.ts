@@ -26,6 +26,8 @@ export type RGB = [number, number, number];
 export interface DustState {
   /** the canvas's size (css px) and pixel ratio */
   w: number; h: number; dpr: number;
+  /** when the page sent it (ms since 1970, fractional): the worker works out the orb's speed from it */
+  at?: number;
   /** the orb: its middle and radius in css px (the finger's move included) */
   cx: number; cy: number; r: number;
   /** 1 there, 0 leaving */
@@ -61,7 +63,7 @@ export class DustEngine {
   private last = 0; private t = 0;
   // the motion, smoothed by time (fast attack, slow release), so it reads the same at 60 or 120 frames a second
   private s = { listen: 0, think: 0, speak: 0, quiet: 0, vin: 0, vout: 0, bands: new Float32Array(16), prevIn: 0, prevOut: 0, lastSyl: -9,
-    syl: [-1, -1, -1, -1], sylA: [0, 0, 0, 0], rot: 0, scale: 1, scaleV: 0, attn: 0, quietFor: 9, lx: 0, ly: 0, lvx: 0, lvy: 0,
+    syl: [-1, -1, -1, -1], sylA: [0, 0, 0, 0], hsyl: [-1, -1, -1, -1], hsylA: [0, 0, 0, 0], lastHeard: -9, rot: 0, scale: 1, scaleV: 0, attn: 0, quietFor: 9, lx: 0, ly: 0, lvx: 0, lvy: 0,
     hold: 0, hx: 0, hy: 0, tapN: -1, tapAge: 99, tx: 0, ty: 0, beatN: -1, doneAge: 99, appear: 0, write: 0, unwrite: 0, crisp: 0 };
   /** called when the words are fully written (true) or start leaving (false): the page shows or hides the crisp text */
   onCrisp: (on: boolean) => void = () => {};
@@ -124,11 +126,12 @@ export class DustEngine {
     s.vin += (vin - s.vin) * k(vin > s.vin ? 22 : 6);
     s.vout += (vout - s.vout) * k(vout > s.vout ? 18 : 5);
     for (let i = 0; i < 16; i++) { const b = st.listen && !st.quiet ? st.bands[i] ?? 0 : 0; s.bands[i] += (b - s.bands[i]) * k(b > s.bands[i] ? 14 : 4); }
-    // a syllable: a sudden rise in the voice that is speaking
-    const v = st.speak ? vout : vin, prev = st.speak ? s.prevOut : s.prevIn;
-    if (v - prev > 0.08 && v > 0.18 && this.t - s.lastSyl > 0.16) { s.lastSyl = this.t; s.syl.unshift(0); s.syl.pop(); s.sylA.unshift(Math.min(1, 0.45 + v)); s.sylA.pop(); }
+    // a syllable: a sudden rise in a voice (its own runs out through it, yours is drawn in)
+    if (vout - s.prevOut > 0.08 && vout > 0.18 && this.t - s.lastSyl > 0.16) { s.lastSyl = this.t; s.syl.unshift(0); s.syl.pop(); s.sylA.unshift(Math.min(1, 0.45 + vout)); s.sylA.pop(); }
+    if (vin - s.prevIn > 0.06 && vin > 0.14 && this.t - s.lastHeard > 0.14) { s.lastHeard = this.t; s.hsyl.unshift(0); s.hsyl.pop(); s.hsylA.unshift(Math.min(1, 0.5 + vin)); s.hsylA.pop(); }
     s.prevIn = vin; s.prevOut = vout;
     s.syl = s.syl.map((a) => (a < 0 ? a : a + dt));
+    s.hsyl = s.hsyl.map((a) => (a < 0 ? a : a + dt));
     // it notices you: the first sound after a quiet spell
     if (vin > 0.12 && s.quietFor > 1.2 && !red) s.attn = 1;
     s.quietFor = vin < 0.06 ? s.quietFor + dt : 0;
@@ -172,6 +175,9 @@ export class DustEngine {
     gl.uniform1f(U('uListen'), s.listen); gl.uniform1f(U('uThink'), s.think); gl.uniform1f(U('uSpeak'), s.speak);
     gl.uniform1f(U('uAppear'), s.appear); gl.uniform1f(U('uAttn'), s.attn); gl.uniform1f(U('uQuiet'), s.quiet);
     gl.uniform1f(U('uDone'), s.doneAge < 1.3 ? s.doneAge / 1.3 : 0);
+    gl.uniform4f(U('uHeard'), s.hsyl[0], s.hsyl[1], s.hsyl[2], s.hsyl[3]); gl.uniform4f(U('uHeardA'), s.hsylA[0], s.hsylA[1], s.hsylA[2], s.hsylA[3]);
+    // (a small orb at the top of the conversation: a little brighter and its specks a touch bigger, so it is still dust, not haze)
+    gl.uniform1f(U('uSmall'), Math.max(0, Math.min(1, (60 - st.r) / 28)));
     gl.uniform4f(U('uSyl'), s.syl[0], s.syl[1], s.syl[2], s.syl[3]); gl.uniform4f(U('uSylA'), s.sylA[0], s.sylA[1], s.sylA[2], s.sylA[3]);
     gl.uniform3f(U('uTouch'), s.tx, s.ty, s.tapAge < 4 ? 1 : 0); gl.uniform1f(U('uTapAge'), Math.min(s.tapAge, 4));
     gl.uniform3f(U('uHold'), s.hx, s.hy, red ? 0 : s.hold);

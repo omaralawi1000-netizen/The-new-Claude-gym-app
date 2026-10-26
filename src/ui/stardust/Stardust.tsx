@@ -104,15 +104,18 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
       // (only while there is dust to draw: before it starts and once it has gone, no frames)
       if (!L.on && gone) return;
       if (L.on) gone = false;
-      const r = el.getBoundingClientRect();
+      // (its place without the finger's move, plus the move as it is right now: the move is read live, never a frame late
+      // whichever of the two runs first in a frame)
+      const slot = el.parentElement ?? el, r = slot.getBoundingClientRect(), [mx, my] = slot === el ? [0, 0] : L.lean;
       const lv = L.levels();
       if (lv) for (let i = 0; i < 16; i++) bands[i] = lv.bands[i] ?? 0;
       // (your voice for a moment, not a click or a breath, takes the greeting back into the orb)
       if (L.greet) { sendText(); voiceFor = (lv?.in ?? 0) > 0.16 ? voiceFor + 1 : 0; if (voiceFor > 12) L.onVoice(); }
       const st: DustState = {
+        at: performance.timeOrigin + performance.now(),
         w: canvas.clientWidth || window.innerWidth, h: canvas.clientHeight || window.innerHeight, dpr: Math.min(2.5, window.devicePixelRatio || 1),
         // (the sphere fills two thirds of the orb's place, as the usual orb does)
-        cx: r.left + r.width / 2, cy: r.top + r.height / 2, r: (r.width / 2) * 0.66,
+        cx: r.left + r.width / 2 + mx, cy: r.top + r.height / 2 + my, r: (r.width / 2) * 0.66,
         on: L.on ? 1 : 0, listen: L.listen, think: L.think, speak: L.speak, quiet: L.quiet,
         vin: lv?.in ?? 0, bands, vout: lv?.out ?? 0,
         hold: L.hold, press: L.press, tap: L.tap, lean: L.lean, beat: L.beat, greet: L.greet,

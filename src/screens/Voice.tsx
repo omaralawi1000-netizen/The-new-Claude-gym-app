@@ -147,6 +147,42 @@ function SaidMorph({ text, onSettled }: { text: string; onSettled: () => void })
  * speaks. Opacity and a vertical scale only, written straight to the element each frame (no React render, no blur); still
  * when the screen is hidden, instant under Reduce motion.
  */
+/**
+ * Your sentence while talking live (Omar, 26 Oct: "the text isn't live when I speak, I want it word by word"). The moment
+ * you start talking its bubble is there, with three small dots that move with your voice (you're being heard); your words
+ * come in one after another at a steady pace as they are understood (they arrive in clumps), the dots trailing after them
+ * while you keep talking.
+ */
+function LiveSaid({ text, k, still, ear, levels }: { text: string; k: string; still: boolean; ear: boolean; levels: () => { bands: Float32Array } | null }) {
+  // (every word as it comes, the last one too: what you said is whole words, never a word half written)
+  const { shown } = useWordReveal(text, false, still);
+  return <>{shown && <Words text={shown} k={k} still={still} />}{ear && <Ear levels={levels} gap={!!shown} />}</>;
+}
+/** Three dots moving with your voice (low, middle and high voice), only by scale: nothing re-renders. */
+function Ear({ levels, gap }: { levels: () => { bands: Float32Array } | null; gap: boolean }) {
+  const box = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const dots = [...(box.current?.children ?? [])] as HTMLElement[];
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'reduce') return; // (still dots)
+    const v = [0, 0, 0], sent = ['', '', '']; let raf = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      if (useUI.getState().overlays.length) return; // (nothing moves behind an open pop-up)
+      const b = levels()?.bands;
+      for (let i = 0; i < 3; i++) {
+        let x = 0; if (b) for (let j = i * 5; j < i * 5 + 5; j++) x += b[j] ?? 0;
+        const want = Math.min(1, (x / 5) * 2.2);
+        v[i] += (want - v[i]) * (want > v[i] ? 0.35 : 0.12);
+        const sc = `scale(${(0.7 + v[i] * 0.75).toFixed(2)})`;
+        if (sc !== sent[i]) { sent[i] = sc; dots[i].style.transform = sc; } // (written only when it changes)
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [levels]);
+  return <span ref={box} className={`said-ear${gap ? ' gap' : ''}`} aria-hidden><i /><i /><i /></span>;
+}
+
 /** What it is doing while it thinks, from the function it called (Omar, 26 Oct): a few words under the orb. */
 function doingLine(name: string, args: Record<string, unknown>, t: (s: string) => string): string {
   if (name === 'look_up') {
@@ -272,6 +308,9 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const liveFailed = useRef(false);
   const [liveActive, setLiveActive] = useState(false);
   const [speaking, setSpeaking] = useState(false); // its voice is playing (Tap to interrupt)
+  const [hearing, setHearing] = useState(false); // talking live: you are being heard right now
+  const hearDrop = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const liveLevels = useCallback(() => liveRef.current?.levels() ?? null, []);
   const [muted, setMuted] = useState(false);
   const [camStream, setCamStream] = useState<MediaStream | null>(null);
   const [renewing, setRenewing] = useState(false);
@@ -297,7 +336,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
 
   const teardown = useCallback(() => {
     run.current++;
-    liveRef.current?.stop(); liveRef.current = null; setLiveActive(false); orbVoiceSource(null); liveTurn.current = { id: null, said: '' }; setSpeaking(false); setMuted(false); setCamStream(null); setRenewing(false);
+    liveRef.current?.stop(); liveRef.current = null; setLiveActive(false); orbVoiceSource(null); liveTurn.current = { id: null, said: '' }; setSpeaking(false); setHearing(false); setMuted(false); setCamStream(null); setRenewing(false);
     handle.current?.abort(); handle.current = null;
     mic.release('voice');
     useVoice.getState().set({ micLive: false });
@@ -394,6 +433,17 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           lt.said = text;
           if (lt.id) patch(lt.id, { said: text });
           else { const id = openTurn(text); lt.id = id; patch(id, { live: true }); }
+        },
+        // you started talking: your bubble is there at once (its words follow as they are understood); a sound that turns out
+        // to be no words takes its empty bubble away again
+        onHearing: (on) => {
+          if (!alive.current) return;
+          setHearing(on); clearTimeout(hearDrop.current);
+          if (on && !lt.id) { const id = openTurn(''); lt.id = id; patch(id, { live: true }); }
+          if (!on) hearDrop.current = setTimeout(() => {
+            const id = lt.id, tu = id ? turnsRef.current.find((x) => x.id === id) : undefined;
+            if (alive.current && id && tu && !tu.said && !tu.reply && !tu.results.length && useVoice.getState().phase !== 'processing') { drop(id); lt.id = null; }
+          }, 2500);
         },
         onTurnStart: () => { if (!alive.current) return; if (!lt.id) { const id = openTurn(lt.said); lt.id = id; patch(id, { live: true }); } go('processing'); },
         onReplyText: (text) => { if (alive.current && lt.id) patch(lt.id, { reply: text }); },
@@ -647,7 +697,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     if (phase === 'requesting' || liveRef.current) { teardown(); go('idle'); return; } orbTap(0.6); if (listening) finish(); else if (!thinking) { haptic('listen'); listen(); } };
   // talking live, from the first frame (also while it connects): the ChatGPT-like screen, never the old buttons in between
   const liveUi = liveWanted && !liveFailed.current && !typing;
-  const chatting = liveUi && turns.length > 0;
+  // (a bubble still waiting for its first word doesn't count: a cough mustn't move the orb up and back down)
+  const chatting = liveUi && turns.some((x) => x.said || x.reply || x.results.length);
   const big = liveUi ? !chatting : !showing && !thinking && !typing; // typing: the orb steps up and the box gets the room
   // (Aven's own Reduce motion too, not only the phone's: the glide and the fade are instant then)
   const calm = useReducedMotion() || document.documentElement.dataset.motion === 'reduce';
@@ -802,7 +853,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
                 return (
                   <div key={tu.id} className="exchange">
                     {/* (once answered, an older sentence is plain text: a long conversation keeps few word layers over the orb) */}
-                    {tu.said && <div className="said"><Words text={tu.said} k={`u${i}`} still={tu.done && !newest} /></div>}
+                    {(tu.said || (newest && !tu.done && !tu.reply)) && <div className="said"><LiveSaid text={tu.said} k={`u${i}`} still={tu.done && !newest} ear={newest && !tu.reply && !tu.done && (hearing || !tu.said)} levels={liveLevels} /></div>}
                     {/* (the same component when it stops being the newest: a swap made the answer fade in again) */}
                     {tu.reply.trim() && <div className={tu.cut ? 'live-cut' : undefined}><OrbReply id={tu.id} text={tu.reply} live={!tu.done} onGrow={newest ? follow : () => {}} onDone={() => setWritten(tu.id)} after={cards || null} /></div>}
                     {!tu.reply.trim() && cards}
