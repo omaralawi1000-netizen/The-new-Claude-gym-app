@@ -95,7 +95,7 @@ export class Expander {
   }
   /** each home unit shows only the part of it the page is not covering (the page is see-through only once it clears), so the
    *  card's edge uncovers words instead of blinking them; sampled from the same spring as the window */
-  private cover(src: HTMLElement, win: (e: number) => [number, number], at: (p: number) => number, m: (p: number) => number, o: { duration: number; delay?: number }, paths?: [Box, Box][], leave?: [Box, Box][]) {
+  private cover(src: HTMLElement, win: (e: number) => [number, number], at: (p: number) => number, m: (p: number) => number, o: { duration: number; delay?: number }, paths?: [Box, Box][], leave?: [Box, Box][], g: (p: number) => number = () => 1) {
     // opening: a line a flying copy will cross is gone before the copy gets there (the first 80 ms)
     const lane = (r: Box) => !!leave?.some(([a, b]) => { const l = Math.min(a.x, b.x), rr = Math.max(a.x + a.w, b.x + b.w), t = Math.min(a.y, b.y), bb = Math.max(a.y + a.h, b.y + b.h); return r.x < rr && r.x + r.w > l && r.y < bb && r.y + r.h > t; });
     const k = 80 / o.duration;
@@ -109,7 +109,7 @@ export class Expander {
       const c = paths ? clearAfter(r, paths, at) : 0, c0 = Math.min(0.38, c), held = (p: number) => (c <= 0 ? 1 : ss((p - c0) / 0.2));
       // only the part on screen counts: a line below the screen's edge is under the page too, and stays hidden until home is back
       const h = this.e.root.clientHeight, t = Math.max(0, r.y), bt = Math.min(h, r.y + r.h), off = bt - t < 1;
-      const kf = Array.from({ length: N + 1 }, (_, i) => { const p = i / N; return { offset: p, opacity: off ? (paths && p === 1 ? 1 : 0) : +(ss(1 - cover(t, bt, win(at(p))) * m(p)) * held(p) * (gone ? 1 - ss(p / k) : 1)).toFixed(4) }; });
+      const kf = Array.from({ length: N + 1 }, (_, i) => { const p = i / N; return { offset: p, opacity: off ? (paths && p === 1 ? 1 : 0) : +(ss(1 - cover(t, bt, win(at(p))) * m(p)) * held(p) * g(p) * (gone ? 1 - ss(p / k) : 1)).toFixed(4) }; });
       x.getAnimations().filter((a) => a.id === 'hx-cover').forEach((a) => a.cancel());
       const a = this.anim(x, kf, { ...o, easing: 'linear' }); a.id = 'hx-cover';
       return a;
@@ -171,14 +171,16 @@ export class Expander {
     // rides up with the card's top edge to its place (the flying number moves with it), so the card is never an empty box
     const oy = this.ride(src);
     // home is covered by the page as it grows, line by line, and steps back a little around it
-    st.home = this.cover(src, win, at, () => 1, { duration: D }, undefined, paths);
+    st.home = this.cover(src, win, at, () => 1, { duration: D }, undefined, paths, (p) => 1 - ss((p - 0.08) / 0.3));
     st.anims.push(this.anim(this.e.shade, [{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 1, offset: 0.75 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
     // each block of the page shows as soon as it is inside the card (never cut by an edge), from a fifth of the way on
     const paired = new Set(st.fl.map((o) => o.b));
     for (const x of this.pageBlocks(paired)) {
       const r = this.box(x);
       const kf = Array.from({ length: N + 1 }, (_, i) => { const p = i / N, e = at(p), w = win(e), y = r.y + oy * (1 - e);
-        return { offset: p, opacity: +(ss((w[1] - (y + r.h)) / 12) * ss((y - w[0]) / 12) * ss((e - 0.18) / 0.4)).toFixed(4) }; });
+        // a block taller than the screen counts only down to the screen's edge (else it never fits and stays hidden)
+        const bot = Math.min(y + r.h, h - 12);
+        return { offset: p, opacity: i === N ? 1 : +(ss((w[1] - bot) / 12) * ss((y - w[0]) / 12) * ss((e - 0.04) / 0.3)).toFixed(4) }; });
       st.anims.push(this.anim(x, kf, { duration: D, easing: 'linear' }));
     }
     // (measured above with the page at rest; now it starts shifted)
@@ -257,8 +259,8 @@ export class Expander {
     // the page stays a card while its edges start to uncover home, then clears from 12 % to 45 % as home comes back under
     // it (never an empty box: its words leave as home's arrive)
     // the card stays a card (its edges uncover home) until it is nearly the row, then clears onto it
-    const m0 = Number(matO), mo = (p: number) => m0 * (1 - ss((p - 0.45) / 0.22));
-    out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: 0.45 }, { opacity: 0, offset: 0.67 }, { opacity: 0 }], { duration: D, delay: 70, easing: 'linear' }));
+    const m0 = Number(matO), mo = (p: number) => m0 * (1 - ss((p - 0.06) / 0.34));
+    out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: 0.06 }, { opacity: 0, offset: 0.4 }, { opacity: 0 }], { duration: D, delay: 70, easing: 'linear' }));
     // where the window is now (its layers' moves), and where it lands: the row
     const h = this.e.root.clientHeight, ty = (t: string) => (t === 'none' ? 0 : new DOMMatrix(t).f);
     const t0 = ty(fromL[0]), b0 = ty(fromL[1]) + h + t0, wr = this.box(st.src), wt = Math.max(0, Math.min(h - 1, wr.y)), wb = Math.max(wt + 1, Math.min(h, wr.y + wr.h));
@@ -267,17 +269,17 @@ export class Expander {
     st.home = this.cover(st.src, (e) => [t0 + (wt - t0) * e, b0 + (wb - b0) * e], at, mo, { duration: D, delay: 70 }, paths);
     out.push(...st.home);
     this.e.shade.getAnimations().forEach((a) => a.cancel());
-    out.push(this.anim(this.e.shade, [{ opacity: shO }, { opacity: shO, offset: 0.25 }, { opacity: 0, offset: 0.75 }, { opacity: 0 }], { duration: D, delay: 70, easing: 'linear' }));
+    out.push(this.anim(this.e.shade, [{ opacity: shO }, { opacity: 0, offset: 0.4 }, { opacity: 0 }], { duration: D, delay: 70, easing: 'linear' }));
     // the page's blocks stay inside the card while it shrinks and leave before it reaches the row (an edge never cuts one)
     const oy = this.ride(st.src), win = (e: number): [number, number] => [t0 + (wt - t0) * e, b0 + (wb - b0) * e];
     page.forEach(({ e: x, o }) => {
       const r = this.box(x), o0 = Number(o);
       const kf = Array.from({ length: N + 1 }, (_, i) => { const p = i / N, e = at(p), w = win(e), y = r.y + cy + (oy - cy) * e;
-        return { offset: p, opacity: +(o0 * ss((w[1] - (y + r.h)) / 12) * ss((y - w[0]) / 12) * (1 - ss((e - 0.45) / 0.35))).toFixed(4) }; });
+        return { offset: p, opacity: +(o0 * ss((w[1] - Math.min(y + r.h, h - 12)) / 12) * ss((y - w[0]) / 12) * (1 - ss(p / 0.2))).toFixed(4) }; });
       this.anim(x, kf, { duration: D, delay: 70, easing: 'linear' });
     });
     out.push(this.anim(dsc, [{ transform: `translateY(${cy}px)` }, { transform: `translateY(${oy}px)` }], { duration: D, delay: 70, easing: E }));
-    out.push(this.anim(edge, [{ opacity: edgeO }, { opacity: 1, offset: 0.2 }, { opacity: 0, offset: 0.55 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
+    out.push(this.anim(edge, [{ opacity: edgeO }, { opacity: 0, offset: 0.35 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
     fl.forEach(({ c, a }) => {
       const ra = this.box(a), rb = { x: parseFloat(c.style.left), y: parseFloat(c.style.top), w: parseFloat(c.style.width), h: parseFloat(c.style.height) };
       const s = this.scale(a, ra, rb);
