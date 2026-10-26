@@ -444,6 +444,8 @@ export interface AgentCtx {
   photo?: boolean;
   /** goal notes closed (reached or dropped) earlier in this answer: a later remember of the same note doesn't reopen it */
   closedGoals?: Set<string>;
+  /** every action of this answer (a note can depend on another one saved beside it) */
+  batch?: AgentAction[];
   /** a few words while it works ("Looking up 3 foods…"); '' when done */
   onStatus?: (s: string) => void;
   /** the memory list as the model saw it (numbered), so "forget 2" means the same note even after another forget */
@@ -1142,6 +1144,55 @@ function doCreateRoutine(a: Extract<AgentAction, { type: 'create_routine' }>, ct
   });
 }
 
+/**
+ * An empty edit_routine read from the reply's own words, when it names one of the routine's exercises and its new sets and
+ * reps: "move Barbell Bench Press in Push to 4 sets of 4–6 reps", "… to 4×5–8". Gemini sent the edit with its routine
+ * only, every time, while the reply said the routine was changed (Gemini Pro and 4 Argon, 26 Oct).
+ */
+export function changeFromReply(reply: string, routine: { name: string; items: RoutineItem[] }, nameOf: (id: string) => string, idOf?: (word: string) => string | undefined): RoutineBit[] {
+  // (a sentence that names no exercise — "I have updated Push to 4 sets of 4–6" — is about the one exercise of the routine
+  // the reply talks about, when it talks about exactly one)
+  const all = fold(reply);
+  const words = [...reply.matchAll(new RegExp(LIFT_WORDS.source, 'gi'))].map((m) => (idOf ? idOf(m[1]) : undefined));
+  const named = routine.items.filter((i) => all.includes(fold(nameOf(i.exerciseId))) || words.includes(i.exerciseId));
+  const only = named.length === 1 ? named[0] : undefined;
+  for (const sent of reply.split(/(?<=[.!?])\s+|\n+/)) {
+    const f = fold(sent);
+    if (!f.includes(fold(routine.name)) && !/\b(routine|rutine)/.test(f)) continue;
+    // (its full name, or a lift word for it: "In Push, bench is now set to 4 × 3–5")
+    const word = sent.match(LIFT_WORDS)?.[1];
+    const wid = word && idOf ? idOf(word) : undefined;
+    const it = routine.items.find((i) => f.includes(fold(nameOf(i.exerciseId)))) ?? routine.items.find((i) => i.exerciseId === wid) ?? only;
+    if (!it) continue;
+    // (the new numbers: after the last "to"/"til", so "from 3×8–12 to 4×4–6" is read as 4×4–6)
+    const tail = sent.slice(Math.max(sent.toLowerCase().lastIndexOf(' to '), sent.toLowerCase().lastIndexOf(' til '), 0));
+    const m = tail.match(/\b(\d{1,2})\s*(?:sets? of|sæt af|[×x])\s*(\d{1,2})(?:\s*[–-]\s*(\d{1,2}))?(?!\s*(?:kg|lbs?|[.,]\d))/i);
+    if (!m) continue;
+    const sets = Number(m[1]), lo = Number(m[2]), hi = Number(m[3] ?? m[2]);
+    if (sets >= 1 && sets <= 10 && lo >= 1 && hi >= lo && hi <= 30) return [{ exercise: nameOf(it.exerciseId), sets, repMin: lo, repMax: hi }];
+  }
+  return [];
+}
+
+/** The answer's empty routine changes filled from its reply (changeFromReply), before it is checked and run. */
+export function fillFromReply(reply: string, actions: AgentAction[], lang: 'en' | 'da' = 'en'): AgentAction[] {
+  const pool = allExercises(useStore.getState().exercises);
+  const nameOf = (id: string) => pool.find((x) => x.id === id)?.name ?? id;
+  const out = actions.map((a) => {
+    if (a.type !== 'edit_routine' || a.rename || a.add?.length || a.remove?.length || a.change?.length) return a;
+    const r = findRoutine(a.routine);
+    const change = r ? changeFromReply(reply, r, nameOf, (w) => findExercise(w, lang)?.id) : [];
+    return change.length ? { ...a, change } : a;
+  });
+  // a goal note rewritten with no plan while the reply says the plan changed: the plan is the reply's sentence that
+  // names it in sets and reps (GOALS reads it back as "Plan agreed" at the next follow-up)
+  if (!PLAN_SAID.test(reply)) return out;
+  const plan = reply.split(/(?<=[.!?])\s+|\n+/).map((x) => x.trim()).find((x) => /\d\s*(?:[×x]|sets? of|sæt af)\s*\d/i.test(x) && /\b(?:plan|change|instead|next \d+ weeks?|add|move|push|ændr\w*|i stedet|næste \d+ uger)\b/i.test(x));
+  if (!plan) return out;
+  return out.map((a) => (a.type === 'remember' && (a.kind === 'goal' || a.replaces) && !a.plan && !a.goal?.plan ? { ...a, plan: plan.length > 220 ? `${plan.slice(0, 217)}…` : plan } : a));
+}
+const PLAN_SAID = /\b(?:updated|saved|changed|new) (?:your |the |this )?(?:goal )?plan\b|\bthe plan is\b|\bplan (?:is|was) (?:now )?(?:updated|saved|changed)\b|\b(?:opdateret|gemt|ændret) (?:din |planen|plan)/i;
+
 function doEditRoutine(a: Extract<AgentAction, { type: 'edit_routine' }>, ctx: AgentCtx): AgentResult {
   const { t, lang } = ctx;
   const st = useStore.getState();
@@ -1511,6 +1562,14 @@ function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx
   const clsNum = Number(a.text.match(/(\d{2,3}(?:[.,]\d+)?)\s*kg\s*(?:weight\s*)?(?:class|-?klassen?|vægtklasse)/i)?.[1]?.replace(',', '.'));
   const nowKg = g01?.metric === 'weight' ? goalStart(useStore.getState(), { metric: 'weight' }, undefined, ctx.today) : undefined;
   const g0 = g01 && g01.metric === 'weight' && g01.target !== undefined && clsNum === g01.target && nowKg !== undefined && g01.target > nowKg ? { metric: 'other' as const, ...(g01.by ? { by: g01.by } : {}), ...(g01.plan ? { plan: g01.plan } : {}) } : g01;
+  // (a weigh-in in a class above where they are, saved beside a bodyweight goal: a date to remember, not a second goal
+  // with nothing to follow; Gemini Pro saved "Weigh-in: 86 kg class on …" next to "+2 kg", 26 Oct)
+  if (g0?.metric === 'other' && !a.goal && !old?.goal && Number.isFinite(clsNum) && WEIGH_IN.test(a.text)) {
+    const now = goalStart(st, { metric: 'weight' }, undefined, ctx.today);
+    const weightGoal = (b: AgentAction) => b !== a && b.type === 'remember' && (b.goal?.metric === 'weight' || (!b.goal && b.kind === 'goal' && goalFromText(b.text, b.until ?? undefined, undefined, lang, ctx.today)?.metric === 'weight'));
+    if (now !== undefined && clsNum > now && ((ctx.batch ?? []).some(weightGoal) || activeGoals(st, ctx.today).some((m) => m.goal?.metric === 'weight' && m.goal.target !== undefined)))
+      return doRemember({ ...a, kind: 'schedule', goal: null, until: g0.by ?? a.until ?? null }, ctx);
+  }
   if (g0 && a.plan && !g0.plan) g0.plan = a.plan;
   const ex = a.exercise ? findExercise(a.exercise, lang) : g0?.exercise;
   // a goal keeps its date in goal.by (it is followed up after the date too, never just dropped like a temporary note)
@@ -1595,13 +1654,45 @@ function goalPlan(g: GoalArg, ex: Exercise | undefined, old: MemoryNote | undefi
 const WEIGH_IN = /\b(weigh-?ins?|weight class|kg class|class|tournament|match|meet|competition|stævne|indvejning|vægtklasse|klassen|kamp|turnering)\b/i;
 const LIFT_WORDS = /\b(bench|squat|deadlift|overhead press|ohp|military press|pull-?ups?|chin-?ups?|(?:barbell|cable|dumbbell|seated|bent[- ]over|pendlay)\s+rows?|hip thrust|bænk\w*|dødløft|squat)\b/i;
 const kgNum = (x: string) => Number(x.replace(',', '.'));
+const WD_EN = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const WD_DA = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag'];
+const MONTHS_EN = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+const MONTHS_DA = ['januar', 'februar', 'marts', 'april', 'maj', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'december'];
+/** The next time a month-day comes round (today counts). */
+const nextMD = (today: string, md: string) => { const y = Number(today.slice(0, 4)); return `${today.slice(5) <= md ? y : y + 1}-${md}`; };
+/**
+ * A goal's date said in words, when the note has no YYYY-MM-DD (Gemini Pro wrote "this week" and "by summer", 26 Oct):
+ * this or next week (to its Sunday), a weekday, Christmas, New Year, summer (1 June), the end of the month, or a month
+ * ("by December" → its 1st, as the Coach is told to set it). Nothing when the words have no date.
+ */
+export function dateFromWords(text: string, today: string): string | undefined {
+  const f = text.toLowerCase();
+  const wd = weekdayOf(today);
+  const sunday = addDays(today, (7 - wd) % 7);
+  if (/\b(?:this|the) week\b|\bweek'?s end\b|\b(?:i )?denne uge\b|\bresten af ugen\b/.test(f)) return sunday;
+  if (/\bnext week\b|\bnæste uge\b/.test(f)) return addDays(sunday, 7);
+  // (a deadline only: "by Friday", "inden fredag"; "weigh in on Monday mornings" is a habit, not a date; "next Saturday"
+  // said on a Saturday is a week away)
+  const day = f.match(new RegExp(`\\b(by|until|till|before|this|next)\\s+(${WD_EN.join('|')})\\b`)) ?? f.match(new RegExp(`\\b(til|inden|senest|næste)\\s+(${WD_DA.join('|')})\\b`));
+  if (day) { const n = Math.max(WD_EN.indexOf(day[2]), WD_DA.indexOf(day[2])); const k = (n - wd + 7) % 7; return addDays(today, k === 0 && /^(next|næste)$/.test(day[1]) ? 7 : k); }
+  if (/\bchristmas\b|\bxmas\b|\bjul(?:en|eaften)?\b/.test(f)) return nextMD(today, '12-24');
+  if (/\bnew year\b|\bnytår\b/.test(f)) return nextMD(today, '12-31');
+  if (/\bsummer\b|\bsommer(?:en|ferien)?\b/.test(f)) return nextMD(today, '06-01');
+  if (/\bend of (?:the |this )?month\b|\bmånedens (?:udgang|slutning)\b|\bslutningen af måneden\b/.test(f)) { const d = new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0); return `${today.slice(0, 7)}-${String(d.getDate()).padStart(2, '0')}`; }
+  // (each language with its own words: "I may" is not "i maj")
+  const mo = f.match(new RegExp(`\\b(?:by|in|until|before)\\s+(?:early\\s+|the start of\\s+|start of\\s+)?(${MONTHS_EN.join('|')})\\b`)) ?? f.match(new RegExp(`\\b(?:i|til|inden|senest)\\s+(?:starten af\\s+)?(${MONTHS_DA.join('|')})\\b`));
+  if (mo) { const n = Math.max(MONTHS_EN.indexOf(mo[1]), MONTHS_DA.indexOf(mo[1])); const md = `${String(n + 1).padStart(2, '0')}-01`; return today.slice(5, 7) === md.slice(0, 2) ? undefined : nextMD(today, md); }
+  return undefined;
+}
+
 /** A goal's numbers read from its words, when the model didn't give them: a lift ("Bench Press 47.5 → 80 kg"), a
  *  bodyweight ("82 → 80 kg", "make the 74 kg class", "lose 2 kg"), a date (YYYY-MM-DD), or that it was reached or dropped. */
 export function goalFromText(text: string, until: string | undefined, old: MemoryNote | undefined, lang: 'en' | 'da', today?: string): GoalArg | undefined {
   // (reached only when the words say the goal is: "halfway reached" isn't)
   if (old?.goal && !old.goal.status && /^\s*(?:(?:goal|mål)\s*)?(?:reached|achieved|completed|done|nået|naet)\b|\b(?:goal|mål)\s+(?:reached|achieved|completed|nået|naet)\b|\(\s*(?:reached|achieved|nået)\b|\b(?:reached|nået)\s+(?:on\s+|den\s+)?\d|\bhit it\b/i.test(text)) return { metric: old.goal.metric, status: 'done' };
   if (old?.goal && !old.goal.status && /\b(dropped|gave up|given up|abandoned|droppet|opgivet)\b/i.test(text)) return { metric: old.goal.metric, status: 'dropped' };
-  const by = text.match(/\b(\d{4}-\d{2}-\d{2})\b/)?.[1] ?? until;
+  // (the last date said: "this week (2026-10-19 to 2026-10-25)" ends on the 25th; Gemini 4 Argon, 26 Oct)
+  const by = [...text.matchAll(/\b(\d{4}-\d{2}-\d{2})\b/g)].pop()?.[1] ?? until ?? (today ? dateFromWords(text, today) : undefined);
   // (pounds too: the goal is kept in kg)
   const toKg = (n: string, unit: string) => (/^lb/i.test(unit) ? Math.round(kgNum(n) * 0.45359237 * 10) / 10 : kgNum(n));
   const kgs = [...text.matchAll(/(\d{1,3}(?:[.,]\d+)?)\s*(kg|lbs?)\b/gi)].map((m) => toKg(m[1], m[2]));
@@ -1628,8 +1719,16 @@ export function goalFromText(text: string, until: string | undefined, old: Memor
   // (a weight class is a goal to reach only with its weigh-in date: "wrestles in the 74 kg class" is a fact about them)
   // (a class above where they are is made already: a ceiling, not a weight to climb to)
   if (cls && by) { const now = today ? goalStart(useStore.getState(), { metric: 'weight' }, undefined, today) : undefined; const c = kgNum(cls[1]); return now !== undefined && c > now ? { metric: 'other', by } : { metric: 'weight', target: c, by }; }
+  // (a bodyweight to reach, said alone: "+2 kg (to 83.7 kg)", "down to 80 kg"; Gemini Pro's wording, 26 Oct)
+  // (only near their bodyweight: "my clean to 100 kg" is a lift the app doesn't know, not a weight to reach)
+  const nowKg = today ? goalStart(useStore.getState(), { metric: 'weight' }, undefined, today) : undefined;
+  const to = text.match(/(?:^|[^\w.,])(?:down to|up to|to|til|ned på|ned til|op på|op til)\s+(\d{2,3}(?:[.,]\d+)?)\s*(kg|lbs?)\b/i);
+  if (to && nowKg !== undefined && Math.abs(toKg(to[1], to[2]) - nowKg) <= 15 && !/\b(clean|snatch|jerk|press|row|curl|thrust|lift|pull|dip|carry)\w*\b/i.test(text)) return { metric: 'weight', target: toKg(to[1], to[2]), ...(by ? { by } : {}) };
   const rel = text.match(/\b(lose|losing|drop|cut|shed|tabe|tab|gain|gaining|put on|add|bulk|tage på|tag på)\s+(?:about\s+|around\s+|ca\.?\s+)?(\d{1,2}(?:[.,]\d+)?)\s*(kg|lbs?)\b/i);
   if (rel) return { metric: 'weight', delta: (/^(gain|put|add|bulk|tag)/i.test(rel[1]) ? 1 : -1) * toKg(rel[2], rel[3]), ...(by ? { by } : {}) };
+  // ("+2 kg", "−1.5 kg": a change from where they are)
+  const sign = text.match(/(?:^|[\s(:])([+−–-])\s?(\d{1,2}(?:[.,]\d+)?)\s*(kg|lbs?)\b(?!\s*(?:a|per|\/|om|i|every|hver)\s*(?:week|wk|uge))/i);
+  if (sign) return { metric: 'weight', delta: (sign[1] === '+' ? 1 : -1) * toKg(sign[2], sign[3]), ...(by ? { by } : {}) };
   return by ? { metric: 'other', by } : undefined;
 }
 
@@ -2319,11 +2418,16 @@ function doSetting(a: Extract<AgentAction, { type: 'set_setting' }>, ctx: AgentC
 export async function runActions(actions: AgentAction[], ctxIn: AgentCtx): Promise<AgentResult[]> {
   const ctx: AgentCtx = { ...ctxIn, memAtStart: ctxIn.memAtStart ?? [...useStore.getState().memory] };
   const out: AgentResult[] = [];
+  // the same action twice in one answer is done once (two identical "Full Body" routines, the same note saved twice;
+  // Gemini Pro, 26 Oct). Logging is left alone: two of the same food can be meant
+  const seenActs = new Set<string>();
+  actions = actions.filter((a) => { if (/^log_/.test(a.type)) return true; const k = JSON.stringify(a); if (seenActs.has(k)) return false; seenActs.add(k); return true; });
   // a goal saved with new calorie or protein targets in the same answer: those targets are its plan, when it has none
   const set = (k: string) => actions.flatMap((a) => (a.type === 'set_setting' ? [...(a.key ? [{ key: a.key, value: a.value ?? '' }] : []), ...(a.pairs ?? [])] : [])).find((p) => p.key === k)?.value;
   const kc = Number(set('kcalGoal')), pr = Number(set('proteinGoal'));
   const fromSet = [kc > 0 ? `${kc.toLocaleString('en-US')} kcal` : '', pr > 0 ? `${pr} g protein` : ''].filter(Boolean).join(', ');
   if (fromSet) actions = actions.map((a) => (a.type === 'remember' && (a.kind === 'goal' || a.goal) && !a.plan && !a.goal?.plan ? { ...a, plan: fromSet } : a));
+  ctx.batch = actions;
   for (const a of actions) {
     try {
       switch (a.type) {

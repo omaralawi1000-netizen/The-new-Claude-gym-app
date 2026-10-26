@@ -567,3 +567,82 @@ describe('judge round 12 (26 Oct)', () => {
     expect(goalLines(data(), today, name).join('\n')).toMatch(/they come 3 days a week, so their cap is the daily target itself \(\+300 on them would cut the pace by about 0\.12 kg\/week and miss the date\)/);
   });
 });
+
+describe('goal words in other wordings (Gemini Pro and Gemini 4 Argon, 26 Oct)', () => {
+  const acts = async (list: Record<string, unknown>[]) => runActions(validateAgent({ reply: '', actions: list })!.actions, ctx());
+  it('"+2 kg (to 83.7 kg)", "down to 80 kg" and "−2 kg" are bodyweight goals; a pace per week is not one', () => {
+    useStore.setState({ weights: weighIns(7, 81.7, 0) });
+    expect(goalFromText('Goal: +2 kg (to 83.7 kg) by 2026-12-01, about 0.3 kg a week', undefined, undefined, 'en', today)).toMatchObject({ metric: 'weight', target: 83.7, by: '2026-12-01' });
+    expect(goalFromText('Goal: down to 80 kg by 2026-12-01', undefined, undefined, 'en', today)).toMatchObject({ metric: 'weight', target: 80 });
+    expect(goalFromText('Goal: −2 kg by 2026-12-01', undefined, undefined, 'en', today)).toMatchObject({ metric: 'weight', delta: -2 });
+    expect(goalFromText('Goal: leaner, -0.5 kg a week by 2026-12-01', undefined, undefined, 'en', today)).toMatchObject({ metric: 'other' });
+  });
+  it('a date said in words: this week to its Sunday, summer, Christmas, a weekday, a month; a range ends on its last date', () => {
+    // (today is a Sunday)
+    expect(goalFromText('Log every meal this week, no skipping dinner.', undefined, undefined, 'en', today)).toMatchObject({ metric: 'other', by: today });
+    expect(goalFromText('Log every meal this week', undefined, undefined, 'en', '2026-10-19')).toMatchObject({ by: '2026-10-25' });
+    expect(goalFromText('Goal: Barbell Bench Press 100 kg by summer', undefined, undefined, 'en', today)).toMatchObject({ metric: 'lift', target: 100, by: '2027-06-01' });
+    expect(goalFromText('Goal: lose 3 kg by Christmas', undefined, undefined, 'en', today)).toMatchObject({ delta: -3, by: '2026-12-24' });
+    expect(goalFromText('Goal: log every meal by Friday', undefined, undefined, 'en', today)).toMatchObject({ by: '2026-10-30' });
+    expect(goalFromText('Goal: lose 2 kg by December', undefined, undefined, 'en', today)).toMatchObject({ by: '2026-12-01' });
+    expect(goalFromText('Goal: log every meal including dinner every day this week (2026-10-19 to 2026-10-25)', undefined, undefined, 'en', today)).toMatchObject({ by: '2026-10-25' });
+    expect(goalFromText('I may want to cut later', undefined, undefined, 'en', today)).toBeUndefined();
+  });
+  it('a "this week" promise is a goal with its week, so Today shows it', async () => {
+    useStore.setState({ memory: [] });
+    const [r] = await acts([{ type: 'remember', kind: 'goal', text: 'Log every meal this week, no skipping dinner.' }]);
+    expect(r.title).toBe('Goal set');
+    expect(data().memory[0].goal).toMatchObject({ metric: 'other', by: today });
+  });
+  it('a weigh-in in a class above, saved beside the gain: a date to remember, not a second goal', async () => {
+    useStore.setState({ weights: weighIns(14, 81.7, 0), memory: [] });
+    const r = await acts([
+      { type: 'remember', kind: 'goal', text: 'Goal: +2 kg (to 83.7 kg) by 2026-12-01, about 0.3 kg a week' },
+      { type: 'remember', kind: 'goal', text: 'Weigh-in: 86 kg class on 2026-12-01' },
+    ]);
+    expect(r.map((x) => x.title)).toEqual(['Goal set', 'Remembered']);
+    const [gain, wi] = data().memory;
+    expect(gain.goal).toMatchObject({ metric: 'weight', target: 83.7, by: '2026-12-01' });
+    expect(wi).toMatchObject({ kind: 'schedule', until: '2026-12-01' });
+    expect(wi.goal).toBeUndefined();
+  });
+  it('the same action twice in one answer is done once', async () => {
+    useStore.setState({ memory: [] });
+    const r = await acts([{ type: 'remember', kind: 'preference', text: 'Likes morning sessions' }, { type: 'remember', kind: 'preference', text: 'Likes morning sessions' }]);
+    expect(r).toHaveLength(1);
+  });
+});
+
+describe('what the reply says, kept when the actions leave it out (26 Oct)', () => {
+  it('a routine change named with a lift word; a goal plan from the sentence that gives it', async () => {
+    const { changeFromReply, fillFromReply } = await import('../src/lib/agent');
+    const push = { name: 'Push', items: [{ id: 'i1', exerciseId: 'bench-press', workingSets: 3, repMin: 8, repMax: 12 }] as any[] };
+    expect(changeFromReply('In Push, bench is now set to 4 × 3–5.', push, () => 'Barbell Bench Press', () => 'bench-press')).toEqual([{ exercise: 'Barbell Bench Press', sets: 4, repMin: 3, repMax: 5 }]);
+    const reply = 'It\'s stalled. Instead of chasing the 6th rep, the change for the next 4 weeks is a 4th set at 77.5 kg (4 × 5–8). I have saved this updated plan to your goal.';
+    const [a] = fillFromReply(reply, [{ type: 'remember', kind: 'goal', text: 'Goal: Barbell Bench Press 100 kg', replaces: 4 }]);
+    expect(a).toMatchObject({ plan: 'Instead of chasing the 6th rep, the change for the next 4 weeks is a 4th set at 77.5 kg (4 × 5–8).' });
+    // (no plan said to be changed: nothing is added)
+    expect(fillFromReply('Keep going: 77.5 × 6 next time.', [{ type: 'remember', kind: 'goal', text: 'Goal: bench 100', replaces: 4 }])[0]).not.toHaveProperty('plan');
+  });
+});
+
+describe('a routine change in a sentence that names no exercise (Flash, 26 Oct)', () => {
+  it('is about the one exercise of the routine the reply talks about', async () => {
+    const { changeFromReply, fillFromReply } = await import('../src/lib/agent');
+    const push = { name: 'Push', items: [{ id: 'i1', exerciseId: 'bench-press', workingSets: 3, repMin: 8, repMax: 12 }, { id: 'i2', exerciseId: 'ohp', workingSets: 3, repMin: 8, repMax: 12 }] as any[] };
+    const reply = 'Your best set is stuck at 77.5 kg × 5 across your last 10 bench sessions. For the next 4 weeks, the plan is 4 sets of 4–6 reps at 77.5 kg. I have updated Push so the workout screen tracks 4 sets of 4–6.';
+    const nameOf = (id: string) => (id === 'ohp' ? 'Overhead Press' : 'Barbell Bench Press');
+    expect(changeFromReply(reply, push, nameOf, (w) => (/bench/i.test(w) ? 'bench-press' : undefined))).toEqual([{ exercise: 'Barbell Bench Press', sets: 4, repMin: 4, repMax: 6 }]);
+    expect(changeFromReply(reply.replace('bench', 'bench and overhead press'), push, nameOf, (w) => (/bench/i.test(w) ? 'bench-press' : /overhead/i.test(w) ? 'ohp' : undefined))).toEqual([]);
+    expect(fillFromReply(reply, [{ type: 'remember', kind: 'goal', text: 'Goal: bench 100', replaces: 4 }])[0]).toMatchObject({ plan: 'For the next 4 weeks, the plan is 4 sets of 4–6 reps at 77.5 kg.' });
+  });
+});
+
+describe('word dates only as deadlines (judge, 26 Oct)', () => {
+  it('"on Monday mornings" is no date; "next Sunday" on a Sunday is a week away; a lift "to 90 kg" is no bodyweight', () => {
+    expect(goalFromText('Goal: weigh in on Monday mornings', undefined, undefined, 'en', today)).toBeUndefined();
+    expect(goalFromText('Log every meal until next Sunday', undefined, undefined, 'en', today)).toMatchObject({ by: '2026-11-01' });
+    useStore.setState({ weights: weighIns(7, 82, 0) });
+    expect(goalFromText('Goal: power clean to 90 kg by 2027-01-01', undefined, undefined, 'en', today)?.metric).not.toBe('weight');
+  });
+});
