@@ -3186,7 +3186,7 @@ sign that it is listening, thinking or speaking. And it must answer like a real 
 **Next ideas for "alive" (to try with Omar):** cards that condense out of the orb's light and settle into the chat; the answer's
 words lighting up as they are spoken; a soft haptic on the first word of an answer.
 
-**26 Oct: shorter answers, the orb in your hand, the horizon.** Omar: "the answers are too long. Can they be dynamic like the
+**26 Oct: shorter answers, the orb in your hand, Orbit.** Omar: "the answers are too long. Can they be dynamic like the
 Gemini app… if I need a longer answer it just does it"; "I can touch the orb and it feels alive… swipe the orb down… bring it
 up with a swipe and it reacts to my swipe, not just an animation, and maybe a bounce"; and four orb options he had made
 (A comet, B comet + stars, C horizon, D duet), "don't pick one just because it says my pick".
@@ -3197,7 +3197,16 @@ up with a swipe and it reacts to my swipe, not just an animation, and maybe a bo
   with one soft bounce, carrying your flick. On its screen a swipe down puts it away from where you let go; in the dock a pull
   up comes with your finger and opens it past ~45 px (a short one drops back with the bounce); a tap still works. Only a
   wrapper's transform moves (`.orb-hand`, followed by the orb stage cheaply); Reduce motion: follows, no bounce.
-- Picked **C, the horizon**, on merit: the comet's flying and trail and the stars were busy and need redrawing every frame
-  (a 120 fps risk), the duet's second orb breaks "one orb". Talking live, the orb floats over a thin line of light; right under
-  it the line swells with each syllable and the orb lifts a little with your voice (scaleY and translate only). Still while it
-  thinks or speaks; nothing moves under Reduce motion. Checks: `scripts/journey-orbhand.mjs`, film `scripts/film-orbhand.mjs`.
+- His four options were inspiration only ("I want something much more beautiful, unique, that can actually wow people"). A
+  horizon line was built first and dropped as too plain. Now: **Orbit** (sphereRender.ts `orbitFrame`/`drawOrbit`), a ring of
+  the orb's own beads round it like a planet's ring, three clean lanes seen from ~30° above, passing behind the sphere (hidden
+  by it, a faint trace through its glass) and in front of it, drifting about a lap a minute. Listening: your voice runs round
+  the inner lane as a slow swell (low voice in front, highs round the back). Thinking: the lanes draw into one band with a soft
+  head of light (a lap in ~3.5 s). Speaking: the ring widens a touch and each syllable sends a wave out across the lanes. A log
+  done sweeps the success colour round it; a tap throws it out a little and it bounces back; dragged, it trails and leans like a
+  gyroscope. It comes in from just outside its place and leaves drawing in. Drawn by the orb's worker (no new page layer);
+  the orb screen gives the orb a canvas 1/0.66 bigger while live so the ring never touches the edge (the sphere looks the same
+  size). With the ring there the sphere's own tap flash is softer and draws no outline rings (a harsh judge flagged both).
+  Film it smoothly: `node scripts/film-orbit-lab.mjs out.mp4` (the renderer alone, stepped at 60 fps on a timeline with real
+  voice levels, `scripts/orbit-lab/`); in the app: `scripts/film-orbit.mjs`; checks: `scripts/journey-orbhand.mjs`,
+  `scripts/film-orbhand.mjs`.

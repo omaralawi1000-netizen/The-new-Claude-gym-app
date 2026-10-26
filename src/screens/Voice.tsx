@@ -635,8 +635,11 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // what it's doing, in a word (the orb says it too, in light): listening, thinking, speaking
   const liveLabel = renewing ? t('Reconnecting…') : muted ? t('Muted') : !liveActive ? '' : speaking ? t('Speaking') : phase === 'processing' ? t('Thinking…') : phase === 'listening' ? t('Listening') : '';
   // the sphere is about to grow or shrink (the .45 s transition below): its canvas holds the big size meanwhile
+  // (talking live the orb's canvas is 1/0.66 bigger, so Orbit's ring has room round it: the sphere looks the same size; the
+  // ring is wide, not tall, so the room above and below it is taken back with negative margins)
+  const orbSize = liveUi ? (big ? 'min(94vw, 380px)' : 146) : big ? 'min(62vw, 250px)' : 96;
   const wasBig = useRef(big);
-  useLayoutEffect(() => { if (wasBig.current !== big) { wasBig.current = big; holdOrbSize(Math.min(window.innerWidth * 0.62, 250), 520); } }, [big]);
+  useLayoutEffect(() => { if (wasBig.current !== big) { wasBig.current = big; holdOrbSize(liveUi ? Math.min(window.innerWidth * 0.94, 380) : Math.min(window.innerWidth * 0.62, 250), 520); } }, [big]); // eslint-disable-line
   // the keyboard overlays the page: the whole screen rides above it, so the box you type in and the Send button stay in sight
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => (rootRef.current ? watchFocus(rootRef.current, (el) => el.closest<HTMLElement>('.hide-scroll')) : undefined), []);
@@ -683,11 +686,11 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
           <motion.button layout={calm ? false : 'position'} layoutDependency={chatting} transition={{ layout: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }} aria-label={listening ? t('Stop and send') : t('Start listening')} onClick={() => { if (dragged.current) { dragged.current = false; return; } tapSphere(); }} disabled={thinking && !liveActive} className="voice-orb"
             onPointerDown={(e) => { orbPress(true); dragged.current = false; hand.down(e); }} onPointerMove={(e) => { if (hand.move(e)) dragged.current = true; }}
             onPointerUp={() => { orbPress(false); hand.up(); }} onPointerCancel={() => { orbPress(false); hand.up(); }}
-            style={{ position: 'relative', borderRadius: 999, touchAction: 'none', width: big ? 'min(62vw, 250px)' : 96, height: big ? 'min(62vw, 250px)' : 96, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
+            style={{ position: 'relative', borderRadius: 999, touchAction: 'none', width: orbSize, height: orbSize, margin: liveUi ? (big ? '-40px 0 -78px' : '-26px 0 -34px') : undefined, transition: 'width .45s cubic-bezier(.22,1,.36,1), height .45s cubic-bezier(.22,1,.36,1)' }}>
             {/* its light: a close halo and a soft pool just under it, as if it hovers over glass (gradients only: no blur,
                 nothing animated but its fade in) */}
             <span ref={handEl} className="orb-hand" style={{ position: 'absolute', inset: 0 }}>
-              <span className="voice-glow" aria-hidden><SelfGlow /></span>
+              <span className="voice-glow" aria-hidden style={liveUi ? { inset: '17%' } : undefined}><SelfGlow /></span>
               <SphereSlot id="voice" priority={10} engage={engage} style={{ position: 'absolute', inset: 0 }} />
             </span>
           </motion.button>

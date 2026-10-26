@@ -17,7 +17,7 @@ const colors: SphereColors = light
   ? { hi: ac, lo: [ac[0] * 0.55 + 70, ac[1] * 0.55 + 60, ac[2] * 0.55 + 60], alt, ok: [30, 160, 95], dark: false }
   : { hi: ac2, lo: [ac[0] * 0.3, ac[1] * 0.3, ac[2] * 0.3], alt, ok: [110, 222, 150], dark: true };
 
-const FPS = 60, DPR = 2, CSS = 264; // the orb screen's orb: min(62vw, 250) at 390 px wide, in its size bucket
+const FPS = 60, DPR = 2, CSS = 384, SIZE = 367; // the orb screen's orb talking live: min(94vw, 380) at 390 px wide, in its size bucket
 const orbCanvas = new OffscreenCanvas(CSS * DPR, CSS * DPR);
 const r = new SphereRenderer(orbCanvas);
 const scene = document.getElementById('scene') as HTMLCanvasElement;
@@ -38,9 +38,9 @@ function dragAt(s: number): [number, number] {
 function inputsAt(s: number): OrbInputs {
   const talking = s >= T.talk && s < T.talkEnd, speaking = s >= T.speak && s < T.speak + L.out.length / FPS;
   const m = talking ? at(L.mic, s - T.talk) : null;
-  const phase = s >= T.done && s < T.done + 1.4 ? 'confirmed' : s >= T.think && s < T.speak ? 'processing' : speaking ? 'idle' : 'listening';
+  const phase = s >= T.think && s < T.speak ? 'processing' : speaking ? 'idle' : 'listening';
   return {
-    phase, phaseAge: phase === 'confirmed' ? s - T.done : 1, live: phase === 'listening',
+    phase, phaseAge: 1, live: phase === 'listening',
     raw: m ? m[0] : 0, bands: m ? Float32Array.from(m.slice(1)) : phase === 'listening' ? new Float32Array(16) : null,
     press: s >= T.drag && s < T.let ? 1 : s >= T.tap - 0.12 && s < T.tap ? 1 : 0, tap: 0,
     voiceOut: speaking ? at(L.out, s - T.speak) : 0, orbit: s >= T.appear && s < T.leave ? 1 : 0, lean: dragAt(s),
@@ -61,11 +61,11 @@ function frame(i: number) {
   g.addColorStop(0, `rgba(${ac.join(',')},${light ? 0.12 : 0.16})`); g.addColorStop(1, `rgba(${ac.join(',')},0)`);
   sx.fillStyle = g; sx.fillRect(0, 0, W, H);
   const [lx, ly] = inp.lean!;
-  const size = 242 * DPR, ox = W / 2 - size / 2 + lx * DPR, oy = 330 - size / 2 + ly * DPR;
+  const size = SIZE * DPR, ox = W / 2 - size / 2 + lx * DPR, oy = 330 - size / 2 + ly * DPR;
   sx.drawImage(orbCanvas, ox, oy, size, size);
   sx.font = `600 ${11 * DPR}px system-ui`; sx.textAlign = 'center'; sx.fillStyle = `rgba(${ac2.join(',')},.9)`;
-  const word = inp.phase === 'processing' ? 'THINKING…' : inp.phase === 'idle' ? 'SPEAKING' : inp.phase === 'confirmed' ? 'DONE' : 'LISTENING';
-  sx.fillText(word, W / 2 + lx * DPR * 0, oy + size + 26 * DPR - ly * DPR + ly * DPR);
+  const word = s >= T.done && s < T.done + 1.2 ? 'LOGGED' : inp.phase === 'processing' ? 'THINKING…' : inp.phase === 'idle' ? 'SPEAKING' : 'LISTENING';
+  sx.fillText(word, W / 2, 330 + 110 * DPR);
 }
 (window as unknown as { lab: unknown }).lab = {
   async load() { L = await (await fetch(params.get('levels') ?? '/scripts/orbit-lab/levels.json')).json(); },
