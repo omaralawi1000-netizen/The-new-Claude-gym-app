@@ -25,7 +25,7 @@ import { exName } from './workout/common';
 import { LOGO } from '../ui/logoDots';
 import type { AppData } from '../lib/types';
 import { C, Hypnogram, NightHeart, Ribbon, RouteLine, ScoreRing, Spark, StepsDay, Trace, WeekStrip, useWidth } from './health/charts';
-import { Expander, slideCurve } from './health/expand';
+import { Expander, slideCurve, SLIDE_E } from './health/expand';
 import { ProgressBody } from './Progress';
 import { Roll } from '../ui/Roll';
 import { Icon } from '../ui/Icon';
@@ -102,8 +102,13 @@ export function HealthScreen() {
     // the same curve as the page's slide, so the capsule lands with the page
     const sc = slideCurve(Math.max(1, Math.abs(f.x - r.left)));
     on.animate([{ transform: `translateX(${f.x - r.left}px) scaleX(${f.w / r.width})` }, { transform: 'none' }], { pseudoElement: '::before', duration: sc.duration, easing: sc.easing, fill: 'both' });
-    const row = chips.current!, want = on.offsetLeft - (row.clientWidth - on.offsetWidth) / 2;
-    row.scrollTo({ left: Math.max(0, want), behavior: 'smooth' });
+    // the row scrolls only when the chip is cut off, and on the slide's curve and time (the browser's own smooth scroll was a
+    // third, quicker motion beside the page and the capsule)
+    const row = chips.current!, l = on.offsetLeft - row.scrollLeft, cut = l < 20 || l + on.offsetWidth > row.clientWidth - 20;
+    if (!cut) return;
+    const from = row.scrollLeft, to = Math.max(0, Math.min(row.scrollWidth - row.clientWidth, on.offsetLeft - (row.clientWidth - on.offsetWidth) / 2)), t0 = performance.now();
+    const step = (now: number) => { const p = Math.min(1, (now - t0) / sc.duration); row.scrollLeft = from + (to - from) * SLIDE_E(p); if (p < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
   };
   const swap = (k: K) => {
     const e = eng.current, st = e?.st; if (!e || !st || st.closing || st.k === k) return;

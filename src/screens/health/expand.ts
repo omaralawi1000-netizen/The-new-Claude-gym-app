@@ -36,7 +36,7 @@ const bez = (x1: number, y1: number, x2: number, y2: number) => (x: number) => {
   let lo = 0, hi = 1; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (f(x1, x2, m) < x) lo = m; else hi = m; }
   return f(y1, y2, (lo + hi) / 2);
 };
-const SLIDE_E = bez(0.3, 0.3, 0.1, 1);
+export const SLIDE_E = bez(0.3, 0.3, 0.1, 1);
 /** the same curve as samples on whole screen pixels of a `w` px trip, so its last fraction of a pixel never holds a frame
  * and then lands with a redraw */
 export const slideCurve = (w: number) => {
@@ -219,11 +219,11 @@ export class Expander {
   }
 
   /** the page's own small moves once it is open: score rings fill, bars rise, stage bars slide out */
-  playPage(delay: number, rings = true) {
+  playPage(delay: number, rings = true, dur?: number) {
     const { dsc } = this.e;
-    const sm = this.sm();
+    const sm = dur ? { ...this.sm(), duration: dur } : this.sm();
     for (const ring of rings ? $$('.hx-ring', dsc) : []) {
-      const p = Number(ring.dataset.p ?? 0), T = 480;
+      const p = Number(ring.dataset.p ?? 0), T = dur ?? 480;
       const rs = ring.querySelector('.hx-rs'), ls = ring.querySelector('.hx-ls');
       if (!rs || !ls || p <= 0) continue;
       const d1 = T * Math.min(1, 0.5 / p), d2 = T - d1;
@@ -361,17 +361,19 @@ export class Expander {
     const o = slideCurve(W);
     st.anims.push(this.anim(L[0], [{ transform: `translateX(${W}px)` }, { transform: 'none' }], o));
     st.anims.push(this.anim(scr, [{ transform: 'none' }, { transform: `translateX(${-W}px)` }], o));
-    this.wave(1, o.duration);
-    this.playPage(Math.round(o.duration * 0.25));
+    this.wave(1, o.duration, st.anims[1]);
+    this.playPage(200, true, o.duration - 200);
     st.anims[1].finished.then(() => { if (this.st === st && !st.closing) this.e.det.classList.remove('moving'); }).catch(() => {});
   }
   /** the page's blocks arrive as a soft wave: each trails the one above it by a few px and they close up as the page lands
    *  (same curve and end as the slide, so nothing moves after it) */
-  private wave(dir: number, duration: number) {
+  private wave(dir: number, duration: number, clock?: Animation) {
     $$(':scope > .hx-page > .hx-body > *', this.e.dsc).slice(0, 12).forEach((x, i) => {
       x.getAnimations().filter((a) => a.id === 'hx-wave').forEach((a) => a.cancel());
       const k = dir * Math.min(84, 14 + i * 10), a = this.anim(x, [{ transform: `translateX(${k}px)` }, { transform: 'none' }], { duration, easing: slideCurve(Math.abs(k)).easing });
       a.id = 'hx-wave';
+      // on the page's own clock, so every block lands on the same frame as the page
+      if (clock) clock.ready.then(() => { if (clock.startTime !== null) a.startTime = clock.startTime; }).catch(() => {});
     });
   }
   private slideClose(st: State) {
@@ -439,10 +441,10 @@ export class Expander {
   /** React has rendered the new page: it arrives from the side the chip sits on */
   swapIn(dir: number) {
     const { dsc } = this.e;
-    this.playPage(160, false);
-    const W = dsc.clientWidth + 48;
-    this.wave(dir, slideCurve(W).duration);
+    const W = dsc.clientWidth + 48, sc = slideCurve(W);
+    this.playPage(200, false, sc.duration - 200);
     // the body moves as one layer that stays a layer (dropping it at the end would snap the text by a pixel)
-    $$(':scope > .hx-page > .hx-body', dsc).forEach((x) => this.anim(x, [{ transform: `translateX(${dir * W}px)` }, { transform: 'none' }], slideCurve(W)));
+    const body = $$(':scope > .hx-page > .hx-body', dsc).map((x) => this.anim(x, [{ transform: `translateX(${dir * W}px)` }, { transform: 'none' }], sc));
+    this.wave(dir, sc.duration, body[0]);
   }
 }
