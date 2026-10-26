@@ -126,3 +126,23 @@ describe('what the answer did is said; one question per sentence (judge 3, 26 Oc
     expect(answerProblems('Have you tapped Apply on the two previews yet, and which two days do you want them on?', [], '')).toHaveLength(1);
   });
 });
+
+describe('a saved goal is sent; previews are not "created" (judge 4, 26 Oct)', () => {
+  it('flags a goal said saved with no remember, and routines said created over previews', async () => {
+    const { answerProblems } = await import('../src/lib/answerCheck');
+    expect(answerProblems('Saved your 100 kg bench press goal for 1 June.', [], '')).toHaveLength(1);
+    expect(answerProblems('Saved your 100 kg bench press goal for 1 June.', [{ type: 'remember', text: 'Goal: bench', kind: 'goal' } as any], '')).toEqual([]);
+    const cr = { type: 'create_routine', name: 'Full Body A', items: [] } as any;
+    expect(answerProblems('I have created two full-body routines for you.', [cr], '')).toHaveLength(1);
+    expect(answerProblems('I have created two full-body routines as previews: tap Apply to save them.', [cr], '')).toEqual([]);
+  });
+});
+
+describe('US-style dates read the Danish way in English (26 Oct)', () => {
+  it('"by Nov 6" and "November 16th" become "6 November", "16 November"', async () => {
+    const { readableDates } = await import('../src/lib/answerCheck');
+    expect(readableDates('18 days (to Nov 6), or 4 weeks (November 16th).', 'en', '2026-10-26')).toBe('18 days (to 6 November), or 4 weeks (16 November).');
+    expect(readableDates('In May 5 kg down.', 'en', '2026-10-26')).toBe('In May 5 kg down.');
+    expect(readableDates('Hold it to 24 December.', 'en', '2026-10-26')).toBe('Hold it to 24 December.');
+  });
+});

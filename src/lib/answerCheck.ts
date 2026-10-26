@@ -68,6 +68,12 @@ export function answerProblems(reply: string, actions: AgentAction[], system: st
     out.push('The routine change is made now (the card shows it, with Undo), but the reply reads as a suggestion: say plainly that you changed it, in a few words.');
   if (has('set_setting') && !new RegExp(String.raw`\b(?:updated|changed|switched|moved|raised|lowered|bumped|sat|opdateret|ændret)\b|${SET}`, 'i').test(done))
     out.push('The answer sets a target or setting now, but the reply never says so: say what you set, in a few words.');
+  // "Saved your 100 kg bench goal" with no goal note sent (Argon, 26 Oct)
+  if (/\b(?:saved|set up|locked in|logged|noted|gemt|oprettet)\b[^.!?\n]{0,40}\b(?:goal|mål)\b|\b(?:goal|mål)\b[^.!?\n]{0,20}\b(?:is|er)\s+(?:now\s+)?(?:saved|set|gemt)\b/i.test(done) && !actions.some((a) => a.type === 'remember'))
+    out.push('The reply says the goal is saved, but nothing saves it: send remember (kind goal, with the goal field filled), or say you can save it.');
+  // "I have created two routines" over previews that are only saved when they tap Apply (Flash, 26 Oct)
+  if (/\b(?:created|built|made|oprettet|lavet)\b[^.!?\n]{0,40}\b(?:routines?|rutiner?)\b/i.test(done) && actions.some((a) => a.type === 'create_routine') && !/\bappl(?:y|ies)\b|\bpreview|\btap\b|\btryk/i.test(reply))
+    out.push('New routines show as previews and are saved only when they tap Apply: say that, never "created".');
   // ("All set: … Daily target: 2,460 kcal" with nothing that sets it; Flash, 26 Oct)
   const targetStated = /\b(?:all set|set up|done|saved|locked in)\b/i.test(done) && /\b(?:daily |calorie |kcal )?targets?\b[^.!?\n]{0,20}?(?:\d{1,2}[,.]\d{3}|\d{4})\s*kcal/i.test(done);
   if ((TARGET_CLAIM.test(done) || targetStated) && !has('set_setting'))
@@ -102,7 +108,11 @@ export function checkNote(problems: string[], raw: unknown): string {
 }
 
 /** "2026-12-24" in a reply, as people say it: "24 December" ("24. december"), with the year only when it isn't this one. */
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export function readableDates(reply: string, lang: Lang, today = dayKey()): string {
+  // (and "Nov 16" / "November 16th" the way Omar writes dates: "16 November")
+  if (lang === 'en') reply = reply.replace(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)(?:uary|ruary|ch|il|e|y|ust|tember|ober|ember)?\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?!\s*(?:kg|kcal|g\b|%|[×x]|reps?|sets?))/g,
+    (all, m: string, d: string) => { const i = MONTHS.findIndex((x) => x.startsWith(m.slice(0, 3))); return i >= 0 && Number(d) >= 1 && Number(d) <= 31 ? `${Number(d)} ${MONTHS[i]}` : all; });
   return reply.replace(/\b(20\d\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b/g, (key, y) =>
     fmtDate(key, lang, { day: 'numeric', month: 'long', ...(y !== today.slice(0, 4) ? { year: 'numeric' } : {}) }));
 }
