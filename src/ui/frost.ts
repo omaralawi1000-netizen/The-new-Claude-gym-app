@@ -336,7 +336,6 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number, ref?: Uint8Clam
         // (darker than the page, red glass read brown; lighter over black, a slate panel)
         const green = step(h0, 110, 120) * step(-h0, -170, -160); // (saturate lifts greens: Forest's cards went lime)
         // (every limit fades in over a range: an on/off one drew a jagged line across the Train cards, judge 26 Oct)
-        const lift = smooth(0.12, 0.24, P0); // no colour added over black, so dark navy keeps its own blue
         // the colour as a step away from the page's own (not a hue and an amount): where the page has almost no colour its hue
         // is only noise, and a hue limit let each pixel take a different tint, a jagged band where Time of day's blue turns
         // orange (Omar's phone, 26 Oct). The step grows with the page's own colour, a little more where there is light.
@@ -344,8 +343,11 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number, ref?: Uint8Clam
         // (less: a turn read rosier than the page, judge 26 Oct)
         const u = C0 > 1e-4 ? 1 / C0 : 0, ux = A0 * u, uy = B0 * u;
         const dA = C * Math.cos(H) - A0, dB = C * Math.sin(H) - B0;
-        const up = (0.25 - 0.2 * green) * C0 + 0.006 * lift, side = (0.1 - 0.06 * green) * C0;
-        const dr = Math.min(up, Math.max(-0.05 * C0 - 0.002, dA * ux + dB * uy)), dt = Math.min(side, Math.max(-side, dB * ux - dA * uy));
+        // the amount, from the same page: always a little richer than the page (a fifth to a third more; a little less over
+        // green), never duller (held to the page, daytime Golden hour glass went taupe) nor much richer (half again as much
+        // read mocha at night, judge 26 Oct)
+        const up = (0.35 - 0.25 * green) * C0, lo = (0.2 - 0.2 * green) * C0, side = (0.1 - 0.06 * green) * C0;
+        const dr = Math.min(up, Math.max(lo, dA * ux + dB * uy)), dt = Math.min(side, Math.max(-side, dB * ux - dA * uy));
         { const A = A0 + dr * ux - dt * uy, B = B0 + dr * uy + dt * ux; C = Math.hypot(A, B); H = Math.atan2(B, A); }
       }
     }
