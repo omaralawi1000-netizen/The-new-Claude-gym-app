@@ -54,6 +54,8 @@ function useWakeLock() {
 function useTheme() {
   const theme = useStore((s) => s.settings.theme);
   const motionPref = useStore((s) => s.settings.motion);
+  const healthMotion = useStore((s) => s.settings.healthMotion ?? 'slide');
+  useLayoutEffect(() => { document.documentElement.dataset.hxMotion = healthMotion; }, [healthMotion]);
   const lang = useStore((s) => s.settings.language);
   useLayoutEffect(() => {
     const root = document.documentElement;

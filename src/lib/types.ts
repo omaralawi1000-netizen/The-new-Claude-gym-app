@@ -383,6 +383,8 @@ export interface Settings {
   /** the order of the cards below the workout on Today (screens/TodayCards.tsx); missing ones go at the end */
   todayOrder?: string[];
   motion: 'system' | 'reduce' | 'full';
+  /** how a Health page opens: slides in from the side (default) or grows out of its row */
+  healthMotion?: 'slide' | 'grow';
   units: { weight: 'kg' | 'lb'; distance: 'km' | 'mi'; length: 'cm' | 'in' };
   weekStart: 0 | 1;
   dayStartHour: number;
