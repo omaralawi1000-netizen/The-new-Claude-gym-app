@@ -111,6 +111,16 @@ export interface GoalState {
   stalled?: boolean;
 }
 
+/** TRUE MAINTENANCE for a goal. In its first 4 weeks: the one from the 4 weeks before it started, when there is one. A
+ *  window that mixes the old eating with the new is pulled toward the new intake while the scale's line catches up
+ *  (a new cut reads as a lower maintenance, so a goal on plan would look behind). */
+export function goalMaintenance(d: Data, startDate: string, today: string) {
+  const now = trueMaintenance(d, today);
+  if (diffDays(today, startDate) >= 28) return now;
+  const before = trueMaintenance(d, startDate);
+  return before && (before.confidence !== 'low' || !now) ? before : now;
+}
+
 /** Where one goal is today. */
 export function goalState(d: Data, note: MemoryNote, today: string): GoalState | undefined {
   const g = note.goal;
@@ -146,7 +156,7 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
     const safe = dir < 0 ? { min: r2(now * 0.005), max: r2(now * 0.01) } : { min: r2(now * 0.0025), max: r2(now * 0.005) };
     const st: GoalState = { ...base, start: start !== undefined ? r1(start) : undefined, now: r1(now), measured: { kg: last.kg, date: last.date }, safe };
     // the food since it started (finished logged days, today not counted), against TRUE MAINTENANCE
-    const m = trueMaintenance(d, today);
+    const m = goalMaintenance(d, startDate, today);
     const ate = nutritionByDay(d.entries, startDate, addDays(today, -1)).filter((x) => x.logged && !x.partial && x.kcal >= 800);
     if (m && ate.length >= 3) { const k = avg(ate.map((x) => x.kcal))!; st.eating = { kcal: rk(k), days: ate.length, maint: m.kcal, kgPerWeek: r2(((k - m.kcal) * 7) / KCAL_PER_KG) }; }
     // reached: the trend is there, or the last three weigh-ins all are
@@ -213,7 +223,7 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
 /** The calorie numbers for a weight goal, from TRUE MAINTENANCE (never under a safe floor). */
 export function goalCalories(d: Data, st: GoalState, today: string): string | undefined {
   if (st.metric !== 'weight' || st.target === undefined || st.pace === 'reached') return undefined;
-  const m = trueMaintenance(d, today);
+  const m = goalMaintenance(d, st.note.goal?.startDate ?? today, today);
   const now = st.now ?? st.start;
   if (!now) return undefined;
   const sex = d.settings.body?.sex;
@@ -231,6 +241,16 @@ export function goalCalories(d: Data, st: GoalState, today: string): string | un
   const [lo, hi] = dir < 0 ? [at(st.safe!.max), at(st.safe!.min)] : [at(st.safe!.min), at(st.safe!.max)];
   parts.push(`a safe ${r2(st.safe!.min)}–${r2(st.safe!.max)} kg/week = about ${fmtK(lo)}–${fmtK(hi)} kcal (${mid} kg/week ≈ ${fmtK(at(mid))})`);
   return `Calories for it, from TRUE MAINTENANCE ${fmtK(m.kcal)} kcal (${m.confidence} confidence; 7,700 kcal a kg): ${parts.join('; ')}${dir < 0 ? `; never under ${fmtK(floor)} kcal` : ''}. ${prot}${cur}.`;
+}
+
+/** The goal weight typed into Settings → Profile, while no weight goal told in chat runs: a fact to plan from, not a goal
+ *  with a date or a pace. */
+function profileGoalLine(d: Data, today: string, run: MemoryNote[]): string | undefined {
+  const gw = d.settings.body?.goalWeightKg;
+  if (!gw || run.some((m) => m.goal?.metric === 'weight')) return undefined;
+  const ws = cleanWeighIns(d, today);
+  const kg = ws.length ? weightTrend(ws)[ws.length - 1].kg : undefined;
+  return `Goal weight in their Profile: ${r1(gw)} kg (typed in Settings, no date, not planned with you yet)${kg ? `; now ${r1(kg)} kg on the trend, ${r1(Math.abs(gw - kg))} kg to go` : ''}.`;
 }
 
 /** For planning a new goal: what each pace costs or adds in calories, from TRUE MAINTENANCE (so the plan's numbers are
@@ -265,10 +285,12 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
   const memory = d.memory ?? [];
   const goals = memory.filter((m) => m.kind === 'goal');
   const table = paceTable(d, today);
-  if (!goals.length) return table ? [`GOALS: none told yet. ${table}`] : [];
-  const num = (m: MemoryNote) => memory.indexOf(m) + 1;
   const run = activeGoals(d, today);
+  const prof = profileGoalLine(d, today, run);
+  if (!goals.length) return table || prof ? [`GOALS: none told yet.${prof ? ` ${prof}` : ''}${table ? ` ${table}` : ''}`] : [];
+  const num = (m: MemoryNote) => memory.indexOf(m) + 1;
   const L: string[] = [`GOALS (told in chat; the app tracks them from the day they were set. Numbers below are worked out by the app: quote them, never redo the maths). ${run.length ? 'Running:' : 'None running.'}`];
+  if (prof) L.push(`- ${prof}`);
   for (const m of run) {
     const g = m.goal;
     if (!g || !tracked(m)) {

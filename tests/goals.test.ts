@@ -256,4 +256,22 @@ describe('a goal in its first two weeks', () => {
     expect(st.pace).toBe('too early');
     expect(st.why).toMatch(/the goal is 1 day old/);
   });
+  it('a new cut on plan reads as on plan: its maintenance is the one from before it started', () => {
+    // 4 weeks steady at 2,900 and a flat scale, then 2,200 a day for 6 days with the scale following it
+    const pre = weighIns(34, 82, 0).filter((w) => w.date <= addDays(today, -6));
+    const post = Array.from({ length: 6 }, (_, i) => ({ id: `p${i}`, date: addDays(today, -5 + i), kg: Math.round((82 - (700 / 7700) * (i + 1)) * 10) / 10, at: 0 }));
+    const entries = [...Array.from({ length: 28 }, (_, i) => entry(addDays(today, -34 + i), 2900)), ...Array.from({ length: 6 }, (_, i) => entry(addDays(today, -6 + i), 2200))];
+    useStore.setState({ weights: [...pre, ...post], entries, memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 80.8 kg', at: 0, goal: { metric: 'weight', target: 80.8, by: addDays(today, 8 + 6), startDate: addDays(today, -6), start: 82 } }] });
+    const st = goalState(data(), data().memory[0], today)!;
+    expect(st.eating!.maint).toBeGreaterThanOrEqual(2850);
+    expect(st.eating!.kgPerWeek).toBeLessThan(-0.55);
+    expect(['on pace', 'ahead']).toContain(st.pace);
+  });
+  it("the Profile's goal weight is in GOALS while no weight goal runs", () => {
+    useStore.setState({ weights: weighIns(20, 82.5, -0.3) });
+    useStore.setState({ settings: { ...data().settings, body: { goalWeightKg: 78 } } });
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Goal weight in their Profile: 78 kg \(typed in Settings, no date, not planned with you yet\); now 81\.\d kg on the trend/);
+    useStore.setState({ memory: [{ id: 'g', kind: 'goal', text: 'Goal', at: 0, goal: { metric: 'weight', target: 80, by: addDays(today, 30), startDate: addDays(today, -3) } }] });
+    expect(goalLines(data(), today, name).join('\n')).not.toMatch(/Goal weight in their Profile/);
+  });
 });
