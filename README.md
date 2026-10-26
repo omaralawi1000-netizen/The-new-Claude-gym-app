@@ -3174,5 +3174,16 @@ tone or message counts, no rules per topic, going over the calories said once li
   `over` (3+ of 7 days over the calorie target), from the same `skippedSets` / `overDays` as the Coach.
 - **No "lighter week" left:** the 8-weeks-on-plan nudge praises the streak and asks how the lifts are doing; the
   handbook's plateau tip offers a lighter week only when they ask for one.
+- **Rounds 4–7 (fresh judges 7 → 7.5 → 7.5 → 8; every must-fix done):** DATA has ONE week window, "today and the 6
+  days before", for the day-by-day line, skipped sets and days over, plus that week's own averages next to true
+  maintenance, protein days counted ("3 of 6; under on Wed −3, Fri −8, Sat −6 g"), the lifts behind each PR, and a line
+  saying "this week" means that window. The weekly review passes its own Mon–Sun week (`buildCoachContext(..., { week })`)
+  and gets no rolling averages. Skipped sets say which exercise (1st, 2nd…); why they were skipped is a guess, and last
+  night's sleep only touches today. A stalled lift gets exactly what the workout screen will offer next (its reset or its
+  next target, from the routine's own rep range: `liftHint` / `suggestProgression`). Days over say how much was logged
+  after 20:00. Praise never says "across the board" / "every day" unless DATA counts it all. "I'll still train today"
+  after a short night gets an answer and one tip, not only a question. A weekly-review focus on skipped sets or days over
+  is ticked only with evidence (`met()` null otherwise). When DATA is too long, only the lines that don't fit are left
+  out, and they are named.
 - Exam round 3 adds `honest-praise` (praise must be counted exactly). Before/after: live main in a git worktree vs the
   branch, on Gemini through `scripts/exam/_ba.test.ts` (a local scratch file, never committed; see the plan doc).

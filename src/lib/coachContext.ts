@@ -43,7 +43,7 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
   if (logged.length) {
     const k = average(logged.map((x) => x.kcal)); const pr = average(logged.map((x) => x.protein));
     const partial = logged.filter((x) => x.partial).length;
-    L.push(`Nutrition (last 14 days — NOT the week; for the week use the day-by-day lines below): ${logged.length} days logged before today. Average on logged days: ${r0(k ?? 0)} kcal, ${r0(pr ?? 0)} g protein, ${r0(average(logged.map((x) => x.carbs)) ?? 0)} g carbs, ${r0(average(logged.map((x) => x.fat)) ?? 0)} g fat.${partial ? ` ${partial} of those days had items with unknown nutrition, so their totals are lower bounds.` : ''} ${unfinished.size ? ` ${[...unfinished].filter((x) => x >= addDays(today, -13)).length} probably unfinished days left out of this average (DATA TRUST).` : ''} Days not logged are unknown, not zero.`);
+    L.push(`Nutrition (last 14 days — NOT the week; for the week use ${opts?.week ? 'WEEK above' : 'the day-by-day lines below'}): ${logged.length} days logged before today. Average on logged days: ${r0(k ?? 0)} kcal, ${r0(pr ?? 0)} g protein, ${r0(average(logged.map((x) => x.carbs)) ?? 0)} g carbs, ${r0(average(logged.map((x) => x.fat)) ?? 0)} g fat.${partial ? ` ${partial} of those days had items with unknown nutrition, so their totals are lower bounds.` : ''} ${unfinished.size ? ` ${[...unfinished].filter((x) => x >= addDays(today, -13)).length} probably unfinished days left out of this average (DATA TRUST).` : ''} Days not logged are unknown, not zero.`);
   } else L.push('Nutrition: no earlier days logged in the last 14 days.');
   // the last 7 days one by one, so "how's my week?" is answered without looking anything up (it took a second round)
   // (one window for every week line in DATA — this one, skipped sets, days over: "today and the 6 days before")
@@ -57,6 +57,10 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
     const kg = d.weights.find((w) => w.date === x.date)?.kg;
     return `${wd[new Date(`${x.date}T12:00:00`).getDay()]} ${x.date.slice(5)}${x.date === today ? ' (today, so far)' : ''}: ${x.logged ? `${r0(x.kcal)} / ${r0(x.protein)} g${unfinished.has(x.date) ? ' (unfinished)' : x.partial ? ' (some unknown)' : ''}` : 'not logged'}${gym.length ? `; ${gym.join(' + ')}` : ''}${mat ? '; wrestling' : ''}${other.length ? `; ${other.join(', ')}` : ''}${kg ? `; ${r1(kg)} kg` : ''}`;
   }).join(' | ')}.`);
+  // (the window's own counts, so "this week" is never taken from the calendar weeks under Training)
+  const inWin = (x: { date: string }) => x.date >= addDays(today, -6) && x.date <= today;
+  const gymW = d.sessions.filter((s) => s.endedAt && inWin(s));
+  if (!opts?.week) L.push(`In that window: ${gymW.length} gym workouts${gymW.length ? ` (${gymW.map((s) => `${wd[new Date(`${s.date}T12:00:00`).getDay()]} ${s.name || 'workout'}`).join(', ')}; today's included)` : ''}, ${d.activities.filter((a) => a.kind === 'wrestling' && inWin(a)).length} wrestling, ${d.activities.filter((a) => a.kind !== 'wrestling' && inWin(a)).length} other activities. Count "this week" from this line, not from the calendar weeks under Training.`);
   // (counted, so praise for protein is exact: "on target 3 of 6 days", not "every day")
   const full = week.filter((x) => x.logged && x.date !== today && !unfinished.has(x.date));
   const tm = trueMaintenance(d, today);
@@ -85,7 +89,7 @@ export function buildCoachContext(d: AppData, today: string, exName: (id: string
   // training
   const done = d.sessions.filter((s) => s.status === 'done');
   const wk = weeklyTraining(done, today, 4, d.settings.weekStart);
-  L.push(`Training: ${done.length} sessions logged in total; last 4 calendar weeks (oldest→newest): ${wk.map((b) => b.sessions).join(', ')} sessions. Current weekly streak ${weekStreak(wk, Math.max(1, p.days.length || 2))}.`);
+  L.push(`Training: ${done.length} sessions logged in total; last 4 calendar weeks, ${d.settings.weekStart === 1 ? 'Mon–Sun' : 'Sun–Sat'} (oldest→newest; not "this week"): ${wk.map((b) => b.sessions).join(', ')} sessions. Current weekly streak ${weekStreak(wk, Math.max(1, p.days.length || 2))}.`);
   for (const s of done.slice(-5).reverse()) {
     const ex = s.exercises.map((e) => {
       const sets = e.sets.filter((x) => x.done && (x.type === 'working'));

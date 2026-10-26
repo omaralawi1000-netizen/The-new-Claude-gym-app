@@ -142,7 +142,7 @@ describe('the Coach sees days a little over', () => {
     useStore.setState({ entries: [entry(addDays(today, -1), 2800), entry(addDays(today, -3), 3300), entry(addDays(today, -5), 2600)] });
     const l = buildCoachContext(data(), today, (id) => id);
     // (2,600 is 100 over: under the line; 3,300 is heavy, and counted)
-    expect(l).toContain(`Over the target, today and the 6 days before (since Mon ${addDays(today, -6)}; at least 200 kcal and 10 % over): 2 of 7 days, +1100 kcal in all — Thu ${addDays(today, -3)} +800 (heavy), 3300 kcal of it logged after 20:00; Sat ${addDays(today, -1)} +300, 2800 kcal of it logged after 20:00. Only the days marked (heavy) are heavy; the others are a little over.`);
+    expect(l).toContain(`Over the target, today and the 6 days before (since Mon ${addDays(today, -6)}; at least 200 kcal and 10 % over): 2 of 7 days, +1100 kcal in all — Thu ${addDays(today, -3)} +800 (heavy), 3300 kcal of it logged the day after (when it was eaten isn't known); Sat ${addDays(today, -1)} +300, 2800 kcal of it logged the day after (when it was eaten isn't known). Only the days marked (heavy) are heavy; the others are a little over.`);
     useStore.getState().updateSettings({ heavyDays: 'off' });
     expect(buildCoachContext(data(), today, (id) => id)).not.toContain('Over the target');
   });
@@ -201,11 +201,21 @@ describe('round 7: exact protein days, evening overs', () => {
   it('179.6 g shows as 180 and counts as on target; the evening part of a day over is said', () => {
     // (what was logged that same day by 20:00 doesn't count; the 21:00 snack does)
     const at = (h: number) => new Date(2026, 9, 24, h, 0).getTime();
-    const late = { ...entry(addDays(today, -1), 600), at: at(21) };
-    useStore.setState({ entries: [{ ...entry(addDays(today, -2), 2600), at: new Date(2026, 9, 23, 13).getTime() }, { ...entry(addDays(today, -1), 2300), nutrients: { kcal: 2300, protein: 179.6 }, at: at(13) }, late] });
+    const late = { ...entry(addDays(today, -1), 500), at: at(21) };
+    const nextMorning = { ...entry(addDays(today, -1), 100), at: new Date(2026, 9, 25, 8, 0).getTime() };
+    useStore.setState({ entries: [{ ...entry(addDays(today, -2), 2600), at: new Date(2026, 9, 23, 13).getTime() }, { ...entry(addDays(today, -1), 2300), nutrients: { kcal: 2300, protein: 179.6 }, at: at(13) }, late, nextMorning] });
     useStore.getState().updateSettings({ goals: { ...data().settings.goals, protein: 180 } });
     const l = buildCoachContext(data(), today, (id) => id);
     expect(l).toContain('Protein at or above the 180 g target: 1 of those 2 days; under on Fri −150 g.');
-    expect(l).toContain(`Sat ${addDays(today, -1)} +400, 600 kcal of it logged after 20:00.`);
+    expect(l).toContain(`Sat ${addDays(today, -1)} +400, 500 kcal of it logged after 20:00, 100 kcal of it logged the day after (when it was eaten isn't known).`);
+    // (the window's own counts: "this week" is never taken from calendar weeks)
+    expect(l).toContain('In that window: 0 gym workouts, 0 wrestling, 0 other activities.');
+  });
+  it('when DATA is too long, only lines that don\'t fit are left out, and they are named', () => {
+    const names = Array.from({ length: 40 }, (_, i) => `Routine ${i} ${'x'.repeat(150)}`);
+    useStore.setState({ routines: names.map((name, i) => ({ id: `r${i}`, name, updatedAt: 0, items: [] })) as any });
+    const l = buildCoachContext(data(), today, (id) => id);
+    expect(l.length).toBeLessThan(6700);
+    expect(l).toMatch(/\(Left out for length: Routines\. Not known here, not "none"\.\)$/);
   });
 });
