@@ -380,7 +380,9 @@ const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; tod
   const f = bar ? Math.max(0, Math.min(1, (bar.now - bar.start) / (bar.target - bar.start))) : 0;
   // where the date says he should be today: the gap to the knob is the evidence for Behind (a still tick, no motion)
   const span = bar && m.goal.startDate && m.goal.by ? diffDays(m.goal.by, m.goal.startDate) : 0;
-  const exp = span > 0 ? Math.max(0, Math.min(1, diffDays(today, m.goal.startDate!) / span)) : undefined;
+  const exp0 = span > 0 ? Math.max(0, Math.min(1, diffDays(today, m.goal.startDate!) / span)) : undefined;
+  // (no tick when the knob is on it: on pace there is no gap to show, and a sliver beside the knob reads as a glitch)
+  const exp = exp0 !== undefined && Math.abs(exp0 - f) > 0.04 ? exp0 : undefined;
   return (
     <button className="hx-goal press" style={{ ['--c' as string]: col }} onClick={() => ask(t('How am I doing on my goal “{goal}”? Be honest.', { goal: name }))}>
       <div className="hx-ghead"><span className="hx-gt">{title}</span>{st && !gone && st.whyCode !== 'untracked' ? <span className={`hx-gpace${WARN.has(st.pace) ? ' hx-gwarn' : ''}`}>{PACE(t)[st.pace]}</span> : <span className="hx-gchev">›</span>}</div>
