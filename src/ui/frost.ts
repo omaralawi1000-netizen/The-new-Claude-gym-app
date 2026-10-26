@@ -344,7 +344,7 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number, ref?: Uint8Clam
         // (less: a turn read rosier than the page, judge 26 Oct)
         const u = C0 > 1e-4 ? 1 / C0 : 0, ux = A0 * u, uy = B0 * u;
         const dA = C * Math.cos(H) - A0, dB = C * Math.sin(H) - B0;
-        const up = (0.25 - 0.2 * green) * C0 + 0.006 * lift, side = (0.1 - 0.06 * green) * C0 + 0.004 * lift;
+        const up = (0.25 - 0.2 * green) * C0 + 0.006 * lift, side = (0.1 - 0.06 * green) * C0;
         const dr = Math.min(up, Math.max(-0.05 * C0 - 0.002, dA * ux + dB * uy)), dt = Math.min(side, Math.max(-side, dB * ux - dA * uy));
         { const A = A0 + dr * ux - dt * uy, B = B0 + dr * uy + dt * ux; C = Math.hypot(A, B); H = Math.atan2(B, A); }
       }
