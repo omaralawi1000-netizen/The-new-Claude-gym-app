@@ -51,6 +51,13 @@ export function answerProblems(reply: string, actions: AgentAction[], system: st
   if (PLAN_CLAIM.test(done) && !planSaved)
     out.push(goalNote ? 'The reply says the plan was updated, but the goal note carries no plan: put the new plan in goalPlan, in a few words with its numbers.'
       : 'The reply says the plan was saved, but nothing saves it: send remember (kind goal, memory = its line) with the new plan in goalPlan.');
+  // a goal lift's new plan sent to the routine but not saved on the goal: the next follow-up would judge the old plan
+  if (/When you change its plan/.test(system) && actions.some((a) => a.type === 'edit_routine' && a.change?.length) && !actions.some((a) => a.type === 'remember' && (!!a.plan || !!a.goal?.plan)))
+    out.push('The routine change is the goal\'s new plan, but the goal note doesn\'t carry it: also send the remember for that goal (memory = its number, as GOALS shows) with goalPlan = the new plan in a few words with its kilos and reps.');
+  // asks whether to save a goal that this answer already saves (a "Goal set" card under "Shall I save this goal?")
+  const asksSave = reply.split(/(?<=[.!?])\s+|\n+/).some((x) => /\?\s*$/.test(x) && /\b(?:save|set up|set)\b[^?]{0,60}\bgoal\b|\b(?:set|save)\b[^?]{0,10}\b(?:this|it)\s+up\b/i.test(x));
+  if (asksSave && actions.some((a) => a.type === 'remember' && (a.kind === 'goal' || !!a.goal) && !a.replaces))
+    out.push('The reply asks whether to save the goal, but this answer already saves it: either save nothing yet and ask, or save it and say it is saved.');
   // ("All set: … Daily target: 2,460 kcal" with nothing that sets it; Flash, 26 Oct)
   const targetStated = /\b(?:all set|set up|done|saved|locked in)\b/i.test(done) && /\b(?:daily |calorie |kcal )?targets?\b[^.!?\n]{0,20}?(?:\d{1,2}[,.]\d{3}|\d{4})\s*kcal/i.test(done);
   if ((TARGET_CLAIM.test(done) || targetStated) && !has('set_setting'))

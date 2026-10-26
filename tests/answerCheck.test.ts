@@ -83,3 +83,17 @@ describe('one question, and a stated target is set (judge, 26 Oct)', () => {
     expect(answerProblems('Keep your 2,500 kcal target this week.', [], '')).toEqual([]);
   });
 });
+
+describe('a goal lift\'s new plan is saved; no "shall I save it?" under a saved goal (26 Oct)', () => {
+  it('flags both, and leaves the right answers alone', async () => {
+    const { answerProblems } = await import('../src/lib/answerCheck');
+    const sys = 'GOALS (told in chat): … When you change its plan (one change), make it in this answer …';
+    const edit = { type: 'edit_routine', routine: 'Push', change: [{ exercise: 'Barbell Bench Press', sets: 5, repMin: 3, repMax: 5 }] } as any;
+    expect(answerProblems('I have updated your Push routine to 5 × 3–5.', [edit], sys)).toHaveLength(1);
+    expect(answerProblems('I have updated your Push routine to 5 × 3–5.', [edit, { type: 'remember', text: 'Goal', replaces: 4, plan: '5 × 3–5 at 77.5' } as any], sys)).toEqual([]);
+    const goal = { type: 'remember', text: 'Goal: 74.8 → 71.8 kg by 2026-12-24', kind: 'goal' } as any;
+    expect(answerProblems('Shall I set your targets to 2,390 kcal and save this goal?', [goal], '')).toHaveLength(1);
+    expect(answerProblems('Shall I set your targets to 2,390 kcal and save this goal?', [], '')).toEqual([]);
+    expect(answerProblems('Saved. Want me to set up two full-body routines?', [goal], '')).toEqual([]);
+  });
+});
