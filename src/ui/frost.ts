@@ -287,9 +287,9 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         // Over a near-black page a lifted, coloured card read as a wine, navy or petrol slab, and the floors and leans before
         // this squashed the page's gradient into flat steps (judge 26 Oct); the card's own sheen (surfaces.css) keeps it glass
         const C0 = Math.hypot(px[i * 3 + 1], px[i * 3 + 2]), H0 = Math.atan2(px[i * 3 + 2], px[i * 3 + 1]), h0 = (H0 * 180) / Math.PI;
-        L = Math.min(L0 + 0.03, Math.max(L0 - 0.05, L));
+        L = Math.min(L0 + 0.03, Math.max(L0 - 0.02, L)); // (darker than the page, red glass read brown)
         const green = step(h0, 110, 120) * step(-h0, -170, -160); // (saturate lifts greens: Forest's cards went lime)
-        C = Math.min(C0 + 0.012 - (C0 + 0.012 - C0 * 1.05) * green, Math.max(0.85 * C0, C));
+        C = Math.min(C0 + 0.012 - (C0 + 0.012 - C0 * 1.05) * green, Math.max(0.95 * C0, C));
         if (L0 < 0.18) C = Math.min(C, 0.022);
         if (C0 >= 0.02) { let dt = H - H0; dt -= Math.round(dt / (2 * Math.PI)) * 2 * Math.PI; const m = Math.PI / 15; H = H0 + Math.min(m, Math.max(-m, dt)); }
       }
