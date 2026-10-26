@@ -13,7 +13,8 @@ import { exerciseMap, missedWorkouts, plannedFor } from '../state/store';
 import { addDays, diffDays, fmtDate, weekdayOf } from './dates';
 import { setsPerMuscle, stalledLifts, nutritionByDay, average, weightTrend, trendRate, weeklyTraining, MUSCLES } from './stats';
 import { lastBackup } from './persist';
-import { activeGoals, loggingCount, goalState, tracked, type Pace } from './goals';
+import { activeGoals, loggingCount, goalState, tracked, bigDays, foodDays, type Pace } from './goals';
+import { heavyDays, heavyLine, heavyMode, targetOn } from './eating';
 import { fmtNum, kgToDisplay } from './units';
 import type { AppData, Lang, MuscleGroup } from './types';
 import type { IconName } from '../ui/Icon';
@@ -33,6 +34,8 @@ export interface Nudge {
   action?: { label: string; run: NudgeAction };
   /** higher first */
   priority: number;
+  /** the same thing as the Coach says it on Health: one sentence, `{x}` marking the number it is about (drawn as a pill) */
+  say?: { tpl: string; x: string };
 }
 type T = (k: string, v?: Record<string, string | number>) => string;
 
@@ -141,6 +144,8 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     if (p < g.protein * 0.8) add({ id: `protein:${today}`, kind: 'warning', icon: 'bolt', priority: 55,
       title: t('Protein under target {n} days', { n: days.length }),
       body: t('About {p} g a day against {g} g. Muscle needs it to grow.', { p: Math.round(p), g: g.protein }),
+      // (an average of the logged days among the last 4, said as one: it never claims every day was under)
+      say: { tpl: days.length >= 4 ? t('Protein averaged {x} over the last 4 days, against {g}.', { g: g.protein }) : t('Protein averaged {x} over the {n} days you logged of the last 4, against {g}.', { n: days.length, g: g.protein }), x: `${Math.round(p)} g` },
       action: { label: t('Ideas'), run: { type: 'coach', prompt: t('My protein has averaged {p} g against a {g} g target. Give me easy ways to close the gap with foods I already eat.', { p: Math.round(p), g: g.protein }) } } });
   }
   // usually logs, nothing yet by early afternoon
@@ -150,6 +155,11 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
       title: t('Nothing logged yet today'), body: t('Easier now than trying to remember tonight.'),
       action: { label: t('Log food'), run: { type: 'open', overlay: 'foodSearch', props: { date: today } } } });
   }
+
+  // eating over the target on a cut (Omar 25 Oct: overeating is what he struggles with): the days, said plainly. It wins
+  // over most notes exactly when the Coach itself must say it (a weight goal behind, with big days since it started).
+  const over = overNote(d, today, t, lang);
+  if (over) add(over);
 
   // ── goals they told the Coach (lib/goals.ts): where each one is, every day ─────────
   const kg = (x: number) => `${fmtNum(kgToDisplay(x, u), lang, 1)} ${u}`;
@@ -265,6 +275,68 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
   });
   return out.sort((a, b) => b.priority - a.priority);
 }
+
+/** Monday of the week a day is in: a ✕ on a weekly note hides it for that week. */
+const weekOf = (day: string) => addDays(day, -((weekdayOf(day) + 6) % 7));
+
+/** Over the calorie target on a cut. Three ways in, each said with its own numbers:
+ *  A, 2+ of the last 7 finished days heavy (lib/eating.ts heavyDays: heavyLine over that day's own target);
+ *  B, 4+ fully logged days of the last 7 averaging 150+ over the target;
+ *  C, when the Coach must say it (a weight goal behind, 2+ days 500+ over since it started) and A and B don't fire. */
+export function overNote(d: AppData, today: string, t: T, lang: Lang): Nudge | undefined {
+  const tk = d.settings.goals.kcal;
+  if (!tk || heavyMode(d.settings) === 'off') return undefined;
+  const goals = activeGoals(d, today).filter(tracked).filter((m) => m.goal.metric === 'weight');
+  const cutting = goals.some((m) => m.goal.target! < (m.goal.start ?? Infinity)) || (!goals.length && d.settings.profile?.goal === 'fatloss');
+  if (!cutting) return undefined;
+  const k = (x: number) => fmtNum(Math.round(x / 10) * 10, lang, 0);
+  const wd = (day: string) => fmtDate(day, lang, { weekday: 'short' }).replace(/\.$/, '');
+  // the Coach's own MUST SAY case (lib/goals.ts goalLines): behind, with big days since the goal started
+  const must = goals.map((m) => ({ m, st: goalState(d, m, today) })).find(({ m, st }) => st?.pace === 'behind' && m.goal.startDate && bigDays(d, m.goal.startDate, today, tk).length >= 2);
+  const priority = must ? 72 : 58;
+  const base = { id: `over:${weekOf(today)}`, kind: 'warning' as const, icon: 'food' as IconName, priority };
+  const ask = (what: string) => ({ label: t('Ask the Coach'), run: { type: 'coach' as const, prompt: t('{what} Help me with those days. Be honest.', { what }) } });
+  // A
+  const heavy = heavyDays(d, today, 7);
+  if (heavy.length >= 2) {
+    const tgts = heavy.map((x) => targetOn(d, x.date));
+    const one = tgts.every((x) => x === tgts[0]) ? tgts[0] : undefined;
+    const list = heavy.map((x) => `${wd(x.date)} ${k((targetOn(d, x.date) ?? tk) + x.over)}`).join(', ');
+    const n = t('{n} of the last 7 days', { n: heavy.length });
+    const tpl = one ? t('On {x} you went {line}+ over your {target} target: {days}.', { line: k(heavyLine(one)), target: k(one), days: list }) : t('On {x} you went far over your target: {days}.', { days: list });
+    return { ...base, title: t('Far over your target {n} of the last 7 days', { n: heavy.length }), body: list, say: { tpl, x: n }, action: ask(tpl.replace('{x}', n)) };
+  }
+  // B
+  const week = foodDays(d, addDays(today, -7), today);
+  const avgK = week.length ? week.reduce((a, x) => a + x.kcal, 0) / week.length : 0;
+  if (week.length >= 4 && avgK >= tk + 150) {
+    const x = `${k(avgK)} kcal`;
+    const tpl = week.length === 7 ? t('Your last 7 days averaged {x}, about {over} over your {target} target.', { over: k(avgK - tk), target: k(tk) }) : t('Your {n} fully logged days of the last 7 averaged {x}, about {over} over your {target} target.', { n: week.length, over: k(avgK - tk), target: k(tk) });
+    return { ...base, title: t('About {over} kcal a day over your target', { over: k(avgK - tk) }), body: t('{n} fully logged days of the last 7.', { n: week.length }), say: { tpl, x }, action: ask(tpl.replace('{x}', x)) };
+  }
+  // C
+  if (must) {
+    const from = must.m.goal.startDate!;
+    const big = bigDays(d, from, today, tk);
+    const list = big.map((x) => `${wd(x.date)} ${fmtDate(x.date, lang, { day: 'numeric', month: 'short' })} ${k(x.kcal)}`).join(', ');
+    const n = t('{n} days', { n: big.length });
+    const tpl = t('Since {date}, {x} went 500+ over your {target} target: {days}.', { date: fmtDate(from, lang, { day: 'numeric', month: 'short' }), target: k(tk), days: list });
+    return { ...base, title: t('{n} days far over your target since your goal started', { n: big.length }), body: list, say: { tpl, x: n }, action: ask(tpl.replace('{x}', n)) };
+  }
+  return undefined;
+}
+
+/** Everything the Coach has noticed, most important first, minus what was set aside: the one ranking Today's pin and the
+ *  Coach line on Health both read, so they never disagree. `insights` are the once-a-day AI notes, from their cache only. */
+export function rankNotes(d: AppData, today: string, hour: number, t: T, lang: Lang, exName: (id: string) => string, insights: AiNote[], now = Date.now()): Nudge[] {
+  if (d.settings.coachPins === false) return [];
+  const ai: Nudge[] = insights.map((x, i) => ({ id: `ai:${today}:${i}:${x.title}`, kind: 'insight', icon: AI_ICON[x.kind], priority: x.kind === 'warning' ? 66 : 48, title: x.title, body: x.body, action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: x.ask } } }));
+  return visibleNudges([...findNudges(d, today, hour, t, lang, exName), ...ai].sort((a, b) => b.priority - a.priority), now);
+}
+export interface AiNote { kind: 'reminder' | 'suggestion' | 'warning' | 'app'; title: string; body?: string; ask: string }
+const AI_ICON: Record<AiNote['kind'], IconName> = { reminder: 'bell', suggestion: 'sparkle', warning: 'info', app: 'settings' };
+/** What Health's Coach line says second: the first note that isn't a goal (the goal card under it says that) or a chore. */
+export const healthNote = (list: Nudge[]) => list.find((n) => !n.id.startsWith('goal:') && n.id !== 'goal-ask' && n.kind !== 'app');
 
 // ── what you set aside ───────────────────────────────────────
 const KEY = 'aven.nudges';

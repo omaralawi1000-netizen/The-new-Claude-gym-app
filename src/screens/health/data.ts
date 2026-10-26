@@ -3,6 +3,7 @@
  * `health` and `steps`: one row per day) and from Aven itself (workouts, wrestling, weigh-ins). Pure builders plus one hook
  * that reads the detail from IndexedDB and keeps it fresh.
  */
+import { usualSleep } from '../../lib/recovery';
 import { useEffect, useMemo, useState } from 'react';
 import { minutes, onWatchDetail, watchDetails, type SleepSession, type WatchDetail } from '../../lib/watchDetail';
 import { asleepMin, dayLoad, mainSleep, midpoint, readyScore, sleepScore, type Score } from '../../lib/scores';
@@ -122,7 +123,7 @@ export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | nu
     const hr = hrBetween(D, main.start, main.end);
     const score = sleepScore({ night: main, age, pastMidpoints: mids, restHr: restUsual, hr });
     const bpms = hr.map((p) => p.bpm);
-    night = { session: main, asleep: asleepMin(main), stages: { deep: sum(2), rem: sum(3), light: sum(1) + sum(4), awake: sum(0) }, score, usual: median(last14.map((x) => x.min).filter(Boolean)), hrLow: bpms.length ? Math.min(...bpms) : undefined, hrHigh: bpms.length ? Math.max(...bpms) : undefined, last14 };
+    night = { session: main, asleep: asleepMin(main), stages: { deep: sum(2), rem: sum(3), light: sum(1) + sum(4), awake: sum(0) }, score, usual: usualSleep(data.health, today) ?? median(last14.map((x) => x.min).filter(Boolean)), hrLow: bpms.length ? Math.min(...bpms) : undefined, hrHigh: bpms.length ? Math.max(...bpms) : undefined, last14 };
   }
 
   // ── ready: everything combined, against your own last 60 days

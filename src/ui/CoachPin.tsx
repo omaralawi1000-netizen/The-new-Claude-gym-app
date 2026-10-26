@@ -5,10 +5,10 @@ import { useUI, haptic } from '../state/ui';
 import { useAi, solOn } from '../state/ai';
 import { useT, useLang } from '../lib/i18n';
 import { dayKey } from '../lib/dates';
-import { findNudges, hideNudge, visibleNudges, type Nudge, type NudgeAction } from '../lib/nudges';
+import { hideNudge, rankNotes, type Nudge, type NudgeAction } from '../lib/nudges';
 import type { Insight } from '../lib/gemini';
 import { userHasData } from '../lib/stats';
-import { Icon, type IconName } from './Icon';
+import { Icon } from './Icon';
 import { Collapse } from './kit';
 import { exName } from '../screens/workout/common';
 import type { AppData } from '../lib/types';
@@ -17,6 +17,8 @@ import type { AppData } from '../lib/types';
 const INSIGHTS = 'aven.insights';
 interface Cached { date: string; items: Insight[] }
 const readCache = (): Cached | null => { try { return JSON.parse(localStorage.getItem(INSIGHTS) || 'null'); } catch { return null; } };
+/** Today's insights from the cache alone (Health reads them this way: opening it never asks the Coach anything). */
+export const cachedInsights = (today: string): Insight[] => { const c = readCache(); return c?.date === today ? c.items : []; };
 // the Coach's insights set aside with ✕: the model is told, so it doesn't bring the same thing back tomorrow in new words
 const DECLINED = 'aven.insightsNo';
 const declined = (): string[] => { try { const v = JSON.parse(localStorage.getItem(DECLINED) || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; } catch { return []; } };
@@ -62,8 +64,6 @@ function useInsights(d: AppData, today: string): Insight[] {
   return on && cache?.date === today ? cache.items : [];
 }
 
-const KIND_ICON: Record<Insight['kind'], IconName> = { reminder: 'bell', suggestion: 'sparkle', warning: 'info', app: 'settings' };
-
 /** Everything the Coach has noticed right now, most important first, minus what you set aside. */
 export function useNudges(d: AppData): { list: Nudge[]; hide: (id: string, forGood: boolean) => void } {
   const t = useT();
@@ -73,13 +73,10 @@ export function useNudges(d: AppData): { list: Nudge[]; hide: (id: string, forGo
   const [v, bump] = useReducer((n: number) => n + 1, 0);
   const insights = useInsights(d, today);
   const list = useMemo(() => {
-    if (d.settings.coachPins === false) return [];
     const map = exerciseMap(d.exercises);
-    const own = findNudges(d, today, hour, t, lang, (id) => { const e = map.get(id); return e ? exName(e, lang) : '?'; });
-    const ai: Nudge[] = insights.map((x, i) => ({ id: `ai:${today}:${i}:${x.title}`, kind: 'insight', icon: KIND_ICON[x.kind], priority: x.kind === 'warning' ? 66 : 48, title: x.title, body: x.body, action: { label: t('Ask the Coach'), run: { type: 'coach', prompt: x.ask } } }));
-    return visibleNudges([...own, ...ai].sort((a, b) => b.priority - a.priority)).slice(0, 4);
+    return rankNotes(d, today, hour, t, lang, (id) => { const e = map.get(id); return e ? exName(e, lang) : '?'; }, insights).slice(0, 4);
     // eslint-disable-next-line
-  }, [d.sessions, d.entries, d.weights, d.schedule, d.routines, d.active, d.settings, d.exercises, today, hour, insights, v, lang]);
+  }, [d.sessions, d.entries, d.weights, d.schedule, d.routines, d.active, d.settings, d.exercises, d.memory, d.targets, d.health, today, hour, insights, v, lang]);
   return { list, hide: (id, forGood) => { if (forGood && id.startsWith('ai:')) { const n = list.find((x) => x.id === id); if (n) decline(n.title); } hideNudge(id, forGood); bump(); } };
 }
 

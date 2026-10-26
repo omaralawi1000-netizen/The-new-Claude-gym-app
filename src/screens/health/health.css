@@ -17,6 +17,26 @@
 .hx-pill > span { display: inline-block; }
 .hx-note { font-size: 14px; color: var(--tx2); margin-top: 28px !important; }
 
+/* the Coach speaking on top (26 Oct): its orb, small, and its name; the sentence is the Coach's line */
+.hx-coach { display: flex; align-items: center; gap: 9px; margin: 14px 0 2px; font: 500 13px var(--f-ui); color: var(--tx2); letter-spacing: .01em; }
+.hx-orb { flex: none; display: block; }
+/* the goal it follows: a thin outline and no fill, so it reads as part of the Coach's voice, not one more card */
+.hx-goal { display: block; width: 100%; text-align: left; margin: 2px 0 10px; padding: 15px 18px 14px; border: 0; border-radius: 22px; background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09); color: var(--tx); font: inherit; cursor: pointer; --press: .985; -webkit-tap-highlight-color: transparent; }
+.hx-ghead { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.hx-gt { font: 400 23px/1.15 var(--f-display); text-wrap: balance; min-width: 0; }
+.hx-gpace { flex: none; font: 500 12.5px var(--f-ui); padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+  color: color-mix(in srgb, var(--c) 85%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent); }
+.hx-gchev { color: var(--tx3); font-size: 20px; }
+.hx-gbar { position: relative; height: 26px; margin-top: 6px; }
+.hx-gbar::before { content: ''; position: absolute; left: 0; right: 0; bottom: 3px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .08); }
+.hx-gbar::after { content: ''; position: absolute; left: 0; right: 0; bottom: 3px; height: 4px; border-radius: 2px; background: var(--c); transform-origin: left; transform: scaleX(var(--f)); }
+.hx-gbar i { position: absolute; bottom: 0; left: calc(var(--f) * 100%); width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--c); z-index: 1; }
+.hx-gnow { position: absolute; top: 0; left: clamp(28px, calc(var(--f) * 100%), calc(100% - 28px)); transform: translateX(-50%); font: 500 12px/1 var(--f-ui); color: var(--c); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hx-gline { margin-top: 8px; font-size: 14px; color: var(--tx2); text-wrap: pretty; font-variant-numeric: tabular-nums; }
+.hx-gline b { font-weight: 500; color: var(--tx); }
+.hx-goal + .hx-rib { margin-top: 18px; }
+
 .hx-bleed { margin-left: -20px; margin-right: -20px; }
 .hx-rib { margin-top: 4px; }
 .hx-ribbon { position: relative; overflow: hidden; }
@@ -122,3 +142,6 @@
 :root[data-theme='light'] .hx-x { background: rgba(20, 28, 48, .06); }
 :root[data-theme='light'] .hx-pill { background: rgba(255, 255, 255, .5); color: color-mix(in srgb, var(--c) 70%, #000); }
 :root[data-theme='light'] .hx-lab { color: color-mix(in srgb, var(--c) 70%, #000); }
+:root[data-theme='light'] .hx-goal { box-shadow: inset 0 0 0 1px rgba(20, 28, 48, .12); }
+:root[data-theme='light'] .hx-gbar::before { background: rgba(20, 28, 48, .1); }
+:root[data-theme='light'] .hx-gpace, :root[data-theme='light'] .hx-gnow { color: color-mix(in srgb, var(--c) 60%, #000); }
