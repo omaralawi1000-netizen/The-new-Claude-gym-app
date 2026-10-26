@@ -332,21 +332,34 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number, ref?: Uint8Clam
         // this squashed the page's gradient into flat steps (judge 26 Oct); the card's own sheen (surfaces.css) keeps it glass
         const [P0, A0, B0] = ref && ref[i * 4 + 3] > 0 ? lab(ref[i * 4], ref[i * 4 + 1], ref[i * 4 + 2]) : [L0, px[i * 3 + 1], px[i * 3 + 2]];
         const C0 = Math.hypot(A0, B0), H0 = Math.atan2(B0, A0), h0 = (H0 * 180) / Math.PI;
-        L = Math.min(P0 + 0.01 + 0.02 * smooth(0.12, 0.22, P0), Math.max(P0 - 0.02, L));
+        // dusk (a dark orange page, Time of day after sunset): there a lighter card read milk chocolate (judge 26 Oct), so the
+        // glass keeps to the page's own light and turns a little toward amber
+        const dusk = smooth(0.12, 0.22, P0) * (1 - smooth(0.33, 0.42, P0)) * step(h0, 25, 35) * step(-h0, -80, -70) * smooth(0.012, 0.025, C0);
+        L = Math.min(P0 + 0.01 + 0.02 * smooth(0.12, 0.22, P0) - 0.025 * dusk, Math.max(P0 - 0.02, L));
         // (darker than the page, red glass read brown; lighter over black, a slate panel)
         const green = step(h0, 110, 120) * step(-h0, -170, -160); // (saturate lifts greens: Forest's cards went lime)
         // (every limit fades in over a range: an on/off one drew a jagged line across the Train cards, judge 26 Oct)
-        const lift = smooth(0.12, 0.24, P0); // no colour added over black, so dark navy keeps its own blue
         // the colour as a step away from the page's own (not a hue and an amount): where the page has almost no colour its hue
         // is only noise, and a hue limit let each pixel take a different tint, a jagged band where Time of day's blue turns
-        // orange (Omar's phone, 26 Oct). The step grows with the page's own colour, a little more where there is light.
-        // Split into more or less of the page's colour (up to a quarter more, hardly less: less read grey) and a turn of it
-        // (less: a turn read rosier than the page, judge 26 Oct)
+        // orange (Omar's phone, 26 Oct). The step grows with the page's own colour. Split into more of the page's colour and a
+        // small turn of it (a bigger turn read rosier than the page, judge 26 Oct)
         const u = C0 > 1e-4 ? 1 / C0 : 0, ux = A0 * u, uy = B0 * u;
         const dA = C * Math.cos(H) - A0, dB = C * Math.sin(H) - B0;
-        const up = (0.25 - 0.2 * green) * C0 + 0.006 * lift, side = (0.1 - 0.06 * green) * C0;
-        const dr = Math.min(up, Math.max(-0.05 * C0 - 0.002, dA * ux + dB * uy)), dt = Math.min(side, Math.max(-side, dB * ux - dA * uy));
+        // the amount, from the same page: always a little richer than the page (a fifth to a third more; a little less over
+        // green), never duller (held to the page, daytime Golden hour glass went taupe) nor much richer (half again as much
+        // read mocha at night, judge 26 Oct)
+        const up = (0.35 - 0.25 * green) * C0, lo = (0.2 - 0.2 * green) * C0, side = (0.1 - 0.06 * green) * C0;
+        const dr = Math.min(up, Math.max(lo, dA * ux + dB * uy)), dt = Math.min(side, Math.max(-side, dB * ux - dA * uy));
         { const A = A0 + dr * ux - dt * uy, B = B0 + dr * uy + dt * ux; C = Math.hypot(A, B); H = Math.atan2(B, A); }
+        if (dusk > 0) { let dh = H - H0; dh -= Math.round(dh / (2 * Math.PI)) * 2 * Math.PI; H += (Math.max(0, -dh) + (4 * Math.PI) / 180) * dusk; }
+        // a dark page with almost no colour: a hint of colour stays, so the glass never reads charcoal grey (judge 26 Oct). Where
+        // the page has next to none its own hue is only noise, so the hint takes the whole page's colour; none over true black
+        const fl = 0.022 * (1 - smooth(0.018, 0.024, C0)) * smooth(0.08, 0.16, P0) * (1 - green);
+        if (C < fl) {
+          let dp = hue - H0; dp -= Math.round(dp / (2 * Math.PI)) * 2 * Math.PI;
+          let dh = H0 + dp * (1 - smooth(0.004, 0.012, C0)) - H; dh -= Math.round(dh / (2 * Math.PI)) * 2 * Math.PI;
+          H += dh * (1 - C / fl); C = fl;
+        }
       }
     }
     out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H;
