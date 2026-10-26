@@ -338,9 +338,8 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number, ref?: Uint8Clam
         // (every limit fades in over a range: an on/off one drew a jagged line across the Train cards, judge 26 Oct)
         // the colour as a step away from the page's own (not a hue and an amount): where the page has almost no colour its hue
         // is only noise, and a hue limit let each pixel take a different tint, a jagged band where Time of day's blue turns
-        // orange (Omar's phone, 26 Oct). The step grows with the page's own colour, a little more where there is light.
-        // Split into more or less of the page's colour (up to a quarter more, hardly less: less read grey) and a turn of it
-        // (less: a turn read rosier than the page, judge 26 Oct)
+        // orange (Omar's phone, 26 Oct). The step grows with the page's own colour. Split into more of the page's colour and a
+        // small turn of it (a bigger turn read rosier than the page, judge 26 Oct)
         const u = C0 > 1e-4 ? 1 / C0 : 0, ux = A0 * u, uy = B0 * u;
         const dA = C * Math.cos(H) - A0, dB = C * Math.sin(H) - B0;
         // the amount, from the same page: always a little richer than the page (a fifth to a third more; a little less over
