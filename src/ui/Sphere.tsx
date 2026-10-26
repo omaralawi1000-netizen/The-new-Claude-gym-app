@@ -43,10 +43,10 @@ export function orbMoved(x = 0, y = 0) { lean = [Math.round(x * 4) / 4, Math.rou
  *  as the dust condenses there, and fades back in to fly home. Opacity only, on the orb's own canvas. */
 let stageCanvas: HTMLCanvasElement | null = null, orbHidden = false, hiddenAt = 0;
 export function orbHide(hidden: boolean, instant = false) {
-  if (hidden && !orbHidden) hiddenAt = performance.now() + (instant ? 0 : 550);
+  if (hidden && !orbHidden) hiddenAt = performance.now() + (instant ? 0 : 800);
   orbHidden = hidden; wakeOrb();
   if (!stageCanvas) return;
-  stageCanvas.style.transition = instant ? 'none' : hidden ? 'opacity .45s var(--ease-out)' : 'opacity .25s var(--ease-out)';
+  stageCanvas.style.transition = instant ? 'none' : hidden ? 'opacity .6s var(--ease-out)' : 'opacity .25s var(--ease-out)';
   // (hidden, it rests at a hair above nothing, so it stays a drawn layer and comes back without a blink)
   stageCanvas.style.opacity = hidden ? '0.002' : '1';
 }

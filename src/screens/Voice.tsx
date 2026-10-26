@@ -164,15 +164,17 @@ function Ear({ levels, gap }: { levels: () => { bands: Float32Array } | null; ga
   useEffect(() => {
     const dots = [...(box.current?.children ?? [])] as HTMLElement[];
     if (matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'reduce') return; // (still dots)
-    const v = [0, 0, 0]; let raf = 0;
+    const v = [0, 0, 0], sent = ['', '', '']; let raf = 0;
     const tick = () => {
       raf = requestAnimationFrame(tick);
+      if (useUI.getState().overlays.length) return; // (nothing moves behind an open pop-up)
       const b = levels()?.bands;
       for (let i = 0; i < 3; i++) {
         let x = 0; if (b) for (let j = i * 5; j < i * 5 + 5; j++) x += b[j] ?? 0;
         const want = Math.min(1, (x / 5) * 2.2);
         v[i] += (want - v[i]) * (want > v[i] ? 0.35 : 0.12);
-        dots[i].style.transform = `scale(${(0.7 + v[i] * 0.75).toFixed(3)})`;
+        const sc = `scale(${(0.7 + v[i] * 0.75).toFixed(2)})`;
+        if (sc !== sent[i]) { sent[i] = sc; dots[i].style.transform = sc; } // (written only when it changes)
       }
     };
     raf = requestAnimationFrame(tick);
@@ -695,7 +697,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     if (phase === 'requesting' || liveRef.current) { teardown(); go('idle'); return; } orbTap(0.6); if (listening) finish(); else if (!thinking) { haptic('listen'); listen(); } };
   // talking live, from the first frame (also while it connects): the ChatGPT-like screen, never the old buttons in between
   const liveUi = liveWanted && !liveFailed.current && !typing;
-  const chatting = liveUi && turns.length > 0;
+  // (a bubble still waiting for its first word doesn't count: a cough mustn't move the orb up and back down)
+  const chatting = liveUi && turns.some((x) => x.said || x.reply || x.results.length);
   const big = liveUi ? !chatting : !showing && !thinking && !typing; // typing: the orb steps up and the box gets the room
   // (Aven's own Reduce motion too, not only the phone's: the glide and the fade are instant then)
   const calm = useReducedMotion() || document.documentElement.dataset.motion === 'reduce';

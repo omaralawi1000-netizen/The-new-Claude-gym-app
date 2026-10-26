@@ -3102,7 +3102,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 /* Stardust's greeting (Voice.tsx): written in its dust first, then these crisp words fade in over it */
 .voice .dust-greet { font-family: var(--f-display); font-style: italic; font-weight: 400; font-size: 27px; line-height: 1.2; color: var(--tx); text-align: center; margin-top: 22px; min-height: 34px; text-wrap: balance; }
 /* talking live: three dots in your bubble that move with your voice while you are heard (Voice.tsx Ear); scale only */
-.said-ear { display: inline-flex; gap: 4px; align-items: center; height: 1em; vertical-align: -0.1em; animation: earIn .5s cubic-bezier(.2,.7,.2,1) backwards; }
+.said-ear { display: inline-flex; gap: 4px; align-items: center; height: 1em; vertical-align: -0.1em; animation: earIn .5s var(--ease-out) both; }
 .said-ear.gap { margin-left: 6px; }
 .said-ear i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .7; will-change: transform; }
 @keyframes earIn { from { opacity: 0; } }

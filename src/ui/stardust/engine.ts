@@ -26,6 +26,8 @@ export type RGB = [number, number, number];
 export interface DustState {
   /** the canvas's size (css px) and pixel ratio */
   w: number; h: number; dpr: number;
+  /** when the page sent it (ms since 1970, fractional): the worker works out the orb's speed from it */
+  at?: number;
   /** the orb: its middle and radius in css px (the finger's move included) */
   cx: number; cy: number; r: number;
   /** 1 there, 0 leaving */

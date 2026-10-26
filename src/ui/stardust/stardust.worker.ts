@@ -27,7 +27,8 @@ self.onmessage = (e: MessageEvent) => {
   }
   if (d.text && eng) eng.setText(d.text as Float32Array);
   if (d.state) {
-    const n = d.state as DustState, t = performance.now(), dt = t - at;
+    // (the speed from when the page sent each one, not when they arrived: two can arrive together after a hiccup)
+    const n = d.state as DustState, t = n.at ?? performance.timeOrigin + performance.now(), dt = t - at;
     if (st && dt > 2 && dt < 60) { vx = (n.cx - px) / dt; vy = (n.cy - py) / dt; } else { vx = vy = 0; }
     st = n; at = t; px = n.cx; py = n.cy;
     if (!scheduled) { scheduled = true; self.requestAnimationFrame(loop); } }
@@ -35,7 +36,7 @@ self.onmessage = (e: MessageEvent) => {
 function loop(now: number) {
   scheduled = false;
   if (!eng || !st) return;
-  const late = performance.now() - at;
+  const late = performance.timeOrigin + performance.now() - at;
   const ahead = late > 12 && !st.reduced ? Math.min(33, late) : 0;
   const more = eng.frame(now, ahead ? { ...st, cx: px + vx * ahead, cy: py + vy * ahead } : st);
   if (!more) { self.postMessage({ gone: true }); return; }

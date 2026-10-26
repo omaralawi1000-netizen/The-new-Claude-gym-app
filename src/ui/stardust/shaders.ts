@@ -32,15 +32,17 @@ vec2 bow(vec2 a, vec2 b, float bend, float t) {
 void main() {
   vec3 p = aHome.xyz; float shell = aHome.w;
   float lat = p.y;
-  // currents: it doesn't turn as one ball, it flows: each band of latitude at its own pace (and the inner dust slower), so
-  // streams of light shear past each other, and the bands meander a little as they go (Omar, 26 Oct: it read as static)
-  float flow = (0.11 + 0.16 * sin(lat * 3.6 + 1.3) + 0.06 * sin(lat * 7.9 - 0.4)) * (0.55 + 0.45 * shell) * (1.0 - uReduce);
+  // currents: it doesn't turn as one ball, it flows: bands of latitude slide past each other (the inner dust less), to and
+  // fro like a tide, so the streams of light keep their shape however long you talk (a shear that only grew wound them into
+  // noise within a minute); the bands meander a little as they go (Omar, 26 Oct: it read as static)
+  float flow = (0.6 * sin(lat * 3.6 + 1.3) + 0.25 * sin(lat * 7.9 - 0.4)) * (0.55 + 0.45 * shell) * (1.0 - uReduce);
+  float shear = flow * (0.9 * sin(uT * 0.11) + 0.5 * sin(uT * 0.07 + 1.0));
   float lon0 = atan(p.z, p.x);
-  float spin = uRot + uT * flow;
+  float spin = uRot + shear;
   float lat2 = lat + 0.035 * sin(lon0 * 3.0 + uT * 0.37 + lat * 2.0) * sqrt(max(0.0, 1.0 - lat * lat)) * (1.0 - uReduce);
   float rr0 = sqrt(max(0.0, 1.0 - lat2 * lat2));
   p = vec3(cos(lon0 + spin) * rr0, lat2, sin(lon0 + spin) * rr0);
-  float lonF = lon0 + uT * flow * 1.6; // (where the speck is along its current, for its light)
+  float lonF = lon0 + shear * 1.6 + uT * 0.03; // (where the speck is along its current, for its light)
   p.yz = rot(0.38) * p.yz;
   float r = shell;
   vec3 pv = p; // (seen direction, for the rim)
