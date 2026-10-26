@@ -108,3 +108,21 @@ describe('nothing-to-choose questions and long replies are flagged (26 Oct)', ()
     expect(answerProblems('Want me to move your goal date to 19 November?', [], '')).toEqual([]);
   });
 });
+
+describe('what the answer did is said; one question per sentence (judge 3, 26 Oct)', () => {
+  const edit = { type: 'edit_routine', routine: 'Push', change: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 4, repMax: 6 }] } as any;
+  it('a routine change made at once under a reply that only suggests it is flagged', async () => {
+    const { answerProblems } = await import('../src/lib/answerCheck');
+    expect(answerProblems("Let's switch tactics: keep 77.5 kg on the bar and add a 4th working set.", [edit], '')).toHaveLength(1);
+    expect(answerProblems('I have changed Push to 4 × 4–6 at 77.5 kg.', [edit], '')).toEqual([]);
+  });
+  it('a target set but never said is flagged', async () => {
+    const { answerProblems } = await import('../src/lib/answerCheck');
+    expect(answerProblems('Losing 3 kg by 24 December is about 0.35 kg a week.', [{ type: 'set_setting', pairs: [{ key: 'kcalGoal', value: '2390' }] } as any], '')).toHaveLength(1);
+    expect(answerProblems('I have set your target to 2,390 kcal.', [{ type: 'set_setting', pairs: [{ key: 'kcalGoal', value: '2390' }] } as any], '')).toEqual([]);
+  });
+  it('"Have you tapped Apply …, and which two days …?" is two questions', async () => {
+    const { answerProblems } = await import('../src/lib/answerCheck');
+    expect(answerProblems('Have you tapped Apply on the two previews yet, and which two days do you want them on?', [], '')).toHaveLength(1);
+  });
+});

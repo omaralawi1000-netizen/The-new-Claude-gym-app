@@ -58,13 +58,23 @@ export function answerProblems(reply: string, actions: AgentAction[], system: st
   const asksSave = reply.split(/(?<=[.!?])\s+|\n+/).some((x) => /\?\s*$/.test(x) && /\b(?:save|set up|set)\b[^?]{0,60}\bgoal\b|\b(?:set|save)\b[^?]{0,10}\b(?:this|it)\s+up\b/i.test(x));
   if (asksSave && actions.some((a) => a.type === 'remember' && (a.kind === 'goal' || !!a.goal) && !a.replaces))
     out.push('The reply asks whether to save the goal, but this answer already saves it: either save nothing yet and ask, or save it and say it is saved.');
+  // done but never said: a routine changed at once, or a target set, under a reply that reads as a suggestion ("Let's
+  // switch tactics…" over an applied "Routine updated" card; Flash, 26 Oct)
+  // (one or two changes run at once; three or more are a preview, doEditRoutine)
+  const smallEdit = actions.some((a) => { if (a.type !== 'edit_routine') return false; const n = (a.change?.length ?? 0) + (a.add?.length ?? 0) + (a.remove?.length ?? 0) + (a.rename ? 1 : 0); return n >= 1 && n <= 2; });
+  // ("set" only as the verb: "a 4th working set" says nothing was done)
+  const SET = String.raw`\b(?:i['’]?ve|i have|i)\s+(?:also\s+|now\s+|just\s+)?set\b|\bset\s+(?:to|at|up)\b|\b(?:is|are)\s+(?:now\s+)?set\b`;
+  if (smallEdit && !new RegExp(String.raw`\b(?:updated|changed|moved|switched|added|put|made|opdateret|ændret|sat|tilføjet)\b|${SET}`, 'i').test(done))
+    out.push('The routine change is made now (the card shows it, with Undo), but the reply reads as a suggestion: say plainly that you changed it, in a few words.');
+  if (has('set_setting') && !new RegExp(String.raw`\b(?:updated|changed|switched|moved|raised|lowered|bumped|sat|opdateret|ændret)\b|${SET}`, 'i').test(done))
+    out.push('The answer sets a target or setting now, but the reply never says so: say what you set, in a few words.');
   // ("All set: … Daily target: 2,460 kcal" with nothing that sets it; Flash, 26 Oct)
   const targetStated = /\b(?:all set|set up|done|saved|locked in)\b/i.test(done) && /\b(?:daily |calorie |kcal )?targets?\b[^.!?\n]{0,20}?(?:\d{1,2}[,.]\d{3}|\d{4})\s*kcal/i.test(done);
   if ((TARGET_CLAIM.test(done) || targetStated) && !has('set_setting'))
     out.push('The reply says a target was set, but no set_setting sets it: send it (kcalGoal / proteinGoal), or offer it as a question instead.');
   // one question, not two ("What date is the weigh-in, or should I set it up for the 1st?")
   const asks = reply.split(/(?<=[.!?])\s+|\n+/).filter((x) => /\?\s*$/.test(x));
-  if (asks.length > 1 || asks.some((x) => /,?\s+(?:or|and)\s+(?:should|shall|do you want|want|would you like|can)\s+(?:I|me|you|us|we|to)\b/i.test(x)))
+  if (asks.length > 1 || asks.some((x) => /,?\s+(?:or|and)\s+(?:should|shall|do you want|want|would you like|can)\s+(?:I|me|you|us|we|to)\b|,\s+and\s+(?:which|what|when|how|do|did|does|are|is)\b/i.test(x)))
     out.push('The reply asks more than one thing: keep only the one question that matters most now; say the rest as what you will do (or leave it out).');
   // a question with nothing to choose ("Should we keep 16 November as your target date?" when the target still reaches it)
   if (asks.some((x) => /\b(?:keep|stick with|stay with)\b[^?]{0,40}\b(?:date|deadline)\b/i.test(x)))
