@@ -24,7 +24,7 @@ const scene = document.getElementById('scene') as HTMLCanvasElement;
 const sx = scene.getContext('2d')!;
 
 // the timeline (seconds): what happens when
-const T = { appear: 0, talk: 2.6, talkEnd: 8.6, think: 8.8, speak: 11.0, done: 16.2, drag: 17.6, let: 18.5, tap: 21.0, leave: 22.6, end: 24.6 };
+const T = { appear: 0, talk: 2.6, talkEnd: 8.6, think: 8.8, speak: 13.0, done: 18.2, drag: 19.6, let: 20.5, tap: 23.0, leave: 24.6, end: 26.6 };
 let L: Levels = { mic: [], out: [] };
 const at = <X,>(a: X[], s: number) => a[Math.max(0, Math.min(a.length - 1, Math.floor(s * FPS)))];
 // the drag: the finger takes it 60 px right and 110 down, lets go at T.let, and it springs home on BOUNCY
@@ -64,7 +64,7 @@ function frame(i: number) {
   const size = SIZE * DPR, ox = W / 2 - size / 2 + lx * DPR, oy = 330 - size / 2 + ly * DPR;
   sx.drawImage(orbCanvas, ox, oy, size, size);
   sx.font = `600 ${11 * DPR}px system-ui`; sx.textAlign = 'center'; sx.fillStyle = `rgba(${ac2.join(',')},.9)`;
-  const word = s >= T.done && s < T.done + 1.2 ? 'LOGGED' : inp.phase === 'processing' ? 'THINKING…' : inp.phase === 'idle' ? 'SPEAKING' : 'LISTENING';
+  const word = s >= T.done && s < T.done + 1.2 ? 'LOGGED' : inp.phase === 'processing' ? (s < T.think + 2.1 ? 'LOOKING AT YOUR FOOD…' : 'LOGGING YOUR FOOD…') : inp.phase === 'idle' ? 'SPEAKING' : 'LISTENING';
   sx.fillText(word, W / 2, 330 + 110 * DPR);
 }
 (window as unknown as { lab: unknown }).lab = {

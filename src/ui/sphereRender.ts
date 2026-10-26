@@ -176,7 +176,9 @@ export class SphereRenderer {
   private oSz = 0;                          // the sphere's room for it (0 … 1, quicker: it rides the flight to the orb screen)
   private oSpin = 0;                        // its turn round the orb
   private oRad = 1; private oRadV = 0;      // its radius (× its resting radius), on a spring: gathers in to think, swells to speak
-  private oGather = 0;                      // thinking: the three rows draw into one fast-turning band
+  private oGather = 0;                      // thinking: the ring pours into the glass and becomes the ribbon (0 … 1)
+  private oRib = 0;                         // the ribbon inside the glass (0 … 1)
+  private ribCv: OffscreenCanvas | null = null; // the ribbon's own layer (drawn solid, laid in as one)
   private oLx = 0; private oLy = 0; private oVx = 0; private oVy = 0; // a spring following the finger's move (css px)
   private oIn = new Float32Array(16);       // your voice per band, laid round the ring
   private oOut = 0;                         // its voice
@@ -436,7 +438,7 @@ export class SphereRenderer {
       if (this.kick > 0.01) glow += this.kick * 0.3 * (0.6 + 0.4 * Math.sin(y * 3 + T * 4));
       if (this.press > 0.01) glow += this.press * 0.25 * (1 - Math.abs(y));
       if (this.flash > 0.02) glow += this.flash * (0.6 + 1.8 * Math.max(0, Math.sin(y * 5 - this.t * 16))); // a band of light runs through it
-      if (this.cur.sweep > 0.01) {
+      if (this.cur.sweep * (1 - this.oRib) > 0.01) {
         // thinking: two comets of light circle it on a tilted orbit, each trailing a fading tail
         const h = x1 * CA[0] + y2 * CA[1] + z2 * CA[2];
         const band = Math.exp(-(h * h) / 0.03);
@@ -444,7 +446,7 @@ export class SphereRenderer {
           const phi = Math.atan2(x1 * CV[0] + y2 * CV[1] + z2 * CV[2], x1 * CU[0] + y2 * CU[1] + z2 * CU[2]);
           for (let k2 = 0; k2 < 2; k2++) {
             const d = (((cometHead + k2 * Math.PI - phi) % TAU) + TAU) % TAU;
-            glow += band * Math.exp(-d * 1.3) * 2.6 * this.cur.sweep;
+            glow += band * Math.exp(-d * 1.3) * 2.6 * this.cur.sweep * (1 - this.oRib);
           }
         }
         glow += (Math.cos(az - sweepPhase) * 0.5 + 0.5) * 0.12 * this.cur.sweep;
@@ -524,7 +526,7 @@ export class SphereRenderer {
       if (dimK > 0.01) { const grey = dark ? 120 : 140; r += (grey - r) * dimK; g += (grey - g) * dimK; bl += (grey - bl) * dimK; }
       return [r, g, bl];
     };
-    const alphaOf = (b: number) => (0.14 + (b / (NB - 1)) * 0.86) * (dark ? 0.8 : 1) * fade;
+    const alphaOf = (b: number) => (0.14 + (b / (NB - 1)) * 0.86) * (dark ? 0.8 : 1) * fade * (1 - 0.6 * this.oRib); // (the ribbon's turn: the beads step back)
     const rgba = (c3: RGB, a: number) => `rgba(${c3[0] | 0},${c3[1] | 0},${c3[2] | 0},${a.toFixed(3)})`;
     const whiten = (c3: RGB, k: number): RGB => [c3[0] + (255 - c3[0]) * k, c3[1] + (255 - c3[1]) * k, c3[2] + (255 - c3[2]) * k];
     /** one pass over a set of beads: every bead in it as a disc of `scale` × its size */
@@ -558,6 +560,7 @@ export class SphereRenderer {
       if (dark) pass(ALL, 2, 2.6, rgba(okX, 0.16));
       pass(ALL, 2, 1.1, rgba(okX, 0.98));
     }
+    if (this.oRib > 0.01) this.drawRibbon(this.oRib, c, R, colors, dark, reduced);
     // The glass it is made of: a fine bright edge exactly on its outline (where glass catches the light) and a soft reflection
     // at the top left, where the light comes from. Both are light only and sit still while the beads turn inside.
     const Rs = R * 1.03; // the outline, perspective included
@@ -611,7 +614,7 @@ export class SphereRenderer {
   private orbitFrame(dt: number, reduced: boolean, phase: string, inp: OrbInputs, W: number, css: number, c: number, R: number) {
     const to = inp.orbit ?? 0;
     this.oK += (to - this.oK) * (1 - Math.exp(-dt * (to > this.oK ? 2.2 : 3.4)));
-    if (to === 0 && this.oK < 0.004) { this.oK = 0; this.echoes = []; this.oOk = -1; return null; }
+    if (to === 0 && this.oK < 0.004) { this.oK = 0; this.oRib = 0; this.echoes = []; this.oOk = -1; return null; }
     const att = (cur: number, t: number, up: number, down: number) => cur + (t - cur) * (1 - Math.exp(-dt * (t > cur ? up : down)));
     for (let i = 0; i < 16; i++) this.oIn[i] = att(this.oIn[i], (this.lat[Math.max(0, i - 1)] + this.lat[i] * 2 + this.lat[Math.min(15, i + 1)]) / 4, 9, 2.4);
     const outRaw = Math.min(1, inp.voiceOut ?? 0);
@@ -624,12 +627,12 @@ export class SphereRenderer {
     this.echoes = this.echoes.filter((e) => e.age < 0.75);
     if (this.oOk >= 0) { this.oOk += dt; if (this.oOk > 1.3) this.oOk = -1; }
     const thinking = phase === 'processing';
-    this.oGather = att(this.oGather, thinking ? 1 : 0, 1.8, 1.4);
+    this.oGather = att(this.oGather, thinking ? 1 : 0, 1.3, 1.5);
     const radTo = (1 - 0.04 * this.press) * (1 + 0.06 * this.oOut);
     for (let rem = dt; rem > 1e-6; rem -= 1 / 240) { const h = Math.min(rem, 1 / 240); this.oRadV += (-110 * (this.oRad - radTo) - 14 * this.oRadV) * h; this.oRad += this.oRadV * h; }
     this.oRad = Math.min(1.1, this.oRad);
     // its drift: about a lap a minute at rest, a little livelier while you talk (never a spin)
-    if (!reduced) this.oSpin += dt * (0.11 + this.env * 0.12 + this.oGather * 0.25 + this.oOut * 0.06);
+    if (!reduced) this.oSpin += dt * (0.11 + this.env * 0.12 + this.oGather * 0.5 + this.oOut * 0.06);
     // the finger's move, followed on a soft spring (css px): the ring is drawn where the spring is, so it trails behind
     const lx = inp.lean?.[0] ?? 0, ly = inp.lean?.[1] ?? 0;
     for (let rem = dt; rem > 1e-6; rem -= 1 / 240) { const h = Math.min(rem, 1 / 240);
@@ -647,7 +650,6 @@ export class SphereRenderer {
     const O = ORBIT, n = O.n;
     const xs = new Float32Array(n), ys = new Float32Array(n), rs = new Float32Array(n), lum = new Float32Array(n), al = new Float32Array(n), zs = new Float32Array(n), hue = new Float32Array(n), tone = new Uint8Array(n);
     const ce = Math.cos(elev), se = Math.sin(elev), cr = Math.cos(roll), sr = Math.sin(roll);
-    const headA = this.oSpin * 1.9 + T * 1.8; // (thinking: a lap in ~3.5 s)
     const okHead = this.oOk >= 0 ? Math.PI / 2 + (this.oOk / 0.8) * TAU : 0;
     const beadR = Math.sqrt(12.566 / N) * R * 0.24; // a sphere bead's size, as the sphere draws its middle ones
     const edge0 = c * 0.86, edge1 = c * 0.97;
@@ -659,32 +661,131 @@ export class SphereRenderer {
       const fb = (fa / Math.PI) * 15, b0 = Math.min(14, Math.floor(fb)), fr = fb - b0;
       // your voice: on the inner lane, fully; the others only feel it
       const e = (this.oIn[b0] * (1 - fr) + this.oIn[b0 + 1] * fr) * (row === 0 ? 1 : row === 1 ? 0.3 : 0.12) * (1 - this.oGather);
-      let rr = ORBIT_R[row] + (1.6 - ORBIT_R[row]) * this.oGather * 0.85;
+      // thinking: the ring pours into the glass, bead by bead in a spiral (each in its turn), and becomes the ribbon inside
+      const gs = (O.ang[k] / TAU + row * 0.13) % 1;
+      const gb0 = Math.max(0, Math.min(1, this.oGather * 1.7 - gs * 0.7)), gb = gb0 * gb0 * (3 - 2 * gb0);
+      let rr = ORBIT_R[row] + (0.72 - ORBIT_R[row]) * gb;
       rr = rr * this.oRad * comeR + O.jr[k] * 0.012;
       let glow = 0;
       // speaking: each syllable's wave runs out from the inner lane to the outer one (~0.6 s)
       for (const ec of this.echoes) { const f = 1.38 + ec.age * 0.85, d = rr / this.oRad - f; glow += ec.amp * (1 - ec.age / 0.75) * Math.exp(-(d * d) / 0.006); }
       const wave = reduced ? 0 : Math.sin(th * 3 - T * 2.2 + row * 0.7);
-      const hgt = (Math.min(1, e * 1.4) * 0.12 * wave + 0.01 * Math.sin(th * 2 + T * 0.6 + row)) * (1 - this.oGather);
+      const hgt = (Math.min(1, e * 1.4) * 0.12 * wave + 0.01 * Math.sin(th * 2 + T * 0.6 + row)) * (1 - gb);
       const X = rr * ct, Y = hgt, Z = rr * st2;
       const y1 = Y * ce + Z * se, z1 = -Y * se + Z * ce;
       const sx = X * cr - y1 * sr, sy = X * sr + y1 * cr;
       xs[k] = c + ox + sx * R; ys[k] = c + oy + sy * R; zs[k] = z1;
       const depth = Math.max(0, Math.min(1, (z1 / rr + 1) / 2)); // 0 back … 1 front
       glow += Math.min(0.55, e * 0.8) * (0.55 + 0.45 * Math.abs(wave)) + this.oOut * 0.18 + this.press * 0.15;
-      if (this.oGather > 0.02) { const d = ((headA - th) % TAU + TAU) % TAU; glow += this.oGather * Math.max(0, 1 - d / (Math.PI / 2)) ** 2 * 0.75; }
+      glow += gb * (1 - gb) * 1.6; // (a bead lights up as it pours in)
       let ok = false;
       if (this.oOk >= 0) { const d = ((okHead - th) % TAU + TAU) % TAU; const w = Math.max(0, 1 - d / 1.2) * Math.min(1, (1.3 - this.oOk) / 0.4); if (w > 0.3) ok = true; glow += w * 0.4; }
       const twk = reduced ? 0 : 0.08 * Math.sin(T * (0.5 + O.js[k] * 0.4) + O.tw[k]);
       lum[k] = Math.max(0, Math.min(0.85, 0.4 + 0.3 * depth + glow + twk)); // (never white)
       // the back half quieter and a little smaller: depth
       const d2 = Math.hypot(xs[k] - c, ys[k] - c), fade = d2 <= edge0 ? 1 : d2 >= edge1 ? 0 : 1 - (d2 - edge0) / (edge1 - edge0);
-      al[k] = ORBIT_A[row] * (0.4 + 0.6 * depth) * fade * ek;
+      al[k] = ORBIT_A[row] * (0.4 + 0.6 * depth) * fade * ek * (1 - Math.max(0, (gb - 0.55) / 0.45));
       hue[k] = 0.5 + 0.5 * Math.sin(th + T * 0.2);
       rs[k] = beadR * ORBIT_B[row] * O.js[k] * (0.85 + 0.15 * depth) * (1 + 0.3 * Math.min(1, glow));
       tone[k] = ok ? 2 : 0;
     }
+    // the ribbon inside comes as the beads arrive, and unspools back out into the ring the same way
+    const rg = Math.max(0, Math.min(1, (this.oGather - 0.4) / 0.6));
+    this.oRib = rg * rg * (3 - 2 * rg) * ek;
     return { xs, ys, rs, lum, al, zs, hue, tone };
+  }
+
+  /**
+   * Thinking (Omar's reference, 26 Oct: a glass sphere with a ribbon of light twisting inside it): a band of light inside the
+   * glass, on a looping path with two broad lobes and two narrow necks, twisting once round its length and turning slowly in
+   * 3D. Lit like a satin ribbon: bright where it faces you, dark edge-on, a highlight where it catches the light from the top
+   * left, a fine bright edge. Drawn back to front, inside the sphere's outline (it never leaves the glass). The sphere's own
+   * beads step back while it is there.
+   */
+  private drawRibbon(k: number, c: number, R: number, colors: SphereColors, dark: boolean, reduced: boolean) {
+    const ctx = this.ctx, { hi, alt } = colors, M = 96;
+    const T = reduced ? 0 : this.t;
+    const ay = T * 0.42, ax = 0.55 + 0.22 * Math.sin(T * 0.29), az = 0.35 * Math.sin(T * 0.17);
+    const cyy = Math.cos(ay), syy = Math.sin(ay), cxx = Math.cos(ax), sxx = Math.sin(ax), czz = Math.cos(az), szz = Math.sin(az);
+    const rot = (x: number, y: number, z: number): [number, number, number] => {
+      const x1 = x * cyy + z * syy, z1 = -x * syy + z * cyy;
+      const y2 = y * cxx - z1 * sxx, z2 = y * sxx + z1 * cxx;
+      return [x1 * czz - y2 * szz, x1 * szz + y2 * czz, z2];
+    };
+    const path = (u: number): [number, number, number] => {
+      const x = Math.cos(u), y = 0.5 * Math.sin(2 * u + T * 0.6), z = Math.sin(u), l = Math.hypot(x, y, z) / 0.62;
+      return [x / l, y / l, z / l];
+    };
+    // the band's two edges at each step, in view space, with its facing normal
+    const E1: [number, number, number][] = [], E2: [number, number, number][] = [], NZ: number[] = [], SP: number[] = [];
+    const L = [-0.42, -0.52, 0.74];
+    for (let i = 0; i <= M; i++) {
+      const u = (i / M) * TAU;
+      const p = path(u), a = path(u + 0.01), b = path(u - 0.01);
+      let tx = a[0] - b[0], ty = a[1] - b[1], tz = a[2] - b[2]; const tl = Math.hypot(tx, ty, tz); tx /= tl; ty /= tl; tz /= tl;
+      // out from the centre, made square to the path; and across
+      const pl = Math.hypot(p[0], p[1], p[2]); let nx = p[0] / pl, ny = p[1] / pl, nz = p[2] / pl;
+      const dp = nx * tx + ny * ty + nz * tz; nx -= dp * tx; ny -= dp * ty; nz -= dp * tz; const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
+      const bx = ty * nz - tz * ny, by = tz * nx - tx * nz, bz = tx * ny - ty * nx;
+      const tw = u + T * 0.7, ca = Math.cos(tw), sa = Math.sin(tw);
+      const dx = nx * ca + bx * sa, dy = ny * ca + by * sa, dz = nz * ca + bz * sa;
+      const w = 0.62 * (0.1 + 0.9 * (0.5 + 0.5 * Math.cos(2 * u + T * 0.45))) / 2;
+      E1.push(rot(p[0] + dx * w, p[1] + dy * w, p[2] + dz * w));
+      E2.push(rot(p[0] - dx * w, p[1] - dy * w, p[2] - dz * w));
+      // its face: across × along
+      const fx = dy * tz - dz * ty, fy = dz * tx - dx * tz, fz = dx * ty - dy * tx;
+      const f = rot(fx, fy, fz);
+      NZ.push(Math.abs(f[2]));
+      SP.push(Math.pow(Math.max(0, Math.abs(f[0] * L[0] + f[1] * L[1] + f[2] * L[2])), 14));
+    }
+    const P = (v: [number, number, number]) => { const s = 1 / (1 - v[2] * 0.24); return [c + v[0] * R * s, c + v[1] * R * s] as const; };
+    const quads: { z: number; i: number }[] = [];
+    for (let i = 0; i < M; i++) quads.push({ z: (E1[i][2] + E2[i][2] + E1[i + 1][2] + E2[i + 1][2]) / 4, i });
+    quads.sort((a, b) => a.z - b.z);
+    const op = ctx.globalCompositeOperation;
+    const mid = (i: number, f: number) => { const a = E1[i], b = E2[i]; const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, mz = (a[2] + b[2]) / 2;
+      return [[mx + (a[0] - mx) * f, my + (a[1] - my) * f, mz + (a[2] - mz) * f], [mx + (b[0] - mx) * f, my + (b[1] - my) * f, mz + (b[2] - mz) * f]] as [number, number, number][]; };
+    const quad = (i: number, f: number) => { const [a1, b1] = mid(i, f), [a2, b2] = mid(i + 1, f); const p = [P(a1), P(a2), P(b2), P(b1)];
+      ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]); for (let j = 1; j < 4; j++) ctx.lineTo(p[j][0], p[j][1]); ctx.closePath(); };
+    // its light inside the glass, and a soft halo round the band (light added: it glows into the glass)
+    ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over';
+    const g = ctx.createRadialGradient(c, c, 0, c, c, R);
+    g.addColorStop(0, `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${(0.26 * k).toFixed(3)})`);
+    g.addColorStop(1, `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c, c, R, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(${hi[0] | 0},${hi[1] | 0},${hi[2] | 0},${(0.07 * k).toFixed(3)})`;
+    for (const { i } of quads) { quad(i, 1.9); ctx.fill(); }
+    // the band itself: satin, drawn solid back to front on its own layer (so it passes in front of itself where it crosses,
+    // with no seams between its pieces), then laid into the glass as one, fading as a whole
+    const W2 = ctx.canvas.width;
+    if (!this.ribCv || this.ribCv.width !== W2) this.ribCv = new OffscreenCanvas(W2, W2);
+    const rc = this.ribCv.getContext('2d') as OffscreenCanvasRenderingContext2D;
+    rc.setTransform(1, 0, 0, 1, 0, 0); rc.clearRect(0, 0, W2, W2); rc.lineJoin = 'round';
+    const rq = (i: number) => { const p = [P(E1[i]), P(E1[i + 1]), P(E2[i + 1]), P(E2[i])]; rc.beginPath(); rc.moveTo(p[0][0], p[0][1]); for (let j = 1; j < 4; j++) rc.lineTo(p[j][0], p[j][1]); rc.closePath(); };
+    for (const { z, i } of quads) {
+      const face = (NZ[i] + NZ[i + 1]) / 2, sp = (SP[i] + SP[i + 1]) / 2;
+      const depth = (z / 0.62 + 1) / 2; // 0 back … 1 front
+      const m = 0.15 + 0.85 * Math.pow(face, 1.4);
+      const wh = Math.min(0.92, sp * 1.1 + (dark ? 0.4 : 0.22) * Math.pow(face, 2.4));
+      const dim = (0.4 + 0.6 * m) * (0.72 + 0.28 * depth); // (edge-on and far, it is the band's own shadow)
+      const r = (alt[0] + (hi[0] - alt[0]) * m) * dim, gg = (alt[1] + (hi[1] - alt[1]) * m) * dim, bb = (alt[2] + (hi[2] - alt[2]) * m) * dim;
+      const col = `rgb(${(r + (255 - r) * wh) | 0},${(gg + (255 - gg) * wh) | 0},${(bb + (255 - bb) * wh) | 0})`;
+      rc.fillStyle = col; rc.strokeStyle = col; rc.lineWidth = 1;
+      rq(i); rc.fill(); rc.stroke();
+    }
+    // its fine bright edges, where satin catches the light
+    rc.lineWidth = Math.max(0.8, R * 0.012); rc.lineCap = 'round';
+    for (let i = 0; i < M; i++) {
+      const depth = ((E1[i][2] + E1[i + 1][2]) / 2 / 0.62 + 1) / 2;
+      rc.strokeStyle = `rgba(255,255,255,${(0.35 * (0.3 + 0.7 * depth)).toFixed(3)})`;
+      const a1 = P(E1[i]), a2 = P(E1[i + 1]), b2 = P(E2[i + 1]), b1 = P(E2[i]);
+      rc.beginPath(); rc.moveTo(a1[0], a1[1]); rc.lineTo(a2[0], a2[1]); rc.moveTo(b1[0], b1[1]); rc.lineTo(b2[0], b2[1]); rc.stroke();
+    }
+    ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over';
+    ctx.globalAlpha = k * (dark ? 0.9 : 0.85);
+    ctx.drawImage(this.ribCv, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = op;
   }
 
   /** One half of Orbit: the back half (hidden where the sphere is in front of it, a faint trace through its glass) or the front. */

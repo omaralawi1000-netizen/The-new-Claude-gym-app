@@ -41,7 +41,7 @@ let lean: [number, number] = [0, 0];
 export function orbMoved(x = 0, y = 0) { lean = [Math.round(x * 4) / 4, Math.round(y * 4) / 4]; wakeOrb(); }
 let orbitOn = 0;
 /** Orbit (sphereRender.ts): the ring of beads round the orb, on the orb screen while talking live. */
-export function orbOrbit(on: boolean) { orbitOn = on ? 1 : 0; wakeOrb(); }
+export function orbOrbit(on: number) { orbitOn = on; wakeOrb(); } // (1 there, a dimmer 0.4 while muted, 0 gone)
 let beatPending = 0, beatAt = 0;
 /** A set was ticked: the orb answers with one soft heartbeat of light (it never changes shape). */
 export function orbBeat(strength = 1) { beatPending = Math.max(beatPending, strength); beatAt = performance.now(); wakeOrb(); }

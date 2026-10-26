@@ -146,6 +146,37 @@ function SaidMorph({ text, onSettled }: { text: string; onSettled: () => void })
  * speaks. Opacity and a vertical scale only, written straight to the element each frame (no React render, no blur); still
  * when the screen is hidden, instant under Reduce motion.
  */
+/** What it is doing while it thinks, from the function it called (Omar, 26 Oct): a few words under the orb. */
+function doingLine(name: string, args: Record<string, unknown>, t: (s: string) => string): string {
+  if (name === 'look_up') {
+    const kinds = Array.isArray(args.lookups) ? (args.lookups as { kind?: string }[]).map((x) => x?.kind ?? '') : [];
+    const k = kinds[0] ?? '';
+    if (kinds.includes('web')) return t('Searching the web…');
+    if (/^(food|nutrition|saved_food)$/.test(k)) return t('Looking at your food…');
+    if (/^(workouts|exercise_history|records|training_balance|exercises)$/.test(k)) return t('Looking at your training…');
+    if (k === 'body') return t('Looking at your weight…');
+    if (/^(health|activities)$/.test(k)) return t('Looking at your health data…');
+    if (/^(schedule|routines)$/.test(k)) return t('Looking at your plan…');
+    if (/^(memory|notes|conversations)$/.test(k)) return t('Remembering…');
+    return t('Looking it up…');
+  }
+  if (name === 'aven') {
+    const types = Array.isArray(args.actions) ? (args.actions as { type?: string }[]).map((x) => x?.type ?? '') : [];
+    const a = types[0] ?? '';
+    if (/^(log_food|log_quick|log_saved_meal|copy_food|catch_up)$/.test(a)) return t('Logging your food…');
+    if (/^(log_sets|log_current_set|edit_set)$/.test(a)) return t('Logging your sets…');
+    if (a === 'log_water') return t('Logging water…');
+    if (/^(log_weight|log_measurement)$/.test(a)) return t('Logging your weight…');
+    if (a === 'log_activity') return t('Logging your activity…');
+    if (/routine|split|schedule|plan_day|exercise/.test(a)) return t('Updating your plan…');
+    if (/workout/.test(a)) return t('Updating your workout…');
+    if (a === 'set_setting') return t('Changing a setting…');
+    if (a === 'remember' || a === 'forget') return t('Noting it down…');
+    return t('On it…');
+  }
+  return t('Thinking…');
+}
+
 function LiveAura({ session, mode }: { session: { current: LiveSession | null }; mode: 'off' | 'listen' | 'think' | 'speak' }) {
   const ref = useRef<HTMLDivElement>(null);
   const st = useRef({ o: 0, k: 0.55, raf: 0, last: 0 });
@@ -243,6 +274,8 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   const [muted, setMuted] = useState(false);
   const [camStream, setCamStream] = useState<MediaStream | null>(null);
   const [renewing, setRenewing] = useState(false);
+  // what it is doing while it thinks, in a few words (Omar's reference, 26 Oct: the assistant says live what it is working on)
+  const [doing, setDoing] = useState('');
   const liveTurn = useRef<{ id: string | null; said: string }>({ id: null, said: '' });
   const blobRef = useRef<Blob | null>(null);
   const handle = useRef<SpeechHandle | null>(null);
@@ -362,10 +395,11 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
         },
         onTurnStart: () => { if (!alive.current) return; if (!lt.id) { const id = openTurn(lt.said); lt.id = id; patch(id, { live: true }); } go('processing'); },
         onReplyText: (text) => { if (alive.current && lt.id) patch(lt.id, { reply: text }); },
-        onSpeaking: (on) => { if (!alive.current) return; setSpeaking(on); if (liveRef.current) go(on ? 'idle' : lt.id ? 'processing' : 'listening'); },
+        onSpeaking: (on) => { if (!alive.current) return; setSpeaking(on); if (on) setDoing(''); if (liveRef.current) go(on ? 'idle' : lt.id ? 'processing' : 'listening'); },
         onUsage: (u) => recordFee(liveCost(u)),
         onReconnecting: (on) => { if (alive.current) setRenewing(on); },
         onTool: async (name, args) => {
+          if (alive.current) setDoing(doingLine(name, args, t));
           if (name === 'look_up') {
             const list = validateLookups(args.lookups);
             if (!list.length) return 'Nothing to look up.';
@@ -387,7 +421,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
         onInterrupted: () => { if (alive.current && lt.id) patch(lt.id, { cut: true }); },
         onIdle: () => {
           if (!alive.current) return;
-          const id = lt.id; lt.id = null; lt.said = '';
+          const id = lt.id; lt.id = null; lt.said = ''; setDoing('');
           if (id) {
             const turn = turnsRef.current.find((x) => x.id === id);
             const threadId = turn ? appendExchange({ said: turn.said, reply: turn.reply, results: turn.results }) : null;
@@ -630,10 +664,12 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   }), []); // eslint-disable-line
   useEffect(() => () => hand.stop(), [hand]);
   // Orbit: while you talk live on this screen (it drifts away as the orb leaves)
-  useEffect(() => { orbOrbit(liveUi && present); return () => orbOrbit(false); }, [liveUi, present]);
+  // (muted or reconnecting, the ring dims and quietens: it isn't hearing you)
+  useEffect(() => { orbOrbit(!liveUi || !present ? 0 : muted || renewing ? 0.4 : 1); }, [liveUi, present, muted, renewing]);
+  useEffect(() => () => orbOrbit(0), []);
   const dragged = useRef(false);
   // what it's doing, in a word (the orb says it too, in light): listening, thinking, speaking
-  const liveLabel = renewing ? t('Reconnecting…') : muted ? t('Muted') : !liveActive ? '' : speaking ? t('Speaking') : phase === 'processing' ? t('Thinking…') : phase === 'listening' ? t('Listening') : '';
+  const liveLabel = renewing ? t('Reconnecting…') : muted ? t('Muted') : !liveActive ? '' : speaking ? t('Speaking') : phase === 'processing' ? doing || t('Thinking…') : phase === 'listening' ? t('Listening') : '';
   // the sphere is about to grow or shrink (the .45 s transition below): its canvas holds the big size meanwhile
   // (talking live the orb's canvas is 1/0.66 bigger, so Orbit's ring has room round it: the sphere looks the same size; the
   // ring is wide, not tall, so the room above and below it is taken back with negative margins)
@@ -695,7 +731,10 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
             </span>
           </motion.button>
           {/* talking live only says something when it matters (muted, reconnecting); its room is kept, so nothing jumps */}
-          {liveUi && <div className="micro" aria-live="polite" style={{ marginTop: 10, minHeight: 14, color: 'var(--ac-text)' }}>{liveLabel}</div>}
+          {liveUi && <div className="micro" aria-live="polite" style={{ marginTop: 10, minHeight: 14, color: 'var(--ac-text)' }}>
+            {/* (each new line fades in over the last: it reads as one voice saying what it does next) */}
+            <motion.span key={liveLabel} style={{ display: 'inline-block' }} initial={calm ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, ease: [0.2, 0.7, 0.2, 1] }}>{liveLabel}</motion.span>
+          </div>}
         </div>
         {!liveUi && <div style={{ textAlign: 'center', marginTop: big ? 14 : 8 }}>
           <div className="micro" aria-live="polite" style={{ color: phase === 'listening' ? 'var(--ac-text)' : undefined }}>{label}</div>

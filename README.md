@@ -3210,3 +3210,11 @@ up with a swipe and it reacts to my swipe, not just an animation, and maybe a bo
   Film it smoothly: `node scripts/film-orbit-lab.mjs out.mp4` (the renderer alone, stepped at 60 fps on a timeline with real
   voice levels, `scripts/orbit-lab/`); in the app: `scripts/film-orbit.mjs`; checks: `scripts/journey-orbhand.mjs`,
   `scripts/film-orbhand.mjs`.
+- **Thinking, from Omar's three reference clips (26 Oct: "a beautiful thinking state… and all the other states"):** a glass sphere
+  with a ribbon of light twisting inside it, and an assistant that says live what it is working on. So: thinking, the ring
+  pours into the glass bead by bead in a spiral and becomes a satin ribbon of light inside it (`drawRibbon`: a looping band
+  with two broad lobes, one twist, lit bright face-on and dark edge-on with a highlight from the top left, drawn solid on its
+  own layer and laid in as one, so no seams); the sphere's beads step back and its old thinking comets give way. Answering,
+  the ribbon unspools back out into the ring. Under the orb a line says what it is doing, from the function it called
+  ("Looking at your food…", "Logging your sets…", "Searching the web…"; `doingLine` in Voice.tsx, Danish in da.ts), each
+  new line fading in over the last. Muted or reconnecting, the ring dims to 40% and quietens.
