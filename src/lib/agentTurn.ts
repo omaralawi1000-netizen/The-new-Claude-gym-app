@@ -3,24 +3,26 @@ import { edFromMemory, frequentHeavy, justNoticed, markCoachTold } from './eatin
 import { trueMaintenance } from './maintenance';
 import { useStore } from '../state/store';
 import { getKey } from './keys';
-import { AiError, FALLBACK_MODELS, aiAgent, aiAgentStream, dedupeSources, geminiSearch, plainModels, type Brain, type Photo, type Turn, type WebSource } from './gemini';
+import { AiError, COACH_MODEL, FALLBACK_MODELS, aiAgent, aiAgentStream, dedupeSources, geminiSearch, plainModels, type Brain, type Photo, type Turn, type WebSource } from './gemini';
 import { quickFor, refreshSolModel, solAgent, solJson, solModel, solSearch, type Effort } from './openai';
 import { solThenGemini } from './brain';
 import { overLimit } from './spend';
 import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, buildTodayContext, exerciseNames, memoryBlock } from './coachContext';
 import { learnedBlock } from './ledger';
 import { reviewsBlock } from './weekReview';
-import { localActions, validateAgent, type AgentAction } from './agent';
+import { fillFromReply, localActions, savePlanFromGoals, validateAgent, type AgentAction } from './agent';
+import { answerProblems, checkNote, readableDates } from './answerCheck';
 import { lookupStatus, runLookups, validateLookups, type SaidLine } from './agentLookup';
 import { mealName } from './derive';
 import { dayKey } from './dates';
 import { noteTrouble } from './trouble';
 import type { AppData, Exercise, Lang } from './types';
 
-/** Gemini models to try, best first: the strong one for understanding, the fast one for small jobs (estimates). */
-export function agentModels(brain: boolean): string[] {
+/** Gemini models to try, best first: the strong one for understanding, the fast one for small jobs (estimates); the Coach's own
+ *  thinking starts with Argon. */
+export function agentModels(brain: boolean, coach = false): string[] {
   const m = useAi.getState().models;
-  return [...new Set((brain ? [m.brain || FALLBACK_MODELS.brain, m.brainAlt, m.fast || FALLBACK_MODELS.fast] : [m.fast || FALLBACK_MODELS.fast, m.fastAlt, m.brain || FALLBACK_MODELS.brain]).filter(Boolean))];
+  return [...new Set((brain ? [coach ? COACH_MODEL : '', m.brain || FALLBACK_MODELS.brain, m.brainAlt, m.fast || FALLBACK_MODELS.fast] : [m.fast || FALLBACK_MODELS.fast, m.fastAlt, m.brain || FALLBACK_MODELS.brain]).filter(Boolean))];
 }
 
 /**
@@ -33,7 +35,7 @@ export function brainFor(o: { big: boolean; surface: 'orb' | 'coach'; signal?: A
   const sol = solOn(g) && !overLimit(g.solLimitKr) ? { key: getKey('openai'), effort: o.surface === 'coach' ? g.effortCoach : g.effortOrb } : undefined;
   if (sol?.key) void refreshSolModel(sol.key); // a newer model on the account is picked up (at most one look a day)
   if (!sol && !g.hasGemini) return null;
-  return { key: g.hasGemini ? getKey('gemini') : '', models: agentModels(o.big), signal: o.signal, sol };
+  return { key: g.hasGemini ? getKey('gemini') : '', models: agentModels(o.big, o.surface === 'coach'), signal: o.signal, sol };
 }
 
 /**
@@ -263,14 +265,12 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
         : aiAgent(sys, conv, brain, o.photo));
       // Up to three rounds: the model may first ask to look something up in the data (any day, any lift, the whole plan…),
       // the phone answers at once, and the model is asked again with the results. The last round must answer.
-      let raw: any = null, found = '';
-      for (let round = 0; round < MAX_ROUNDS; round++) {
-        const last = round === MAX_ROUNDS - 1;
-        const sys = system + (found ? `\n\nLOOKUP RESULTS (you asked for these in this turn; answer from them, do not ask for them again):\n${found}` : '') + (last && round > 0 ? '\n\nNo more look-ups this turn: answer now with what you have, and say if something is still unknown.' : '');
-        // Sol gets 45 s in the Coach and 20 s on the orb to start answering (deep thinking on a slow line could run for
-        // minutes), then Gemini answers; once its words flow they are never cut. Without a Gemini key there is nothing
-        // to hand over to, so it waits
-        const limit = !brain.key ? 0 : o.surface === 'coach' ? 45000 : 20000;
+      let raw: any = null, found = '', sys = system;
+      // Sol gets 45 s in the Coach and 20 s on the orb to start answering (deep thinking on a slow line could run for
+      // minutes), then Gemini answers; once its words flow they are never cut. Without a Gemini key there is nothing
+      // to hand over to, so it waits
+      const limit = !brain.key ? 0 : o.surface === 'coach' ? 45000 : 20000;
+      const ask = async (sys: string) => {
         const r = await solThenGemini(brain, (sol) => withTimeout(limit, o.signal, (signal, seen) => {
           const onReply = (x: string) => { if (x) seen(); o.onReply?.(x); };
           return solAgent(sys, conv, { ...sol, signal, onAny: seen }, onReply, o.photo)
@@ -279,7 +279,12 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
         }), () => { o.onReply?.(''); return gemini(sys); });
         if (r.fellBack) note = r.fellBack.code === 'quota' ? t('Your OpenAI account is out of credit, so Gemini answered.') : t('GPT-6.1 Sol wasn’t available, so Gemini answered.');
         if (r.fellBack) noteTrouble('fellBack', r.fellBack.code);
-        raw = r.value;
+        return r.value;
+      };
+      for (let round = 0; round < MAX_ROUNDS; round++) {
+        const last = round === MAX_ROUNDS - 1;
+        sys = system + (found ? `\n\nLOOKUP RESULTS (you asked for these in this turn; answer from them, do not ask for them again):\n${found}` : '') + (last && round > 0 ? '\n\nNo more look-ups this turn: answer now with what you have, and say if something is still unknown.' : '');
+        raw = await ask(sys);
         const look = last ? [] : validateLookups((raw as any)?.lookups);
         if (!look.length) break;
         o.onReply?.(''); // anything it wrote beside the look-up is not the answer
@@ -296,8 +301,21 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
       }
       o.onStatus?.('');
       lastRaw = { at: Date.now(), by: brain.sol?.key && !note ? `OpenAI ${brain.sol.model ?? solModel()}` : `Gemini (${brain.models.join(', ')})`, plain: plainModels(), text: (() => { try { return JSON.stringify(raw, null, 1).slice(0, 20000); } catch { return String(raw).slice(0, 20000); } })() };
-      const v = validateAgent(raw);
+      let v = validateAgent(raw);
       if (!v) { noteTrouble('invalid', lastRaw.by); throw new AiError('invalid'); }
+      v = { ...v, reply: readableDates(v.reply, lang), actions: savePlanFromGoals(sys, v.reply, fillFromReply(v.reply, v.actions, lang)) };
+      // read once before it is shown: a reply that says it did what no action does, an empty action, a MUST SAY left
+      // out → asked once more with the problems named (answerCheck.ts); the better of the two answers stands
+      const probs = answerProblems(v.reply, v.actions, sys);
+      if (probs.length) {
+        o.onStatus?.(t('Checking the answer…'));
+        const again = await ask(sys + '\n\nNo look-ups now: answer.' + checkNote(probs, raw)).catch((e) => { if (e?.code === 'aborted') throw e; return null; });
+        o.onStatus?.('');
+        const v1 = again ? validateAgent(again) : null;
+        const v2 = v1 ? { ...v1, reply: readableDates(v1.reply, lang), actions: savePlanFromGoals(sys, v1.reply, fillFromReply(v1.reply, v1.actions, lang)) } : null;
+        if (v2 && v2.reply.trim() && answerProblems(v2.reply, v2.actions, sys).length < probs.length) { v = v2; raw = again; }
+        else o.onReply?.(v.reply);
+      }
       reply = v.reply; actions = v.actions; dropped = v.dropped; fromAi = true;
       if (dropped) noteTrouble('dropped', `${dropped} action${dropped > 1 ? 's' : ''} · ${lastRaw.by}${v.droppedRaw ? ` · ${v.droppedRaw}` : ''}`);
     } catch (e: any) {

@@ -11,9 +11,11 @@ as an installed app and judges everything on the phone. He is not a programmer: 
 
 ## Rules that must hold
 - **Read `docs/style-guide.md` first and follow it** (glass, colour, motion, performance, process, rejected looks). It is Omar's one written style for every session.
-- Blur AND 120 fps. Frosted glass stays; make it cheap instead of removing it: blur only small fixed layers, never blur
-  on blur, never animate the blur, animate only transform and opacity, pause off-screen animation.
-- Motion stays slow, calm and Apple-like. Never faster or snappier unless Omar agrees. The orb never changes shape.
+- Rules are guides, not vetoes (Omar, 26 Oct: "remove all the rules that are not good for me"). Live blur, animated blur,
+  animated shadows and livelier or faster motion may all be tried: build it, measure it on Beta, let Omar judge.
+- Blur AND smooth. Frosted glass stays; never solve lag by removing blur. Transform and opacity are the cheapest to
+  animate; anything costlier is fine if it measures smooth (120 fps target) on his phone. Pause off-screen animation.
+- Firm: no flicker or black frames, no layout jumps. Calm Apple-like motion is the default feel. The orb never changes shape.
 - Floating surfaces (rest bar, sheets, bars, buttons) are see-through frost, never a solid block.
 - API keys are typed into Settings and stay on the phone: never in code, commits, logs or backups. No paid services.
 - Danish and English: every new UI string needs a Danish entry in `src/lib/da.ts` (`node scripts/i18n-keys.mjs --missing`).
