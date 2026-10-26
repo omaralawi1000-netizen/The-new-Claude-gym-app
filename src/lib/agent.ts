@@ -290,7 +290,8 @@ function validateOne(a: any, out: AgentAction[]) {
       case 'edit_routine': {
         const routine = str(a.routine, 60); if (!routine) break;
         const rename = str(a.rename, 60) ?? null, add = bits(a.add), change = bits(a.change), remove = (Array.isArray(a.remove) ? a.remove : []).slice(0, 12).map((x: any) => str(x, 60)).filter(Boolean) as string[];
-        if (rename || add.length || change.length || remove.length) out.push({ type: 'edit_routine', routine, rename, add, change, remove });
+        // (kept with no change too, so its card says nothing changed: dropped, the reply said "updated"; judge round 12)
+        out.push({ type: 'edit_routine', routine, rename, add, change, remove });
         break;
       }
       case 'delete_routine': { const routine = str(a.routine, 60); if (routine) out.push({ type: 'delete_routine', routine }); break; }
@@ -1119,7 +1120,7 @@ function itemsFrom(list: RoutineBit[], lang: 'en' | 'da') {
 function fullBodyTemplate(name: string): RoutineBit[] {
   if (!/full[\s-]?body|helkrop/i.test(name)) return [];
   const b = /\b(b|2)\s*$/i.test(name.trim());
-  const ex = b ? ['Romanian Deadlift', 'Overhead Press', 'Lat Pulldown', 'Leg Press'] : ['Squat', 'Bench Press', 'Barbell Row', 'Plank'];
+  const ex = b ? ['Romanian Deadlift', 'Overhead Press', 'Lat Pulldown', 'Leg Press'] : ['Squat', 'Bench Press', 'Barbell Row', 'Reverse Lunge'];
   return ex.map((exercise) => ({ exercise, sets: 3, repMin: 6, repMax: 10 }));
 }
 
@@ -1172,7 +1173,7 @@ function doEditRoutine(a: Extract<AgentAction, { type: 'edit_routine' }>, ctx: A
     m.skipped.forEach((n) => steps.push({ line: { text: n, sub: t('Not in your exercise library'), warn: true } }));
   }
   const real = steps.filter((x) => x.run).length;
-  if (!real) return { id: uid('r'), kind: 'miss', title: t('Couldn’t change that routine'), lines: steps.map((x) => x.line) };
+  if (!real) return { id: uid('r'), kind: 'miss', title: t('Couldn’t change that routine'), lines: steps.length ? steps.map((x) => x.line) : [{ text: r.name, warn: true }] };
   // the routine with the changes that are ticked (all of them, unless the preview's ticks left some out)
   const build = (off: number[]) => {
     let x: Step = { name: r.name, items: [...r.items] };

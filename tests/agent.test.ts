@@ -229,6 +229,9 @@ describe('the whole app by voice: move, replace, copy, routines, sets, plan', ()
     // (a routine with no exercises is kept so its card can say so, instead of a reply claiming it was made)
     const [r] = await run([{ type: 'create_routine', name: 'x', add: [] }]);
     expect(r.kind).toBe('miss');
+    // (and an edit with no change: its card says so; the reply had said "updated")
+    const [e] = await run([{ type: 'edit_routine', routine: 'Push' }]);
+    expect(e.kind).toBe('miss');
     const [m] = await run([{ type: 'move_food', target: 'pizza', meal_to: 'lunch' }]);
     expect(m.kind).toBe('miss');
   });
