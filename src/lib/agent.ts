@@ -36,7 +36,7 @@ import { muscleOf } from './agentLookup';
 import { detectRecords, workoutName, workoutSearchName } from './workout';
 import { buildDayPlan, pickForMuscles } from './planDay';
 import { specOf } from './settingSpec';
-import { goalStart } from './goals';
+import { activeGoals, goalStart } from './goals';
 import { weekdayOf } from './dates';
 import { buildChart, CHART_METRICS, type ChartData, type ChartMetric } from './agentCharts';
 
@@ -112,7 +112,7 @@ const LOG_TYPES: LogType[] = ['weightReps', 'bodyweightReps', 'assisted', 'durat
 export interface RoutineBit { exercise: string; sets?: number | null; repMin?: number | null; repMax?: number | null; restSec?: number | null; warmup?: number | null }
 /** "today" | "yesterday" | YYYY-MM-DD, anything else is "not said". */
 /** A goal as the Coach gives it (lib/goals.ts): what to track, the target, the date; or that a goal ended. */
-export interface GoalArg { metric: 'weight' | 'lift' | 'other'; target?: number; reps?: number; by?: string; status?: 'active' | 'done' | 'dropped' }
+export interface GoalArg { metric: 'weight' | 'lift' | 'other'; target?: number; reps?: number; by?: string; status?: 'active' | 'done' | 'dropped'; /** read from the words: "lose 2 kg" (the target is worked out from their weight) */ delta?: number; exercise?: Exercise }
 function goalArg(v: any): GoalArg | null {
   if (!v || typeof v !== 'object') return null;
   const metric = v.metric === 'weight' || v.metric === 'lift' ? v.metric : 'other';
@@ -1205,7 +1205,11 @@ function doDuplicateRoutine(a: Extract<AgentAction, { type: 'duplicate_routine' 
 
 /** A small chart in the chat: the model picks the metric, the numbers are the app's own (agentCharts.ts). */
 function doShowChart(a: Extract<AgentAction, { type: 'show_chart' }>, ctx: AgentCtx): AgentResult {
-  const b = buildChart(a.metric, { exercise: a.exercise, weeks: a.weeks, today: ctx.today, lang: ctx.lang, t: ctx.t });
+  // (a strength chart with no lift named, while one lift goal runs: that lift)
+  const st = useStore.getState();
+  const goalLift = !a.exercise && a.metric === 'strength' ? activeGoals(st, ctx.today).filter((m) => m.goal?.metric === 'lift' && m.exerciseIds?.length) : [];
+  const exercise = a.exercise ?? (goalLift.length === 1 ? allExercises(st.exercises).find((e) => e.id === goalLift[0].exerciseIds![0])?.name ?? null : null);
+  const b = buildChart(a.metric, { exercise, weeks: a.weeks, today: ctx.today, lang: ctx.lang, t: ctx.t });
   if ('miss' in b) return { id: uid('r'), kind: 'miss', title: b.miss, lines: [] };
   return { id: uid('r'), kind: 'chart', title: b.title, subtitle: b.subtitle, lines: [], chart: b.chart };
 }
@@ -1476,18 +1480,20 @@ function closestNote(list: MemoryNote[], q: string): MemoryNote | undefined {
 function doRemember(a: Extract<AgentAction, { type: 'remember' }>, ctx: AgentCtx): AgentResult {
   const { t, lang } = ctx;
   const st = useStore.getState();
-  const ex = a.exercise ? findExercise(a.exercise, lang) : undefined;
+  // the newer fact replaces the older one: the note the Coach named (its MEMORY number), else the same note said again
+  const seen = a.replaces ? (ctx.memAtStart ?? st.memory)[a.replaces - 1] : undefined;
+  const old = (seen && st.memory.find((m) => m.id === seen.id)) || st.memory.find((m) => sameNote(m.text, a.text));
+  // a goal note without its numbers (a model that left goal out): read from its words — "Goal: 82 → 80 kg by 2026-11-16"
+  const g0 = a.goal ?? (a.kind === 'goal' ? goalFromText(a.text, a.until ?? undefined, old, lang) : undefined);
+  const ex = a.exercise ? findExercise(a.exercise, lang) : g0?.exercise;
   // a goal keeps its date in goal.by (it is followed up after the date too, never just dropped like a temporary note)
-  const tillRaw = a.goal && !a.goal.by && a.until ? a.until : undefined;
-  const goalIn = a.goal ? { ...a.goal, ...(tillRaw ? { by: tillRaw } : {}) } : undefined;
+  const tillRaw = g0 && !g0.by && a.until ? a.until : undefined;
+  const goalIn = g0 ? { ...g0, ...(tillRaw ? { by: tillRaw } : {}) } : undefined;
   // a temporary thing ends on its own (a date in the past or years away is not one)
   const until = !goalIn && a.until && a.until >= ctx.today && a.until <= addDays(ctx.today, 366) ? a.until : undefined;
   const fields = { text: a.text, kind: goalIn ? 'goal' as const : a.kind, ...(ex ? { exerciseIds: [ex.id] } : {}) };
   const more = { label: t('See all'), run: openMemory };
   const untilSub = until ? t('until {date}', { date: fmtDate(until, lang, { weekday: 'short', day: 'numeric', month: 'short' }) }) : undefined;
-  // the newer fact replaces the older one: the note the Coach named (its MEMORY number), else the same note said again
-  const seen = a.replaces ? (ctx.memAtStart ?? st.memory)[a.replaces - 1] : undefined;
-  const old = (seen && st.memory.find((m) => m.id === seen.id)) || st.memory.find((m) => sameNote(m.text, a.text));
   const goal = goalIn ? goalPlan(goalIn, ex, old, ctx) : undefined;
   const sub = (goal ? goalSub(goal, ex, ctx) : undefined) ?? untilSub ?? (ex ? exLabel(ex, lang) : undefined);
   if (old) {
@@ -1523,6 +1529,9 @@ function goalPlan(g: GoalArg, ex: Exercise | undefined, old: MemoryNote | undefi
   let metric = g.metric === 'lift' && !(ex ?? (prev?.metric === 'lift' && old?.exerciseIds?.length)) ? 'other' as const : g.metric;
   const exId = ex?.id ?? old?.exerciseIds?.[0];
   const now = goalStart(st, { metric }, exId, ctx.today);
+  // ("lose 2 kg": from where they are now)
+  if (metric === 'weight' && g.target === undefined && g.delta !== undefined && now !== undefined) g = { ...g, target: Math.round((now + g.delta) * 10) / 10 };
+  if (metric === 'weight' && g.target === undefined) metric = 'other';
   if (metric === 'weight' && g.target !== undefined && (g.target < 30 || g.target > 250 || (now !== undefined && Math.abs(g.target - now) > 40))) metric = 'other';
   const by = g.by && g.by >= ctx.today && g.by <= addDays(ctx.today, 3 * 366) ? g.by : undefined;
   const same = prev && !prev.status && prev.metric === metric && (metric !== 'lift' || old?.exerciseIds?.[0] === exId);
@@ -1530,6 +1539,35 @@ function goalPlan(g: GoalArg, ex: Exercise | undefined, old: MemoryNote | undefi
     metric, ...(metric !== 'other' && g.target !== undefined ? { target: g.target } : {}), ...(metric === 'lift' ? { reps: g.reps ?? 1 } : {}), ...(by ? { by } : {}),
     startDate: same ? prev!.startDate : ctx.today, ...((same ? prev!.start : now) !== undefined ? { start: same ? prev!.start : now } : {}),
   };
+}
+
+const LIFT_WORDS = /\b(bench|squat|deadlift|overhead press|ohp|military press|pull-?ups?|chin-?ups?|dips?|row|hip thrust|bænk\w*|dødløft|squat)\b/i;
+const kgNum = (x: string) => Number(x.replace(',', '.'));
+/** A goal's numbers read from its words, when the model didn't give them: a lift ("Bench Press 47.5 → 80 kg"), a
+ *  bodyweight ("82 → 80 kg", "make the 74 kg class", "lose 2 kg"), a date (YYYY-MM-DD), or that it was reached or dropped. */
+export function goalFromText(text: string, until: string | undefined, old: MemoryNote | undefined, lang: 'en' | 'da'): GoalArg | undefined {
+  if (old?.goal && !old.goal.status && /\b(reached|achieved|completed|hit it|nået|naet)\b/i.test(text)) return { metric: old.goal.metric, status: 'done' };
+  if (old?.goal && !old.goal.status && /\b(dropped|gave up|given up|abandoned|droppet|opgivet)\b/i.test(text)) return { metric: old.goal.metric, status: 'dropped' };
+  const by = text.match(/\b(\d{4}-\d{2}-\d{2})\b/)?.[1] ?? until;
+  const kgs = [...text.matchAll(/(\d{1,3}(?:[.,]\d+)?)\s*kg\b/gi)].map((m) => kgNum(m[1]));
+  // a lift: one of their exercises named in the words (the longest name that fits), or a common lift word
+  const f = fold(text);
+  const pool = allExercises(useStore.getState().exercises).filter((e) => !e.archived && e.logType === 'weightReps');
+  const named = pool.flatMap((e) => [e.name, e.nameDa].filter(Boolean).map((n) => ({ e, n: fold(n!) }))).filter((x) => x.n.length >= 4 && f.includes(x.n)).sort((x, y) => y.n.length - x.n.length)[0]?.e;
+  const word = text.match(LIFT_WORDS)?.[1];
+  const ex = named ?? (word ? findExercise(word, lang) : undefined);
+  if (ex && kgs.length) {
+    const reps = Number(text.match(/(?:[×x]\s*|for\s+)(\d{1,2})\b(?!\s*kg)/i)?.[1] ?? 1);
+    return { metric: 'lift', target: kgs[kgs.length - 1], reps: reps >= 1 && reps <= 30 ? reps : 1, ...(by ? { by } : {}), exercise: ex };
+  }
+  const arrow = text.match(/(\d{2,3}(?:[.,]\d+)?)\s*(?:kg\s*)?(?:→|->|to|til)\s*(\d{2,3}(?:[.,]\d+)?)\s*kg/i);
+  if (arrow) return { metric: 'weight', target: kgNum(arrow[2]), ...(by ? { by } : {}) };
+  const cls = text.match(/(\d{2,3}(?:[.,]\d+)?)\s*kg\s*(?:weight\s*)?(?:class|klasse|vægtklasse)/i) ?? text.match(/\b(?:under|below|weigh in at|make)\s+(\d{2,3}(?:[.,]\d+)?)\s*kg/i);
+  // (a weight class is a goal to reach only with its weigh-in date: "wrestles in the 74 kg class" is a fact about them)
+  if (cls && by) return { metric: 'weight', target: kgNum(cls[1]), by };
+  const rel = text.match(/\b(lose|losing|drop|cut|shed|tabe|tab|gain|gaining|put on|add|bulk|tage på|tag på)\s+(?:about\s+|around\s+|ca\.?\s+)?(\d{1,2}(?:[.,]\d+)?)\s*kg/i);
+  if (rel) return { metric: 'weight', delta: (/^(gain|put|add|bulk|tag)/i.test(rel[1]) ? 1 : -1) * kgNum(rel[2]), ...(by ? { by } : {}) };
+  return by ? { metric: 'other', by } : undefined;
 }
 
 /** The card's second line for a goal: "82.4 → 80 kg · by Mon 9 Nov". */

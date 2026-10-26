@@ -1906,4 +1906,6 @@ export const da: Record<string, string> = {
  "Slow: {goal}": "Langsomt: {goal}",
  "Date passed: {goal}": "Datoen er passeret: {goal}",
  "Too early to tell: {goal}": "For tidligt at sige: {goal}",
+ "About {rate} a week. Faster than about 0.5% a week is mostly fat.": "Omkring {rate} om ugen. Hurtigere end ca. 0,5 % om ugen er mest fedt.",
+ "What you eat points to {rate} a week.": "Det, du spiser, peger på {rate} om ugen.",
 };

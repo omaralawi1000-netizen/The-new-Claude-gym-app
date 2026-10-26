@@ -17,6 +17,7 @@ import { addDays, diffDays } from './dates';
 import { oddWeighIns, weighIns } from './dataQuality';
 import { trueMaintenance } from './maintenance';
 import { weightTrend, nutritionByDay, stalledLifts, skippedSets } from './stats';
+import { exerciseMap } from '../state/store';
 
 type Data = Pick<AppData, 'memory' | 'weights' | 'health' | 'entries' | 'sessions' | 'exercises' | 'routines' | 'settings'>;
 
@@ -93,6 +94,9 @@ export interface GoalState {
   daysIn: number; daysLeft?: number;
   /** kg a week, + up, − down: from the scale's trend or the lift's sets */
   rate?: number; rateBasis?: string;
+  /** a weight goal: what the food logged since it started points to (intake against TRUE MAINTENANCE), kg a week: the
+   *  early guide while the scale still swings with water */
+  eating?: { kcal: number; days: number; maint: number; kgPerWeek: number };
   /** kg a week it takes from here to make the date */
   need?: number;
   /** safe band for a weight goal, kg a week (as positive numbers) */
@@ -122,10 +126,16 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
     const last = ws[ws.length - 1];
     if (!last) return { ...base, start: g.start, why: 'no weigh-ins' };
     const trend = weightTrend(ws);
-    // the pace: the last 4 weeks of weigh-ins, at least 6 over 14+ days (fewer is mostly water)
-    const recent = ws.filter((w) => w.date >= addDays(today, -27));
-    const span = recent.length ? diffDays(recent[recent.length - 1].date, recent[0].date) : 0;
-    const sl = recent.length >= 6 && span >= 14 ? slope(recent.map((w) => ({ date: w.date, v: w.kg }))) : null;
+    // the pace: since the goal started once that has 5 weigh-ins over a week (what they do now, not before the plan),
+    // else the last 4 weeks with 6 over 14+ days (fewer is mostly water)
+    const since = ws.filter((w) => w.date >= startDate);
+    const spanS = since.length ? diffDays(since[since.length - 1].date, since[0].date) : 0;
+    const slS = since.length >= 5 && spanS >= 7 ? slope(since.map((w) => ({ date: w.date, v: w.kg })), 4) : null;
+    const four = ws.filter((w) => w.date >= addDays(today, -27));
+    const span4 = four.length ? diffDays(four[four.length - 1].date, four[0].date) : 0;
+    const sl4 = four.length >= 6 && span4 >= 14 ? slope(four.map((w) => ({ date: w.date, v: w.kg }))) : null;
+    const sl = slS ?? sl4;
+    const recent = slS !== null ? since : four;
     // where they are now: on that line when there is one (a smoothed average lags a steady loss by about half a kilo),
     // else the smoothed trend
     const now = sl !== null ? median(recent.map((w) => w.kg + sl * diffDays(last.date, w.date)))! : trend[trend.length - 1].kg;
@@ -135,6 +145,10 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
     const dir = Math.sign(g.target - (start ?? now)) || -1;
     const safe = dir < 0 ? { min: r2(now * 0.005), max: r2(now * 0.01) } : { min: r2(now * 0.0025), max: r2(now * 0.005) };
     const st: GoalState = { ...base, start: start !== undefined ? r1(start) : undefined, now: r1(now), measured: { kg: last.kg, date: last.date }, safe };
+    // the food since it started (finished logged days, today not counted), against TRUE MAINTENANCE
+    const m = trueMaintenance(d, today);
+    const ate = nutritionByDay(d.entries, startDate, addDays(today, -1)).filter((x) => x.logged && !x.partial && x.kcal >= 800);
+    if (m && ate.length >= 3) { const k = avg(ate.map((x) => x.kcal))!; st.eating = { kcal: rk(k), days: ate.length, maint: m.kcal, kgPerWeek: r2(((k - m.kcal) * 7) / KCAL_PER_KG) }; }
     // reached: the trend is there, or the last three weigh-ins all are
     const last3 = ws.slice(-3);
     const there = (kg: number) => (dir < 0 ? kg <= g.target! + 0.05 : kg >= g.target! - 0.05);
@@ -145,9 +159,18 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
     st.dateUnsafe = st.need !== undefined && Math.abs(st.need) > safe.max + 1e-9;
     st.safeEta = addDays(today, Math.ceil((Math.abs(left) / safe.max) * 7));
     if (daysLeft !== undefined && daysLeft < 0) { st.pace = 'date passed'; return st; }
-    if (sl === null) return { ...st, pace: 'too early', why: `${recent.length} weigh-ins over ${span} days in the last 4 weeks (the pace needs 6 over 14+ days)` };
-    st.rate = r2(sl * 7);
-    st.rateBasis = `the scale's trend, ${recent.length} weigh-ins over the last ${span + 1} days`;
+    // in its first 2 weeks, without a week of its own weigh-ins, a goal is judged on what they eat (the weeks before it
+    // were a different plan), and not at all in its first days without that
+    const young = slS === null && daysIn < 14;
+    const scale4 = sl4 !== null ? `${fmtPace(r2(sl4 * 7))} on the scale over the last 4 weeks, mostly before the goal` : undefined;
+    if (young && !(st.eating && daysIn >= 3)) {
+      if (scale4) st.rateBasis = scale4;
+      return { ...st, pace: 'too early', why: `the goal is ${daysIn} day${daysIn === 1 ? '' : 's'} old; its own pace shows after about a week of weigh-ins` };
+    }
+    if (!young && sl === null) return { ...st, pace: 'too early', why: `${four.length} weigh-ins over ${span4} days in the last 4 weeks (the pace needs 6 over 14+ days)` };
+    st.rate = young ? st.eating!.kgPerWeek : r2(sl! * 7);
+    st.rateBasis = young ? `what they eat since the goal started (the scale's own pace shows after about a week of weigh-ins${scale4 ? `; ${scale4}` : ''})`
+      : slS !== null ? `the scale since the goal started, ${since.length} weigh-ins over ${spanS + 1} days` : `the scale over the last 4 weeks, ${four.length} weigh-ins over ${span4 + 1} days`;
     const toward = st.rate * dir;
     if (toward > 0.02) st.eta = addDays(today, Math.ceil((Math.abs(left) / toward) * 7));
     st.pace = toward < -0.05 ? 'wrong way'
@@ -205,8 +228,23 @@ export function goalCalories(d: Data, st: GoalState, today: string): string | un
   if (st.need !== undefined && !st.dateUnsafe) parts.push(`the date's ${r2(Math.abs(st.need))} kg/week = about ${fmtK(at(Math.abs(st.need)))} kcal a day`);
   if (st.need !== undefined && st.dateUnsafe) parts.push(`the date's ${r2(Math.abs(st.need))} kg/week would need about ${fmtK(m.kcal + dir * per(Math.abs(st.need)))} kcal a day: past the safe pace${m.kcal + dir * per(Math.abs(st.need)) < floor ? ' and under the safe floor' : ''}, don't offer it`);
   const mid = r2((st.safe!.min + st.safe!.max) / 2);
-  parts.push(`a safe ${r2(st.safe!.min)}–${r2(st.safe!.max)} kg/week = about ${fmtK(at(st.safe!.max))}–${fmtK(at(st.safe!.min))} kcal (${mid} kg/week ≈ ${fmtK(at(mid))})`);
-  return `Calories for it, from TRUE MAINTENANCE ${fmtK(m.kcal)} kcal (${m.confidence} confidence; 7,700 kcal a kg): ${parts.join('; ')}; never under ${fmtK(floor)} kcal. ${prot}${cur}.`;
+  const [lo, hi] = dir < 0 ? [at(st.safe!.max), at(st.safe!.min)] : [at(st.safe!.min), at(st.safe!.max)];
+  parts.push(`a safe ${r2(st.safe!.min)}–${r2(st.safe!.max)} kg/week = about ${fmtK(lo)}–${fmtK(hi)} kcal (${mid} kg/week ≈ ${fmtK(at(mid))})`);
+  return `Calories for it, from TRUE MAINTENANCE ${fmtK(m.kcal)} kcal (${m.confidence} confidence; 7,700 kcal a kg): ${parts.join('; ')}${dir < 0 ? `; never under ${fmtK(floor)} kcal` : ''}. ${prot}${cur}.`;
+}
+
+/** For planning a new goal: what each pace costs or adds in calories, from TRUE MAINTENANCE (so the plan's numbers are
+ *  the app's, not worked out in the answer). */
+function paceTable(d: Data, today: string): string | undefined {
+  const m = trueMaintenance(d, today);
+  const ws = cleanWeighIns(d, today);
+  const kg = ws.length ? weightTrend(ws)[ws.length - 1].kg : undefined;
+  if (!m || !kg) return undefined;
+  const floor = Math.max(d.settings.body?.sex === 'female' ? 1400 : 1700, rk(m.kcal * 0.7));
+  const row = (wk: number) => `${wk > 0 ? '+' : '−'}${Math.abs(wk)} kg/week ≈ ${fmtK(Math.max(floor, m.kcal + (wk * KCAL_PER_KG) / 7))}`;
+  const max = r2(kg * 0.01);
+  const loss = [...[0.25, 0.5, 0.75].filter((x) => x < max - 0.05), max];
+  return `For planning a new goal (calories a day for each pace, from TRUE MAINTENANCE ${fmtK(m.kcal)} at ${r1(kg)} kg): ${[...loss.map((x) => row(-x)), row(0.25), row(0.4)].join(', ')}. Safe: losing up to ${r2(kg * 0.01)} kg/week (1 % of bodyweight), gaining up to ${r2(kg * 0.005)} kg/week; never under ${fmtK(floor)} kcal.`;
 }
 
 const fmtPace = (x: number) => `${x > 0 ? '+' : ''}${r2(x)} kg/week`;
@@ -226,7 +264,8 @@ const STATUS: Record<Pace, string> = {
 export function goalLines(d: Data, today: string, exName: (id: string) => string): string[] {
   const memory = d.memory ?? [];
   const goals = memory.filter((m) => m.kind === 'goal');
-  if (!goals.length) return [];
+  const table = paceTable(d, today);
+  if (!goals.length) return table ? [`GOALS: none told yet. ${table}`] : [];
   const num = (m: MemoryNote) => memory.indexOf(m) + 1;
   const run = activeGoals(d, today);
   const L: string[] = [`GOALS (told in chat; the app tracks them from the day they were set. Numbers below are worked out by the app: quote them, never redo the maths). ${run.length ? 'Running:' : 'None running.'}`];
@@ -253,6 +292,8 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
       if (st.now !== undefined) parts.push(`Now: estimated max ${st.now} kg from their best recent set (an estimate from reps; only a real attempt proves it).${st.stalled ? ' It is in Stalled lifts.' : ''}`);
     }
     if (st.rate !== undefined) parts.push(`Pace: ${fmtPace(st.rate)} (${st.rateBasis}).`);
+    else if (st.rateBasis) parts.push(`(${st.rateBasis}.)`);
+    if (st.eating && !st.rateBasis?.startsWith('what they eat')) parts.push(`What they eat points to ${fmtPace(st.eating.kgPerWeek)}: ${st.eating.days} logged days since the goal started averaging ${fmtK(st.eating.kcal)} kcal against TRUE MAINTENANCE ${fmtK(st.eating.maint)}${st.daysIn < 14 ? ' (the better guide in the first 2 weeks, while the scale swings with water)' : ''}.`);
     if (st.need !== undefined) parts.push(`The date needs ${fmtPace(st.need)} from here${st.dateUnsafe ? `: FASTER THAN SAFE (safe is ${st.safe!.min}–${st.safe!.max} kg/week, ${st.metric === 'weight' && (st.target ?? 0) < (st.now ?? 0) ? '0.5–1 % of bodyweight' : '0.25–0.5 % of bodyweight'})` : ''}.`);
     else if (st.safe) parts.push(`Safe pace ${st.safe.min}–${st.safe.max} kg/week.`);
     if (st.eta && st.pace !== 'too fast') parts.push(`At this pace it lands around ${st.eta}.`);
@@ -262,6 +303,7 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
     const cal = goalCalories(d, st, today);
     L.push(`- [memory ${num(m)}] "${m.text}": ${parts.join(' ')}${cal ? `\n  ${cal}` : ''}`);
   }
+  if (table) L.push(table);
   const ended = goals.filter((m) => m.goal?.status && m.goal.endedOn && diffDays(today, m.goal.endedOn) <= 60);
   if (ended.length) L.push(`Ended goals (last 60 days): ${ended.map((m) => `"${m.text}" ${m.goal!.status === 'done' ? 'reached' : 'dropped'} on ${m.goal!.endedOn}`).join('; ')}.`);
   return L;
@@ -290,18 +332,23 @@ export function goalWatchLines(d: Data, today: string, exName: (id: string) => s
   const head = sinceGoal ? `since the goal started on ${startDate}` : 'the last 2 weeks';
 
   // strength on the main lifts: the most trained weight × reps lifts of the last 8 weeks
-  const exs = new Map(d.exercises.map((e) => [e.id, e]));
+  // (compound lifts: a lateral raise or a curl says little about muscle on a cut)
+  const exs = exerciseMap(d.exercises);
   const count = new Map<string, number>();
-  for (const s of d.sessions) if (s.status === 'done' && s.date >= addDays(today, -55)) for (const e of s.exercises) if ((exs.get(e.exerciseId)?.logType ?? 'weightReps') === 'weightReps' && e.sets.some((q) => q.done && q.type === 'working' && q.weightKg)) count.set(e.exerciseId, (count.get(e.exerciseId) ?? 0) + 1);
+  for (const s of d.sessions) if (s.status === 'done' && s.date >= addDays(today, -55)) for (const e of s.exercises) {
+    const x = exs.get(e.exerciseId);
+    if ((x?.logType ?? 'weightReps') === 'weightReps' && x?.movement !== 'isolation' && x?.movement !== 'core' && e.sets.some((q) => q.done && q.type === 'working' && q.weightKg)) count.set(e.exerciseId, (count.get(e.exerciseId) ?? 0) + 1);
+  }
   const main = [...count].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id]) => id);
   const rows: { id: string; a: number; b: number; pct: number }[] = [];
   for (const id of main) {
-    const a = best(liftTops(d, id, beforeFrom, beforeTo)), b = best(liftTops(d, id, nowFrom, today));
+    // (now: the better of its last two workouts, so a slide shows within days; before: the best of the window before)
+    const a = best(liftTops(d, id, beforeFrom, beforeTo)), b = best(liftTops(d, id, nowFrom, today).slice(-2));
     if (a && b) rows.push({ id, a: a.e, b: b.e, pct: ((b.e - a.e) / a.e) * 100 });
   }
   if (rows.length) {
     const down = rows.filter((x) => x.pct <= -3);
-    L.push(`Strength (best estimated max, ${sinceGoal ? `${nowFrom}…today vs the 4 weeks before the goal` : 'last 2 weeks vs the 4 weeks before'}): ${rows.map((x) => `${exName(x.id)} ${r1(x.a)} → ${r1(x.b)} kg (${x.pct >= 0 ? '+' : ''}${Math.round(x.pct)} %)`).join(', ')}. ${down.length} of ${rows.length} down 3 % or more.`);
+    L.push(`Strength (estimated max: the better of the last 2 workouts${sinceGoal ? ` since ${nowFrom}, vs the best of the 4 weeks before the goal` : ' in the last 2 weeks, vs the best of the 4 weeks before'}): ${rows.map((x) => `${exName(x.id)} ${r1(x.a)} → ${r1(x.b)} kg (${x.pct >= 0 ? '+' : ''}${Math.round(x.pct)} %)`).join(', ')}. ${down.length} of ${rows.length} down 3 % or more.`);
     if (cutting && down.length >= 2 && down.length * 2 >= rows.length) L.push(`SIGN TO RAISE: strength is falling on most main lifts during a cut. That is the early warning for losing muscle (or for not recovering: sleep, protein, a too-big deficit). The data can't tell which: say it as a sign with these numbers, check protein, sleep and the pace above, and offer one fix (a smaller deficit, more protein, more sleep), never lighter training.`);
     else if (down.length === 1) L.push(`One lift down alone is usually a bad day or fatigue, not muscle loss: mention it only if asked or if it keeps falling.`);
   } else L.push(`Strength: not enough recent sessions of the same lifts to compare (needs a session of each in both windows).`);

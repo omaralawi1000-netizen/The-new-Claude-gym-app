@@ -217,3 +217,22 @@ describe('the Coach is told how to coach a goal', () => {
     expect(findNudges(data(), today, 9, t, 'en', name).some((x) => x.id === 'goal-ask')).toBe(false);
   });
 });
+
+describe('a goal note without its numbers', () => {
+  it('reads them from its words: a bodyweight, a lift, a class with its date, "lose 2 kg", and that it was reached', async () => {
+    useStore.setState({ weights: weighIns(20, 82.5, -0.3) });
+    await act({ type: 'remember', kind: 'goal', text: 'Goal: 81.9 → 80.0 kg by 2026-11-16, about 0.55 kg a week' });
+    expect(data().memory[0].goal).toMatchObject({ metric: 'weight', target: 80, by: '2026-11-16' });
+    await act({ type: 'remember', kind: 'goal', text: 'Goal: Barbell Bench Press 47.5 kg -> 80 kg by 2027-06-01' });
+    expect(data().memory[1]).toMatchObject({ exerciseIds: ['bench-press'], goal: { metric: 'lift', target: 80, reps: 1, by: '2027-06-01' } });
+    await act({ type: 'remember', kind: 'goal', text: 'Make the 80 kg class at the weigh-in on 2026-11-28.' });
+    expect(data().memory[2].goal).toMatchObject({ metric: 'weight', target: 80, by: '2026-11-28' });
+    await act({ type: 'remember', kind: 'goal', text: 'Wants to lose 2 kg.' });
+    expect(data().memory[3].goal!.target).toBeCloseTo(data().memory[3].goal!.start! - 2, 1);
+    await act({ type: 'remember', kind: 'goal', text: 'Wrestles in the under-65 kg class.' });
+    expect(data().memory[4].goal).toBeUndefined();
+    const r = await act({ type: 'remember', kind: 'goal', memory: '1', text: 'Goal reached: 80.0 kg on 2026-10-25.' });
+    expect(r.title).toBe('Goal reached');
+    expect(data().memory[0].goal).toMatchObject({ status: 'done', target: 80 });
+  });
+});
