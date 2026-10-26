@@ -7,14 +7,14 @@ exact step; a "yes, but…" is not a go. Omar's doc for it: https://claude.ai/ar
 
 | Step | State | Where |
 | --- | --- | --- |
-| 1 · Honest voice | **built; refined through round 9 (Omar 23:00: "I want this to be very good"); six fresh judges 7 → 7.5 → 7.5 → 8 → 8.2 → 8.4, every must-fix done (round 9's small fixes self-checked + tests). What's left is the backup model's wording. Waiting on Omar's clear yes** on https://claude.ai/artifact/GjDMaqc9pEpChSCGqHzvPZ | branch `claude/project-thread-fomqy0` (not merged, no version bump yet), README "Living coach, step 1"; replies per round in /mnt/project-files/living-coach/step1-r*-run*.json |
+| 1 · Honest voice | **SHIPPED v0.1.179 (26 Oct, PR #204, Omar's go 00:18).** Refined through round 9; six fresh judges 7 → 7.5 → 7.5 → 8 → 8.2 → 8.4, every must-fix done | README "Living coach, step 1"; before/after https://claude.ai/artifact/GjDMaqc9pEpChSCGqHzvPZ; replies per round in /mnt/project-files/living-coach/step1-r*-run*.json |
 | 2 · Goals you tell it | not started, needs its own go | — |
 | 3 · Phone test (APK) | not started | — |
 | 4 · Morning looks | not started | — |
 | 5 · Full coach | not started | — |
 | 6 · Sunday review | not started | — |
 
-**Next:** Omar judges step 1's before/after replies → ship to the real app (no Beta: text and logic) → stop. Step 2 only
+**Next:** step 1 is live; Omar tries it on his phone. Step 2 (goals you tell it) only
 after a new go; it touches Coach memory, which Omar's other Claude Code session also works on: pull the default branch
 first and read its newest commits to `types.ts`, `agent.ts`, `coachContext.ts`.
 
