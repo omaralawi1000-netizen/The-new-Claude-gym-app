@@ -461,7 +461,7 @@ describe('judge round 5 (26 Oct)', () => {
     // 4 weeks: Fridays at 3,400, other days 2,500
     const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); return entry(date, new Date(`${date}T12:00:00`).getDay() === 5 ? 3400 : 2500); });
     useStore.setState({ weights: weighIns(28, 82, 0), entries });
-    expect(goalLines(data(), today, name).join('\n')).toMatch(/What most likely breaks a plan \(last 4 weeks, 28 finished logged days\): Fridays average 3,400 kcal, against 2,500 on the other days, mostly the lunch meal: 3,400 kcal on those days vs 2,500 on the others[^;]*; a cap for those days that still holds a plan: its daily target \+ 300 \([^)]*2,900 at the current 2,600 target\); with it the pace is about 0\.04 kg\/week slower than the row: say the pace with the cap;[^;]*; protein at or above 180 g on 0 of 28 days/);
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/What most likely breaks a plan \(last 4 weeks, 28 finished logged days\): Fridays average 3,400 kcal, against 2,500 on the other days, mostly the lunch meal: 3,400 kcal on those days vs 2,500 on the others[^;]*; a cap for those days that still holds a plan: its daily target \+ 300 \([^)]*2,900 at the current 2,600 target\); with it the pace is about 0\.04 kg\/week slower than the row, so a plan that keeps a date takes the row about that much faster[^;]*never the row.s date with the slower pace;[^;]*; protein at or above 180 g on 0 of 28 days/);
     useStore.setState({ memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 80 kg', at: 0, goal: { metric: 'weight', target: 80, by: addDays(today, 40), startDate: addDays(today, -3), start: 82 } }] });
     expect(goalLines(data(), today, name).join('\n')).toMatch(/Check-in 2026-11-05 \(every 2 weeks\): the scale's pace under half of what the date needs then → 150 kcal less/);
     useStore.setState({ memory: [{ id: 'p', kind: 'goal', text: 'Log every meal this week', at: 0, goal: { metric: 'other', by: addDays(today, 2), startDate: addDays(today, -3) } }], entries: entries.filter((e) => e.date !== addDays(today, -2)) });
@@ -565,5 +565,159 @@ describe('judge round 12 (26 Oct)', () => {
     const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); return entry(date, [0, 2, 5].includes(new Date(`${date}T12:00:00`).getDay()) ? 3400 : 2500); });
     useStore.setState({ weights: weighIns(28, 82, 0), entries });
     expect(goalLines(data(), today, name).join('\n')).toMatch(/they come 3 days a week, so their cap is the daily target itself \(\+300 on them would cut the pace by about 0\.12 kg\/week and miss the date\)/);
+  });
+});
+
+describe('goal words in other wordings (Gemini Pro and Gemini 4 Argon, 26 Oct)', () => {
+  const acts = async (list: Record<string, unknown>[]) => runActions(validateAgent({ reply: '', actions: list })!.actions, ctx());
+  it('"+2 kg (to 83.7 kg)", "down to 80 kg" and "−2 kg" are bodyweight goals; a pace per week is not one', () => {
+    useStore.setState({ weights: weighIns(7, 81.7, 0) });
+    expect(goalFromText('Goal: +2 kg (to 83.7 kg) by 2026-12-01, about 0.3 kg a week', undefined, undefined, 'en', today)).toMatchObject({ metric: 'weight', target: 83.7, by: '2026-12-01' });
+    expect(goalFromText('Goal: down to 80 kg by 2026-12-01', undefined, undefined, 'en', today)).toMatchObject({ metric: 'weight', target: 80 });
+    expect(goalFromText('Goal: −2 kg by 2026-12-01', undefined, undefined, 'en', today)).toMatchObject({ metric: 'weight', delta: -2 });
+    expect(goalFromText('Goal: leaner, -0.5 kg a week by 2026-12-01', undefined, undefined, 'en', today)).toMatchObject({ metric: 'other' });
+  });
+  it('a date said in words: this week to its Sunday, summer, Christmas, a weekday, a month; a range ends on its last date', () => {
+    // (today is a Sunday)
+    expect(goalFromText('Log every meal this week, no skipping dinner.', undefined, undefined, 'en', today)).toMatchObject({ metric: 'other', by: today });
+    expect(goalFromText('Log every meal this week', undefined, undefined, 'en', '2026-10-19')).toMatchObject({ by: '2026-10-25' });
+    expect(goalFromText('Goal: Barbell Bench Press 100 kg by summer', undefined, undefined, 'en', today)).toMatchObject({ metric: 'lift', target: 100, by: '2027-06-01' });
+    expect(goalFromText('Goal: lose 3 kg by Christmas', undefined, undefined, 'en', today)).toMatchObject({ delta: -3, by: '2026-12-24' });
+    expect(goalFromText('Goal: log every meal by Friday', undefined, undefined, 'en', today)).toMatchObject({ by: '2026-10-30' });
+    expect(goalFromText('Goal: lose 2 kg by December', undefined, undefined, 'en', today)).toMatchObject({ by: '2026-12-01' });
+    expect(goalFromText('Goal: log every meal including dinner every day this week (2026-10-19 to 2026-10-25)', undefined, undefined, 'en', today)).toMatchObject({ by: '2026-10-25' });
+    expect(goalFromText('I may want to cut later', undefined, undefined, 'en', today)).toBeUndefined();
+  });
+  it('a "this week" promise is a goal with its week, so Today shows it', async () => {
+    useStore.setState({ memory: [] });
+    const [r] = await acts([{ type: 'remember', kind: 'goal', text: 'Log every meal this week, no skipping dinner.' }]);
+    expect(r.title).toBe('Goal set');
+    expect(data().memory[0].goal).toMatchObject({ metric: 'other', by: today });
+  });
+  it('a weigh-in in a class above, saved beside the gain: a date to remember, not a second goal', async () => {
+    useStore.setState({ weights: weighIns(14, 81.7, 0), memory: [] });
+    const r = await acts([
+      { type: 'remember', kind: 'goal', text: 'Goal: +2 kg (to 83.7 kg) by 2026-12-01, about 0.3 kg a week' },
+      { type: 'remember', kind: 'goal', text: 'Weigh-in: 86 kg class on 2026-12-01' },
+    ]);
+    expect(r.map((x) => x.title)).toEqual(['Goal set', 'Remembered']);
+    const [gain, wi] = data().memory;
+    expect(gain.goal).toMatchObject({ metric: 'weight', target: 83.7, by: '2026-12-01' });
+    expect(wi).toMatchObject({ kind: 'schedule', until: '2026-12-01' });
+    expect(wi.goal).toBeUndefined();
+  });
+  it('the same action twice in one answer is done once', async () => {
+    useStore.setState({ memory: [] });
+    const r = await acts([{ type: 'remember', kind: 'preference', text: 'Likes morning sessions' }, { type: 'remember', kind: 'preference', text: 'Likes morning sessions' }]);
+    expect(r).toHaveLength(1);
+  });
+});
+
+describe('what the reply says, kept when the actions leave it out (26 Oct)', () => {
+  it('a routine change named with a lift word; a goal plan from the sentence that gives it', async () => {
+    const { changeFromReply, fillFromReply } = await import('../src/lib/agent');
+    const push = { name: 'Push', items: [{ id: 'i1', exerciseId: 'bench-press', workingSets: 3, repMin: 8, repMax: 12 }] as any[] };
+    expect(changeFromReply('In Push, bench is now set to 4 × 3–5.', push, () => 'Barbell Bench Press', () => 'bench-press')).toEqual([{ exercise: 'Barbell Bench Press', sets: 4, repMin: 3, repMax: 5 }]);
+    const reply = 'It\'s stalled. Instead of chasing the 6th rep, the change for the next 4 weeks is a 4th set at 77.5 kg (4 × 5–8). I have saved this updated plan to your goal.';
+    const [a] = fillFromReply(reply, [{ type: 'remember', kind: 'goal', text: 'Goal: Barbell Bench Press 100 kg', replaces: 4 }]);
+    expect(a).toMatchObject({ plan: 'Instead of chasing the 6th rep, the change for the next 4 weeks is a 4th set at 77.5 kg (4 × 5–8).' });
+    // (no plan said to be changed: nothing is added)
+    expect(fillFromReply('Keep going: 77.5 × 6 next time.', [{ type: 'remember', kind: 'goal', text: 'Goal: bench 100', replaces: 4 }])[0]).not.toHaveProperty('plan');
+  });
+});
+
+describe('a routine change in a sentence that names no exercise (Flash, 26 Oct)', () => {
+  it('is about the one exercise of the routine the reply talks about', async () => {
+    const { changeFromReply, fillFromReply } = await import('../src/lib/agent');
+    const push = { name: 'Push', items: [{ id: 'i1', exerciseId: 'bench-press', workingSets: 3, repMin: 8, repMax: 12 }, { id: 'i2', exerciseId: 'ohp', workingSets: 3, repMin: 8, repMax: 12 }] as any[] };
+    const reply = 'Your best set is stuck at 77.5 kg × 5 across your last 10 bench sessions. For the next 4 weeks, the plan is 4 sets of 4–6 reps at 77.5 kg. I have updated Push so the workout screen tracks 4 sets of 4–6.';
+    const nameOf = (id: string) => (id === 'ohp' ? 'Overhead Press' : 'Barbell Bench Press');
+    expect(changeFromReply(reply, push, nameOf, (w) => (/bench/i.test(w) ? 'bench-press' : undefined))).toEqual([{ exercise: 'Barbell Bench Press', sets: 4, repMin: 4, repMax: 6 }]);
+    expect(changeFromReply(reply.replace('bench', 'bench and overhead press'), push, nameOf, (w) => (/bench/i.test(w) ? 'bench-press' : /overhead/i.test(w) ? 'ohp' : undefined))).toEqual([]);
+    expect(fillFromReply(reply, [{ type: 'remember', kind: 'goal', text: 'Goal: bench 100', replaces: 4 }])[0]).toMatchObject({ plan: 'For the next 4 weeks, the plan is 4 sets of 4–6 reps at 77.5 kg.' });
+  });
+});
+
+describe('word dates only as deadlines (judge, 26 Oct)', () => {
+  it('"on Monday mornings" is no date; "next Sunday" on a Sunday is a week away; a lift "to 90 kg" is no bodyweight', () => {
+    expect(goalFromText('Goal: weigh in on Monday mornings', undefined, undefined, 'en', today)).toBeUndefined();
+    expect(goalFromText('Log every meal until next Sunday', undefined, undefined, 'en', today)).toMatchObject({ by: '2026-11-01' });
+    useStore.setState({ weights: weighIns(7, 82, 0) });
+    expect(goalFromText('Goal: power clean to 90 kg by 2027-01-01', undefined, undefined, 'en', today)?.metric).not.toBe('weight');
+  });
+});
+
+describe('routine change from a change sentence; an unclaimed empty edit is dropped (Flash, 26 Oct)', () => {
+  it('"add a 4th working set (4 × 5), then push to 4 × 6" is 4 × 5–6; "77.5 × 6" is a weight, not sets', async () => {
+    const { changeFromReply } = await import('../src/lib/agent');
+    const push = { name: 'Push', items: [{ id: 'i1', exerciseId: 'bench-press', workingSets: 3, repMin: 8, repMax: 12 }] as any[] };
+    const nameOf = () => 'Barbell Bench Press';
+    const idOf = (w: string) => (/bench/i.test(w) ? 'bench-press' : undefined);
+    expect(changeFromReply('Your bench is stuck. I have updated your plan: stay at 77.5 kg and add a 4th working set (4 × 5), then push to 4 × 6 before stepping up to 80 kg.', push, nameOf, idOf)).toEqual([{ exercise: 'Barbell Bench Press', sets: 4, repMin: 5, repMax: 6 }]);
+    expect(changeFromReply('Your bench is stuck. Now aim for 77.5 × 6 next time.', push, nameOf, idOf)).toEqual([]);
+  });
+  it('an empty edit the reply never mentions makes no card', async () => {
+    const { fillFromReply } = await import('../src/lib/agent');
+    expect(fillFromReply('Keep going.', [{ type: 'edit_routine', routine: 'Push', add: [], change: [], remove: [] }])).toEqual([]);
+    expect(fillFromReply('I have updated your Push routine.', [{ type: 'edit_routine', routine: 'Push', add: [], change: [], remove: [] }])).toHaveLength(1);
+  });
+});
+
+describe('a routine change the reply says it made is sent; a plan is saved without "I have updated your plan to" (Argon, 26 Oct)', () => {
+  const push = () => useStore.setState({ routines: [{ id: 'r1', name: 'Push', updatedAt: 0, items: [{ id: 'i1', exerciseId: 'bench-press', workingSets: 3, repMin: 8, repMax: 12 }] }] as any });
+  it('"… and updated Barbell Bench Press in Push to 4 sets of 5–8" with no action → the edit', async () => {
+    const { fillFromReply } = await import('../src/lib/agent');
+    push();
+    expect(fillFromReply('Saved your 100 kg bench goal for 1 June and updated Barbell Bench Press in Push to 4 sets of 5–8 reps. Next session, aim for 6 reps.', [{ type: 'remember', text: 'Goal: bench press 100 kg by 2027-06-01', kind: 'goal' } as any]))
+      .toContainEqual({ type: 'edit_routine', routine: 'Push', change: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 5, repMax: 8 }] });
+  });
+  it('"I have updated your plan and Push routine to 4 × 4–6 …, adding 2.5 kg once you hit 4 × 6" → the edit and a clean plan', async () => {
+    const { fillFromReply } = await import('../src/lib/agent');
+    push();
+    const out = fillFromReply('Your bench is stalled at 77.5 kg × 5. Instead of chasing 6 reps on 3 sets, I have updated your plan and Push routine to 4 × 4–6 reps at 77.5 kg, adding 2.5 kg once you hit 4 × 6.', [{ type: 'remember', text: 'Goal: bench press 100 kg by 2027-06-01', kind: 'goal', replaces: 4 } as any]);
+    expect(out).toContainEqual({ type: 'edit_routine', routine: 'Push', change: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 4, repMax: 6 }] });
+    expect((out[0] as any).plan).toBe('4 × 4–6 reps at 77.5 kg, adding 2.5 kg once you hit 4 × 6.');
+  });
+  it('"updated Push to 4 sets of Barbell Bench Press" keeps its reps; "For the next 4 weeks, let\'s switch to 4 sets of 4–6 reps in Push" is the change and the plan', async () => {
+    const { fillFromReply } = await import('../src/lib/agent');
+    push();
+    expect(fillFromReply('Saved your 100 kg bench goal for 1 June and updated Push to 4 sets of Barbell Bench Press.', []))
+      .toEqual([{ type: 'edit_routine', routine: 'Push', change: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 8, repMax: 12 }] }]);
+    const out = fillFromReply('Your bench is stalled at 77.5 kg × 5. For the next 4 weeks, let\'s switch to 4 sets of 4–6 reps in Push, then jump to 80 kg × 4.', [{ type: 'remember', text: 'Goal: bench', kind: 'goal', replaces: 4 } as any]);
+    expect(out).toContainEqual({ type: 'edit_routine', routine: 'Push', change: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 4, repMax: 6 }] });
+    expect((out[0] as any).plan).toMatch(/^For the next 4 weeks/);
+  });
+  it('an offer, or "push" as a verb, makes no edit', async () => {
+    const { fillFromReply } = await import('../src/lib/agent');
+    push();
+    expect(fillFromReply('Want me to update your Push routine to 4 × 5–8?', [])).toEqual([]);
+    expect(fillFromReply('I have updated your plan: stay at 77.5 kg and push to 4 × 6 before 80 kg.', [])).toEqual([]);
+    expect(fillFromReply('I can set Push to 4 × 5–8 if you want.', [])).toEqual([]);
+  });
+  it('a done sentence still counts up to its "once you" (answerProblems sees the claim)', async () => {
+    const { answerProblems } = await import('../src/lib/answerCheck');
+    expect(answerProblems('I have updated your Push routine to 4 × 4–6, adding 2.5 kg once you hit 4 × 6.', [], '')).toHaveLength(1);
+    expect(answerProblems('If you want, I can update your Push routine.', [], '')).toEqual([]);
+  });
+});
+
+describe('a lift goal\'s reps are its own (Argon, 26 Oct)', () => {
+  it('"100 kg by 2027-06-01 (from 77.5 kg × 5)" is 100 × 1; "100 kg × 3" and "80 → 100 kg × 3" are × 3', () => {
+    expect(goalFromText('Goal: bench press 100 kg by 2027-06-01 (from 77.5 kg × 5)', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100, reps: 1 });
+    expect(goalFromText('Goal: bench press 100 kg × 3 by 2027-06-01', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100, reps: 3 });
+    expect(goalFromText('Goal: bench press 80 → 100 kg × 3 by 2027-06-01', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100, reps: 3 });
+    expect(goalFromText('Goal: bench press 100 kg for 5 by summer', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100, reps: 5 });
+  });
+});
+
+describe('a goal lift\'s new plan sent only to the routine is saved on the goal too (Argon, 26 Oct)', () => {
+  it('takes the goal note GOALS names and the plan sentence of the reply', async () => {
+    const { savePlanFromGoals } = await import('../src/lib/agent');
+    const sys = 'GOALS … When you change its plan (one change), make it in this answer, not as a question: send {"type":"remember","memory":4,"text":"Goal: Barbell Bench Press 100 kg by 2027-06-01","goalPlan":"<the new plan>"} and …';
+    const edit = { type: 'edit_routine', routine: 'Push', change: [{ exercise: 'Barbell Bench Press', sets: 5, repMin: 3, repMax: 5 }] } as any;
+    const reply = 'We agreed on 6 reps, and it has been 5, 5, 5, 5, so I have updated Push to 5 sets of 3–5 reps: push 80 kg × 3–5 for the next 4 weeks, then 82.5 kg.';
+    expect(savePlanFromGoals(sys, reply, [edit])).toEqual([edit, { type: 'remember', text: 'Goal: Barbell Bench Press 100 kg by 2027-06-01', kind: 'goal', exercise: null, replaces: 4, until: null, plan: '5 sets of 3–5 reps: push 80 kg × 3–5 for the next 4 weeks, then 82.5 kg.' }]);
+    expect(savePlanFromGoals('GOALS: none told yet.', reply, [edit])).toEqual([edit]);
+    expect(savePlanFromGoals(sys, reply, [])).toEqual([]);
   });
 });

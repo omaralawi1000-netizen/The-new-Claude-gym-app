@@ -14,7 +14,8 @@ exact step; a "yes, but…" is not a go. Omar's doc for it: https://claude.ai/ar
 | 5 · Full coach | not started | — |
 | 6 · Sunday review | not started | — |
 
-**Next:** step 2 is live; Omar uses it with a real goal. In parallel (needs his go): the stronger-AI test (the 9
+**Next:** step 2 is live, polished and on Gemini 4 Argon (v0.1.181, 26 Oct: judges ~5 → 7–7.5; Omar is out of OpenAI
+credit, so background thinking in step 3 is planned on free Gemini). Omar uses it with a real goal. In parallel (needs his go): the stronger-AI test (the 9
 conversations on Gemini Pro + one fresh judge). Step 3 (phone test) needs its own go; his Aven app's battery is
 already Unrestricted (Omar, 26 Oct). Left open by the last judge (polish): a stall's change is sometimes asked instead
 of saved; the first plan reply can carry two asks; a goal is sometimes saved on a "help me" before the yes.

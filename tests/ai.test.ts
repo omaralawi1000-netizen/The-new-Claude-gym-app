@@ -114,6 +114,11 @@ describe('gemini plumbing', () => {
     const r = await withFallback(['a', 'b'], async (m) => { calls.push(m); if (m === 'a') throw new AiError('quota', 429); return 'ok'; });
     expect(r).toBe('ok'); expect(calls).toEqual(['a', 'b']); expect(isExhausted('a')).toBe(true);
     await expect(withFallback(['c'], async () => { throw new AiError('badkey', 403); })).rejects.toMatchObject({ code: 'badkey' });
+    // a slow model hands over to the next one; the last one's timeout is the answer
+    const slow: string[] = [];
+    expect(await withFallback(['argon', 'flash'], async (m) => { slow.push(m); if (m === 'argon') throw new AiError('timeout'); return 'flash ok'; })).toBe('flash ok');
+    expect(slow).toEqual(['argon', 'flash']);
+    await expect(withFallback(['flash'], async () => { throw new AiError('timeout'); })).rejects.toMatchObject({ code: 'timeout' });
     await expect(withFallback(['a'], async () => 'x')).rejects.toMatchObject({ code: 'quota' }); // only model left is exhausted
   });
   it('parses SSE frames and keeps the unfinished tail', () => {
