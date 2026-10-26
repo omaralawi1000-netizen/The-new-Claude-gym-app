@@ -32,6 +32,14 @@ const SHARE = ['num', 'unit', 'chart'];
 /** a spring whose last bit is eased out to rest: the sampled spring stops a fraction short and then lands, which over a
  * whole screen width is a visible half-pixel jump at the end. Its remaining distance is faded to 0 over the last 30 %. */
 const softEnd = (easing: string) => { const v = easing.slice(7, -1).split(',').map(Number), n = v.length - 1; return `linear(${v.map((x, i) => +(1 - (1 - x) * Math.min(1, (n - i) / (0.3 * n))).toFixed(5)).join(', ')})`; };
+/** a spring cut where less than half a screen pixel of a `w` px move is left, and scaled to land exactly: the start keeps
+ * its calm pace, but the last few px no longer creep a step every other frame */
+const trim = (sp: { easing: string; duration: number }, w: number) => {
+  const v = sp.easing.slice(7, -1).split(',').map(Number), n = v.length - 1, px = 0.5 / (window.devicePixelRatio || 1);
+  let i = n; while (i > 1 && (1 - v[i - 1]) * w < px) i--;
+  const k = v[i] || 1;
+  return { easing: `linear(${v.slice(0, i + 1).map((x) => +Math.min(1, x / k).toFixed(5)).join(', ')})`, duration: Math.round(sp.duration * i / n) };
+};
 type Box = { x: number; y: number; w: number; h: number; full?: boolean };
 /** the spring's progress at time p (0–1), read off its linear() samples */
 const curve = (easing: string) => { const v = easing.slice(7, -1).split(',').map(Number), n = v.length - 1; return (p: number) => { if (p <= 0) return v[0]; if (p >= 1) return v[n]; const f = p * n, i = Math.floor(f); return v[i] + (v[i + 1] - v[i]) * (f - i); }; };
@@ -341,19 +349,21 @@ export class Expander {
   private slideOpen(st: State) {
     const { L, mat, scr } = this.e, sm = this.sm(), W = this.e.root.clientWidth + 48;
     st.slide = true;
+    this.e.det.classList.remove('moving'); // square the whole time: a shape change at the end would pop
     L.forEach((l) => { l.style.transform = ''; });
     st.anims.push(this.anim(mat, [{ opacity: 1 }, { opacity: 1 }], { duration: 1 }));
     // the page's own number and chart stay where they are (nothing flies)
     $$('[data-share]', this.e.dsc).forEach((x) => { x.style.opacity = ''; });
-    const o = { duration: sm.duration + 160, easing: softEnd(sm.easing) };
+    const o = trim({ duration: sm.duration + 160, easing: sm.easing }, W);
     st.anims.push(this.anim(L[0], [{ transform: `translateX(${W}px)` }, { transform: 'none' }], o));
     st.anims.push(this.anim(scr, [{ transform: 'none' }, { transform: `translateX(${-W}px)` }], o));
     this.playPage(Math.round(o.duration * 0.25));
     st.anims[1].finished.then(() => { if (this.st === st && !st.closing) this.e.det.classList.remove('moving'); }).catch(() => {});
   }
   private slideClose(st: State) {
+    this.e.det.classList.remove('moving');
     const { L, scr } = this.e, sm = this.sm(), W = this.e.root.clientWidth + 48;
-    const o = { duration: sm.duration + 160, easing: softEnd(sm.easing) };
+    const o = trim({ duration: sm.duration + 160, easing: sm.easing }, W);
     const from = [curT(L[0]), curT(scr)];
     L[0].getAnimations().forEach((a) => a.cancel()); scr.getAnimations().forEach((a) => a.cancel());
     const out = [this.anim(L[0], [{ transform: from[0] }, { transform: `translateX(${W}px)` }], o), this.anim(scr, [{ transform: from[1] }, { transform: 'none' }], o)];
