@@ -143,7 +143,7 @@ const fields = new Map<string, HTMLElement>(); // tab → its field, to copy aga
 const watched = new WeakSet<HTMLElement>();
 let againAt = 0;
 /** Copy a field's picture (and its moving glows where they are now) into its tab's frost picture and colour. */
-export function frostFromField(field: HTMLElement, everyTab = false) {
+export function frostFromField(field: HTMLElement, everyTab = false, last = false) {
   const hue = field.dataset.hue ?? '';
   if (!hue) return;
   const cv = field.querySelector<HTMLCanvasElement>('canvas.glow-field');
@@ -155,8 +155,14 @@ export function frostFromField(field: HTMLElement, everyTab = false) {
   if (!watched.has(field)) {
     watched.add(field);
     field.addEventListener('transitionend', (e) => { if ((e.target as HTMLElement).hasAttribute?.('data-dith-img')) frostFromField(field); });
+    // (and as soon as a moving glow's own picture comes in: until then the page shows it drawn by CSS, which the copy can't
+    // read, so the cards went on without the sun until the next copy, judge 26 Oct)
+    let soon = 0;
+    new MutationObserver(() => { cancelAnimationFrame(soon); soon = requestAnimationFrame(() => { if (field.isConnected) frostFromField(field); }); })
+      .observe(field, { subtree: true, attributes: true, attributeFilter: ['data-dith-img'] });
   }
-  clearTimeout(againAt); againAt = window.setTimeout(() => { if (field.isConnected) frostFromField(field); }, 2800);
+  // (once more, not again and again: each copy scheduled the next, so the copy ran every 2.8 s for as long as the app was open)
+  if (!last) { clearTimeout(againAt); againAt = window.setTimeout(() => { if (field.isConnected) frostFromField(field, false, true); }, 2800); }
   const { w, h } = size();
   const raw = document.createElement('canvas'); raw.width = w; raw.height = h;
   const g = raw.getContext('2d', { willReadFrequently: true }); if (!g) return;
@@ -290,9 +296,11 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         const C0 = Math.hypot(px[i * 3 + 1], px[i * 3 + 2]), H0 = Math.atan2(px[i * 3 + 2], px[i * 3 + 1]), h0 = (H0 * 180) / Math.PI;
         L = Math.min(L0 + 0.03, Math.max(L0 - 0.02, L)); // (darker than the page, red glass read brown)
         const green = step(h0, 110, 120) * step(-h0, -170, -160); // (saturate lifts greens: Forest's cards went lime)
-        C = Math.min(C0 + 0.012 - (C0 + 0.012 - C0 * 1.05) * green, Math.max(0.95 * C0, C));
-        if (L0 < 0.18) C = Math.min(C, 0.022);
-        if (C0 >= 0.02) { let dt = H - H0; dt -= Math.round(dt / (2 * Math.PI)) * 2 * Math.PI; const m = Math.PI / 15; H = H0 + Math.min(m, Math.max(-m, dt)); }
+        // (every limit fades in over a range: an on/off one drew a jagged line across the Train cards, judge 26 Oct)
+        const lift = smooth(0.12, 0.24, L0); // no colour added over black, so dark navy keeps its own blue
+        C = Math.min(C0 + (0.012 * (1 - green) + 0.05 * C0 * green) * lift, Math.max(0.95 * C0, C));
+        const m = Math.PI / 15 + (Math.PI * 14 / 15) * (1 - smooth(0.008, 0.03, C0)); // ±12°, free only where the page has no colour
+        { let dt = H - H0; dt -= Math.round(dt / (2 * Math.PI)) * 2 * Math.PI; H = H0 + Math.min(m, Math.max(-m, dt)); }
       }
     }
     out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H;
