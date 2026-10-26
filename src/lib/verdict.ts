@@ -13,7 +13,7 @@
 import type { AppData, CatchUp } from './types';
 import { addDays } from './dates';
 import { HANDBOOK_CORE, TASK_STYLE as HOW_TO_TALK, handbookTopic } from './handbook';
-import { dayKcal, eatingLines, heavyDays, heavyWeeks, maxTrim, targetOn } from './eating';
+import { dayKcal, eatingLines, heavyDays, heavyWeeks, maxTrim, overDaysLine, targetOn } from './eating';
 import { trueMaintenance } from './maintenance';
 import { dataTrustLines } from './dataQuality';
 import { personLines } from './person';
@@ -106,6 +106,8 @@ export function verdictPrompt(d: AppData, c: CatchUp, today: string, lang: strin
     `Goal: ${d.settings.profile.goal}. Protein target: ${d.settings.goals.protein ?? 'none'} g.`,
     `Heavy days: ${wk} in the last 7 days, ${wk2} in the 7 before; ${heavy.length} in the last 4 weeks${heavy.length ? ` (${heavy.map((h) => `${h.date} +${h.over}`).join(', ')})` : ''}.`,
     `The next days: ${next}.`,
+    // (the same days over as the Coach and Today's notes see, smaller ones included)
+    overDaysLine(d, today) ?? '',
     mem ? `What they told the coach (MEMORY):\n${mem}` : '',
     ...eatingLines(d, today, d.settings.profile.goal).filter((l) => !/^JUST NOTICED|^CATCH-UP|^LAST HEAVY-DAY/.test(l)),
     ...dataTrustLines(d, today),

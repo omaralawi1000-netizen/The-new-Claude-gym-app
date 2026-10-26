@@ -3086,3 +3086,214 @@ Omar: "add all the data, GPS also, skin temperature and body composition, the on
 The Coach's watch look-up includes the new numbers. Left out on purpose: water and food logged in other apps (Aven has its
 own), blood pressure and glucose (no device), cycle tracking, speed/power/cadence (pace comes from distance and time).
 Already-connected phones are asked once for the new permissions (round 4).
+
+## Corrections, done on the spot (20 Oct 2026, v0.1.169)
+Omar's lunch, in four messages: "10 corn cakes" became 10 × a database's "serving (100 g)" = 4,200 kcal (to dinner, at
+15:27); "majskiks, move it to lunch" → the same mistake again (paprika ones, 4,170 kcal); "the plain ones, 8 of them" →
+only repeated back, plus a question about the brand; "about 75 kcal per 100 g" → "Couldn't find that in the log" twice for
+food it had just logged. His words: the first one is understandable, but when I explain, it should understand me like a
+real coach.
+- **Counted things are pieces** (`foodText.placeholderPortion`): a database's stand-in portion ("serving (100 g)",
+  "1 portion (100 g)", "100 g") is never taken as one of a counted thing unless they named it; how heavy one is gets
+  estimated instead. The Coach is told the same ("10 corn cakes" = 10 pieces of about 8 g).
+- **A fix finds the food wherever it went** (`pickEntry`): a meal that no longer holds it (the AI remembered dinner after
+  it was moved to lunch) falls back to any meal that day; a ref copied with its brackets or cut short ("e_mvgpz3edi7…")
+  is still read (it used to drop the whole fix without a word). A day asked for stays strict.
+- **HOW YOU COACH**: a correction is an instruction: change it in the same answer with their numbers and a best estimate
+  for the rest, say what changed; no repeating back, no asking for a brand.
+- Exam: `fix-pieces` and `fix-kcal` replay his thread (orb, Danish, dictated) with the items in the log: 4/4 fixed both
+  items, none asked about the brand ($0.01).
+
+## Calm cards on busy backgrounds, untinted pop-ups (25 Oct 2026, v0.1.170)
+
+Omar (20 and 25 Oct): on some themes the cards were "all over the place" (Sunset + Mesh) or a solid colour slab that
+didn't read as blur (Golden hour + Night sky); after changing theme and switching pages the cards first showed the old
+colours; he liked Champagne + Mesh ("dark glass with one soft glow coming through"); for pop-ups he picked C: no tint,
+not see-through.
+- **One look, no picker** (`src/surfaces.css`, `lib/types.ts` `lookOf` always A; Settings → Appearance → Surfaces and
+  Sheets rows removed). One control glass for secondary buttons, chips and icon tiles; grain at half.
+- **Pop-ups** take C's glass in dark: blur 44 px, saturate 2, brightness .84, black .34, no colour of its own.
+- **Cards**: a still, soft copy of the field behind each tab (`ui/frost.ts`), held in place while the card scrolls (a
+  scroll-driven transform, nothing blurs per frame). On loud or slab backgrounds the copy is tamed in OKLab toward the
+  Champagne + Mesh look (`tame`): darker glass with the brightest glow kept, the loudest colour softened, dark orange
+  leaning wine and navy leaning plum, a floor so no card reads as a hole, and every switch fading over a range. Calm
+  backgrounds (mean chroma under .03, not a slab) are left exactly as they were. Seven options were judged (calmer colour,
+  smoked, one glow, one colour, Champagne glass, no boost, real live blur); Champagne glass won (judge 8–8.5 on the busy
+  themes). Real live blur looked the same and halved the frame rate.
+- **No colour flash**: every tab's copy is thrown away the moment palette, background, glow or theme changes and rebuilt
+  ahead from the pre-painted field, so other tabs never show the last theme's colours.
+
+
+## "Part of the answer couldn't be read" on every food log (21 Oct 2026, v0.1.172)
+Omar's food logs on the orb each came with the log card AND "Part of the answer couldn't be read — nothing was changed",
+so he said it again (lunch logged three times). The exam couldn't make it happen (OpenRouter, his real data, 7 tries);
+the one difference is the app's direct OpenAI call with a strict schema, where every action carries every field, which
+can coax out an empty filler action. Such a filler (nothing in it but its type) is no longer "unreadable"; anything real
+that can't be read is still said, and the first one dropped is kept in the trouble log (Settings → About) so the next one
+can be traced. The exam now fails any answer with a dropped action.
+
+## No doctor lines; the Coach on Medium (25 Oct 2026, v0.1.173)
+Omar: "remove that doctor shit. Don't force a rule on it. ChatGPT never told me in the real app that I need a doctor."
+Every line that told the Coach to send them to a doctor, a GP or a dietitian is gone (HOW YOU COACH, the handbook's red
+flags and teen/weight-class/women topics, the "help was suggested" fact). What stays is what protects the numbers, not
+wording: throwing up, laxatives or fasting to make up for food still turns catch-ups off and is remembered. The model may
+still suggest a doctor on its own when something is truly serious, the way the ChatGPT app does.
+The Coach thinks at Medium by default, and the setting is now a ceiling: the chooser's "high" tier no longer overrides it,
+so no 30–45 s waits.
+
+## Living coach, step 1: an honest voice (25 Oct 2026, shipped v0.1.179 on 26 Oct)
+The plan for a real, living coach is `docs/living-coach-plan.md` (Omar's decisions, six steps, progress table, next step).
+Omar said go for step 1 only. He wants a coach that criticises honestly, praises real wins and picks its own tone; no fixed
+tone or message counts, no rules per topic, going over the calories said once like any coach, and never "train lighter".
+- **How the Coach talks** (`handbook.ts` `COACH_STYLE`): the tone is its own call for the moment (warm for a real win,
+  plain for a first miss, firmer when the same miss keeps happening but never about a choice made on purpose, calm after a
+  bad night), misses named with their numbers when they matter, and one NEVER list: how their body looks, food shame,
+  "train lighter or do less" (HOW YOU COACH keeps its few exceptions), claims the data can't show. Round 3 (Omar: "I want
+  this to be very good"): a real question gets the verdict first, then only the facts that carry it and one next step;
+  every bit of praise is counted exactly ("PRs on two of three days", never "every day"); when what they say doesn't fit
+  DATA it says so in a few words and still answers. No line counts in the prompt (Omar removed them on 20 Oct).
+- **Skipped sets** (`stats.ts` `skippedSets`, a DATA line): planned working sets left undone in the last 7 days, from
+  `plannedSets` at the finish. An exercise of the routine missing from the workout is named but never counted (it may be
+  a swap or 0 sets done), and only when the workout has nothing from outside the routine and the routine wasn't changed
+  since. Workouts saved before `plannedSets` existed aren't judged. When nothing was skipped, DATA says
+  that too, so the Coach can praise it exactly.
+- **Stalled lifts:** named plainly; a change is offered only when it would help (no more "a short lighter block").
+- **A little over the calories** (`eating.ts` `overToday`, `overLine` = at least 200 kcal and 10 % of the target; `eatingWatch.ts` `sayOver`): that much over the day's target but not heavy → one plain toast, once that day (`marks.overSaid`), only with heavy-day notices On:
+  "340 kcal over today. Fine now and then." / "…, 2 of the last 7 days." (a heavy day this week counts) / "…, 3 of the last 7 days. That adds up." A heavy day
+  keeps its own decision. EATING PATTERNS gives the Coach every day over in the last 7 (a little or heavy) and the total.
+- **It all works together** (Omar, 25 Oct: "I want it all to work together"): the skipped-sets and days-over lines sit in
+  `buildCoachContext`, the one summary the Coach chat, Today's notes and the weekly review read (the heavy-day verdict
+  gets `overDaysLine` too), so they count the same sets and days. `COACH_NEVER` is one list in both `COACH_STYLE` and
+  `TASK_STYLE`. A stalled lift gets the app's own reset everywhere (the workout screen's ~5 % for a fresh run at the top
+  of the rep range). The wrestling nudge, planned-day warnings and the workout briefing no longer say "lighter legs".
+  The earlier "answers disagree" was the exam, not the app: each question had built its own fake week; now the honest
+  questions share one (`honestWeek`) so their answers can be checked against each other.
+- Exam: `honest-week`, `honest-plan`, `honest-count`, `honest-repeat`, `honest-squat`, `honest-food`, `honest-focus`,
+  `honest-night` (one shared week) and `honest-clean` (`scripts/exam/questions.ts`). Unit tests: `tests/honestVoice.test.ts`.
+- **Weekly review** (`weekReview.ts`): two new candidates for its one focus, `skipped` (3+ planned sets skipped) and
+  `over` (3+ of 7 days over the calorie target), from the same `skippedSets` / `overDays` as the Coach.
+- **No "lighter week" left:** the 8-weeks-on-plan nudge praises the streak and asks how the lifts are doing; the
+  handbook's plateau tip offers a lighter week only when they ask for one.
+- **Rounds 4–7 (fresh judges 7 → 7.5 → 7.5 → 8; every must-fix done):** DATA has ONE week window, "today and the 6
+  days before", for the day-by-day line, skipped sets and days over, plus that week's own averages next to true
+  maintenance, protein days counted ("3 of 6; under on Wed −3, Fri −8, Sat −6 g"), the lifts behind each PR, and a line
+  saying "this week" means that window. The weekly review passes its own Mon–Sun week (`buildCoachContext(..., { week })`)
+  and gets no rolling averages. Skipped sets say which exercise (1st, 2nd…); why they were skipped is a guess, and last
+  night's sleep only touches today. A stalled lift gets exactly what the workout screen will offer next (its reset or its
+  next target, from the routine's own rep range: `liftHint` / `suggestProgression`). Days over say how much was logged
+  after 20:00. Praise never says "across the board" / "every day" unless DATA counts it all. "I'll still train today"
+  after a short night gets an answer and one tip, not only a question. A weekly-review focus on skipped sets or days over
+  is ticked only with evidence (`met()` null otherwise). When DATA is too long, only the lines that don't fit are left
+  out, and they are named.
+- Exam round 3 adds `honest-praise` (praise must be counted exactly). Before/after: live main in a git worktree vs the
+  branch, on Gemini through `scripts/exam/_ba.test.ts` (a local scratch file, never committed; see the plan doc).
+
+## Living coach, step 2: goals you tell it (26 Oct 2026, branch `claude/project-thread-fomqy0`, not shipped yet)
+Omar's go 26 Oct 00:37: "if I want a plan, like, I want to lose 2 kilos in 2 weeks… and it also checks my recovery and
+training, and if I'm stalling… make sure I'm not losing muscle… like a real coach. That's the bar." Built overnight in
+rounds, each checked by a fresh judge that only suggests (6.5 → 7.5 → 8.0 → see the plan doc's table).
+- **A goal is a memory note with numbers** (`types.ts` `GoalPlan` on `MemoryNote.goal`: metric weight / lift / other,
+  target, reps, by, startDate, start, status done / dropped, endedOn, plan). Additive and optional: old notes are untouched
+  (an old goal note without numbers is listed apart as "Older goal notes", never as a running goal). `cleanGoal`
+  (`defaults.ts`) keeps it through reload and backups. The Coach saves it with `remember` (kind goal + `goal`, or the flat
+  `goalPlan`); a model that leaves the object out still works: `goalFromText` (`agent.ts`) reads "81.8 → 79.8 kg by
+  2026-11-16", "lose 2 kg" (a delta from where the app tracks them), "bench 100 kg", lb, a Danish "86 kg-klassen", and
+  "reached" (only when the goal is: "halfway reached" isn't). New targets set in the same answer become its plan. A goal
+  note rewritten under another kind stays a goal. A weight class above where they are is a ceiling already made (no pace).
+  The same goal saved twice makes no second card. Cards show one set of numbers with readable dates.
+- **Where a goal stands is worked out on the phone** (`goals.ts` `goalState`, the GOALS block right under Targets):
+  - Weight: one "now" everywhere (`scaleNow`: the line through the last 4 weeks' weigh-ins, else the smoothed trend; a goal
+    two weeks away or less, a weigh-in, uses the morning scale and is made by one morning on or before its day). In its
+    first 2 weeks, and until it has 8 weigh-ins of its own, it is judged on what they eat against the maintenance from
+    the 4 weeks before it (`goalMaintenance`: a window mixing old and new eating reads a new cut as a lower maintenance,
+    and a goal on plan looked "behind"); after that on its own scale line (Theil–Sen). Unfinished food days (dinner
+    missing) don't count. Safe band: losing 0.5–1 % of bodyweight a week, gaining 0.25–0.5 %; a date past it is said.
+    Calories for the date and the safe band from TRUE MAINTENANCE, never under max(1,700 men / 1,400 women, 70 %);
+    "eating the current target from today lands around …"; reached → maintenance, stepped up halfway for a week first.
+  - Lift: estimated max (Epley) against the target's; pace from the last 4 weeks; a plateau (no better best set in 4+
+    workouts over 2+ weeks, counting only tries near the best) is STALLED, never "ahead"; a heavy single/double/triple is
+    reached only by doing it (else READY TO TEST); top sets since the goal and "no progress in N workouts" are listed.
+  - Statuses: REACHED, READY TO TEST, ON PACE, AHEAD, BEHIND, TOO FAST, GOING THE WRONG WAY, SLOW, STALLED, DATE PASSED,
+    CAN'T JUDGE YET. A promise ("log every meal this week") is a goal without a number: OVER after its day, gone from
+    the running list a week later.
+- **GOAL WATCH** (`goalWatchLines`, under Stalled lifts): strength on the main compound lifts (the better of the last 2
+  workouts against the better of the 2 before the goal), food since the goal (from its 3rd day), sleep / HRV / resting HR
+  for 7 days against usual, workouts, skipped sets, stalls. A SIGN TO RAISE when lifts fall on a cut while sleep or HRV
+  is off, or most lifts fall. Facts only, never orders.
+- **How the Coach coaches it** (`coachContext.ts` `GOAL_COACHING`): understand first (one question; vague → leaner,
+  stronger or fitter for their sport, with an example from their data each); safe and honest about too-fast once, with
+  the version that works; never a water cut, sauna or fluid taper; an adult a little over a weigh-in (≤ 2.5 %, 3+ days)
+  gets the low-residue route with water and salt as usual and a cut-off morning; unknown age → ask and plan as under 18;
+  plans with numbers (calories offered as the target, protein, a lift progression in kilos and reps); saved in the same
+  turn with the agreed plan; follow-ups say where they are, the pace, what the date needs; behind → the one change in
+  numbers and the choice of date or calories; a plan that didn't work is changed, never repeated, and never by taking
+  weight off the bar; profile goal and calorie target only with consent.
+- **On the screens:** Today notes per goal (`nudges.ts`: "On pace: 79.7 kg by 16 Nov — 81.8 kg now, 2.1 kg to go, 23
+  days left. What you eat points to −0.55 kg a week."), a one-time "What are we working on?", a "My goal: …" chip in
+  the Coach, and Settings → Coach memory shows each goal's status and ended goals.
+- **Judge round 4 fixes:** while a weight goal is judged on food, "now" is the start plus what the food adds up to (the
+  scale's line is shown beside it), so kilos left and what the date needs aren't read off a water drop; "reached" needs a
+  real weigh-in at the target. A weigh-in two weeks away or less that is more than 2.5 % over, or for someone under 18 or
+  whose age isn't known (`ageFromMemory`, else Settings → Profile birth year), is kept as the event (metric other), and
+  Today never counts down to it; a close call (≤ 2.5 %, adult) is counted down ("Coming up: 80 kg by 24 Oct"). A lift
+  goal without an agreed plan gets the workout screen's next target as its first step (`liftNext`), and one not trained
+  since it was set says "Goal set · Next: 77.5 kg × 6", never "Stalled". The planning table adds where −0.25 / −0.5 /
+  +0.25 kg a week lands in 4, 8 and 12 weeks and the main lifts' best sets. Plans name the one risky habit with its
+  number and a check-in rule; on pace gets one extra line for anything GOAL WATCH marks off; a class nobody named is
+  "the next class up". `goalFromText`: a lift's target is the weight after its name, "for 12 weeks" isn't reps, "in a
+  row" isn't a lift.
+- **Judge round 5 fixes:** the prompt's examples no longer use the test's own numbers (the model copied them); the
+  harness has a second person (Lea, 75 kg, evening snacks). The app works out what a plan names: "What most likely
+  breaks a plan" (days of the week 300+ kcal over the rest, protein days, last 4 weeks; `habitLine`) and a "Check-in"
+  every 2 weeks with its rule (150 kcal either way). Behind on a cut while sleep or HRV is off → "RECOMMEND: keep the
+  target, accept the later date" and the date's calories are left out (`recovery`, `goalCalories(…, hold)`). A logging
+  promise is counted (`loggingLine`: full days, days with a usual meal missing, days with nothing). Rules: a wrestler's
+  weight goal 4 weeks out or less → ask if it's a weigh-in, with the plan; the goal weight is not "the class"; the class
+  up never gets a made-up number; a school grade in memory means under 18; reached → offer to set the hold calories.
+- **Judge round 6 fixes:** the habit line names what makes the big days big (food after 20:00 or one meal, `habitSlot`)
+  and a cap (target + 300); a running cut lists the days far over target since it started, and asks for a new tactic
+  when the agreed cap didn't hold. A weigh-in gets a "Cut-off" morning (the day before, class + 0.5 kg). The planning
+  numbers say how many days a kilo takes at the fastest safe pace and at 0.5 kg a week (both offered for a too-fast ask),
+  and the protein range, with an offer to raise a target under it. GOAL WATCH raises no strength training in 2 weeks on a
+  cut. A logging promise gets a verdict ("broken on Tue and Wed; 3 days left") and a Today card ("Logging promise: 2 of
+  4 full days"). Today's "date needs" pace has two decimals. Rules: under 18 → coach or parent, no diet plan unless
+  asked, nothing saved without a yes; one question per reply; food numbers from GOAL WATCH's window.
+- **Judge round 7 fixes:** a stalled goal's GOALS line says to save the changed plan (remember with goal.plan) and
+  offer edit_routine; RECOMMEND offers to move the date (goal.by) so the app follows it. The habit line gives the cap
+  for each pace offered (target + 300). Watch signs read "MUST SAY THIS TURN" with the protein beside them. Under 18 (an
+  age in memory or a school grade): no cut signs and no watch for a fat-loss profile alone. Today adds "Goal reached:
+  81 kg" for a goal closed in the last 2 days and "No lifting in 2 weeks" on a cut, with a button asking the Coach for a
+  2-day full-body routine. Rules: "I want…" alone is not a set-up ask; a weigh-in's calories come with the offer to set
+  them until the day.
+- **Judge round 8 fixes:** the habit line keeps every day of the week that is 300+ kcal over ("4 days a week (Sun, Tue,
+  Thu, Fri)"), and late food means after 21:00 so a late dinner isn't the habit. Behind because of a few big days →
+  those days are a MUST SAY with a new tactic, and RECOMMEND keeps the target (no fewer calories on the other days).
+  A goal closed earlier in the same answer is never reopened by a second save of it (`ctx.closedGoals`). A promise's
+  days left are counted one way everywhere ("3 days left including today"). Rules: under 18 → no goal saved without a
+  yes, and one positive line for the week; a vague goal's "leaner" example is a modest 2–3 kg from the app's rows; one
+  question at most; numbers named in a plan that is set up now are set too (kcalGoal, proteinGoal).
+- **Rounds 9–13 (26 Oct morning, Omar: "Can you do it even better?")**, fresh judges 8.2 → 8.3 → 8.2 → 8.3 → 8.3 (live
+  6.3; the Gemini Flash test brain's variance is now most of what is left):
+  - Behind: the app passes the biggest foods on the big days, the Coach gives the tactic itself and the date move is the
+    one question; keeping the date is offered only with the calories that reach it. A target that lands after its date
+    is a MUST SAY early, not found at the first check-in.
+  - Calories for every 0.05 kg/week, so a date's own pace has its row (the row at or just over it). A too-fast ask
+    recommends the comfortable pace by default.
+  - The habit comes with a HOW next to its cap; big days 3+ times a week are capped at the target itself (+300 on them
+    would miss the date), fewer → the pace is said with the cap. Ordinary days far under a cut target → eat the full
+    target every day with a planned ~300 kcal evening snack. On a gain, the risk is the ordinary days under the target,
+    with a how for every gain row that adds up.
+  - Gaining too fast: what they eat against what the date needs, the meal the extra comes from (vs the 4 weeks before),
+    its foods, protein over its range trimmed first (carbs kept), a fix adding up to the gap, and the date's calories as
+    the one question. Reached: the plan to hold it names the big days at maintenance + 300 with a number.
+  - A lift goal while eating under maintenance names the trade-off and offers maintenance. A stall: GOALS writes out
+    the remember (goalPlan) and edit_routine actions for the one change.
+  - Promises: the verdict is said as GOALS words it ("Broken on Tue and Wed"), a new fix, late with nothing logged →
+    today's meals are the one ask; the Today card shows from the day it is set.
+  - Weigh-in plans: the time is an assumption said in one line, not a question; the last line is always refuelling.
+  - Honest cards: a create_routine or edit_routine the model sent empty is kept and says it couldn't be done (it was
+    dropped while the reply said "created"/"updated"); a full-body day named without exercises builds from a template
+    (squat or hinge, push, pull, legs; still a preview). set_schedule accepts `workout` for the routine.
+- Tests: `tests/goals.test.ts`. Before/after on Gemini Flash: `scripts/exam/_goals.test.ts` (scratch, never committed; a
+  copy and `show.py` live in `/mnt/project-files/living-coach/tools/`), run as
+  `G_OUT=dir G_TAG=after npx vitest run --config scripts/exam/vitest.config.ts scripts/exam/_goals.test.ts`.

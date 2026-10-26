@@ -6,6 +6,7 @@ as an installed app and judges everything on the phone. He is not a programmer: 
 ## Where things are
 - To-do list: `docs/polish-plan.md`. When Omar says "do section N", do it and tick it off there.
 - Coach 2.0 (15 Oct): `docs/coach-plan.md`, one phase per session; the polish plan is paused meanwhile.
+- Living coach (25 Oct): `docs/living-coach-plan.md`: the plan, Omar's decisions, a progress table and the next step. One step per "go"; update its progress table after each step.
 - `README.md` is the history of every design decision. Read the relevant section before changing something.
 
 ## Rules that must hold
@@ -19,6 +20,10 @@ as an installed app and judges everything on the phone. He is not a programmer: 
 - His workout and food data is precious: no destructive migrations without asking.
 - Small steps. Save a backup branch before anything risky. If Omar says "worse", go straight back to the last version he
   approved with no other changes, then fix separately.
+
+## Automatic helpers (use them without being asked)
+- **Playwright** (`.mcp.json`): whenever you need to see, tap or check the app, open it with Playwright at phone width and look at the screenshot. Use it for any visual or layout change before saying it is done.
+- **style-reviewer** (`.claude/agents/style-reviewer.md`): after any UI, CSS or animation change, run it before showing Omar and fix what it finds. It only reads; it says "needs Beta" when only his phone can judge.
 
 ## Shipping
 - The live app deploys (GitHub Pages) from `ccr-d1172cc7-1e03wh` (also the default branch).

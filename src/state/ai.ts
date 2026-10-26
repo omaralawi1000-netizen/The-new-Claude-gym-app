@@ -11,7 +11,7 @@ export interface AiPrefs {
   brain: boolean;                    // use Gemini to understand dictation (falls back to the local parser on any failure)
   solFirst: boolean;                 // with an OpenAI key: GPT-6.1 Sol answers the orb and the Coach (Gemini is the fallback)
   effortOrb: 'medium' | 'high';      // how hard Sol thinks for the orb (speed matters: medium)
-  effortCoach: 'medium' | 'high';    // …and in the Coach (depth matters: high)
+  effortCoach: 'medium' | 'high';    // …and in the Coach (medium: good answers without the long waits, Omar 25 Oct)
   solLimitKr: number;                // Sol rests (Gemini answers) once this month's estimated spend reaches this; 0 = no limit
   /** sol: the OpenAI model chosen by hand ('' = the newest one the key can use, found by solAuto) */
   /** quick: the OpenAI model for everyday messages ('' = gpt-6-luna) */
@@ -19,7 +19,7 @@ export interface AiPrefs {
   solChecked: number;                // when the newest OpenAI model was last looked up (once a day at most)
   noQuick: boolean;                  // this OpenAI key can't use the quick model: the main one answers everything (until the key changes)
 }
-const DEFAULTS: AiPrefs = { stt: 'accurate', voiceLang: 'auto', mic: 'phone', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'high', solLimitKr: 200, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '', quick: '' }, solChecked: 0, noQuick: false };
+const DEFAULTS: AiPrefs = { stt: 'accurate', voiceLang: 'auto', mic: 'phone', voice: 'Achird', brain: true, solFirst: true, effortOrb: 'medium', effortCoach: 'medium', solLimitKr: 200, models: { fast: '', brain: '', fastAlt: '', brainAlt: '', tts: '', sol: '', solAuto: '', quick: '' }, solChecked: 0, noQuick: false };
 
 function load(): AiPrefs {
   try { const v = JSON.parse(localStorage.getItem(KEY) || '{}'); return { ...DEFAULTS, ...v, models: { ...DEFAULTS.models, ...(v.models ?? {}) } }; } catch { return DEFAULTS; }

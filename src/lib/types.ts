@@ -356,6 +356,9 @@ export type EquipmentAccess = 'fullGym' | 'homeDumbbells' | 'bodyweight' | 'barb
 
 /** the sheet surface in Settings; anything unknown (an option tried on Beta and since dropped) reads as Glass */
 export const surfaceOf = (v: unknown): NonNullable<Settings['surface']> => (v === 'now' || v === 'deep' ? v : 'glass');
+/** the surface look on trial (Settings > Appearance > Surfaces, surfaces.css `data-look`); missing = A, the pick */
+// (Omar 25 Oct: A for everyone, the picker is gone; an old saved choice is ignored)
+export const lookOf = (_v?: unknown): NonNullable<Settings['look']> => 'a';
 
 export interface Settings {
   name: string;
@@ -367,6 +370,8 @@ export interface Settings {
   glow?: 'full' | 'soft' | 'off';
   /** the colour of the sheets, fields and bar tracks on dark (look.css `data-surface`); missing = glass */
   surface?: 'now' | 'glass' | 'deep';
+  /** cards, buttons and sheets on dark (surfaces.css `data-look`): Before = as shipped, A/B/C the three options; missing = A */
+  look?: 'before' | 'a' | 'b' | 'c';
   /** what is drawn behind the app (ui/Backdrop.tsx, styles.css `.bgx`); missing = classic (the drifting colour field) */
   background?: 'classic' | 'orb' | 'tabs' | 'sunrise' | 'mesh' | 'dots' | 'time' | 'night' | 'photo';
   /** which view a workout opens in; missing or 'last' = the one last used on this phone */
@@ -424,6 +429,27 @@ export interface MemoryNote {
   updatedAt?: number;
   /** its earlier wordings, newest first (up to 3) */
   was?: { text: string; at: number }[];
+  /** a goal with a number the app follows (lib/goals.ts) */
+  goal?: GoalPlan;
+}
+
+/** What a goal note tracks: bodyweight or a lift (by its estimated max), or "other" (no number: no pace). */
+export interface GoalPlan {
+  metric: 'weight' | 'lift' | 'other';
+  /** weight: target bodyweight in kg; lift: the kg on the bar */
+  target?: number;
+  /** lift: the reps at that weight (1 = a single) */
+  reps?: number;
+  /** the day it should be reached (YYYY-MM-DD), when they gave one */
+  by?: string;
+  /** the day it was set, and where it stood: the weight trend in kg, or the lift's estimated max */
+  startDate: string;
+  start?: number;
+  /** reached or dropped, and the day */
+  status?: 'done' | 'dropped';
+  endedOn?: string;
+  /** the plan agreed for it, in a few words ("77.5 × 6, 7, 8 then 80 × 5"; "2,200 kcal, 180 g protein") */
+  plan?: string;
 }
 
 /** One weekly review as kept: the week's last day, the Coach's verdict and up to two priorities (ids from lib/weekReview). */
@@ -464,7 +490,7 @@ export interface AppData {
   catchUps?: CatchUp[];
   /** when the calorie target changed (lib/eating.ts `targetOn`), so a day is judged against the target it had */
   targets?: TargetChange[];
-  /** things done or said once, with the day (heavySeen: heavy days already there were marked seen; invisibleSaid,
+  /** things done or said once, with the day (heavySeen: heavy days already there were marked seen; overSaid: the "kcal over today" line; invisibleSaid,
    *  helpSaid, ageAsked: the Coach brought it up) */
   marks?: Record<string, string>;
   /** watch workouts deleted by hand (their Health Connect ids, the newest 500): never brought back by a sync */

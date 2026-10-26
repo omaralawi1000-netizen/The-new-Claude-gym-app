@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useStore, allExercises } from '../src/state/store';
 import { defaultData } from '../src/state/defaults';
-import { applyDone } from '../src/screens/workout/rest';
+import { applyDone, applyDoneFromAddress, applyPendingDone, lastDone } from '../src/screens/workout/rest';
 import type { SetRecord, WorkoutSession } from '../src/lib/types';
 
 const today = new Date().toISOString().slice(0, 10);
@@ -29,8 +29,8 @@ describe('Done ✓ from the watch', () => {
     // the same alert tapped twice (or the message and the cache's copy of one tap): still one set
     const rest = useStore.getState().active!.rest;
     useStore.setState({ active: { ...useStore.getState().active!, rest: { ...rest!, endsAt: Date.now() - 5000 } } });
-    expect(applyDone()).toBe(true); // (a new rest: the next set)
-    expect(applyDone()).toBe(false);
+    expect(applyDone(Date.now() + 3000)).toBe(true); // (a new rest: the next set, tapped seconds later)
+    expect(applyDone(Date.now() + 3000)).toBe(false);
     expect(done()).toHaveLength(3);
   });
 
@@ -49,5 +49,34 @@ describe('Done ✓ from the watch', () => {
     start([{ id: 'a', exerciseId: idOf('Barbell Bench Press'), sets: [set('a1')] }]);
     expect(applyDone()).toBe(false);
     expect(done()).toHaveLength(0);
+  });
+
+  it('Settings can say where the last Done ✓ stopped (25 Oct: it stopped again on the phone)', async () => {
+    start([{ id: 'a', exerciseId: idOf('Barbell Bench Press'), sets: [set('a1')] }]);
+    applyDone(Date.now(), 'cache');
+    expect((await lastDone()).page).toMatchObject({ via: 'cache', why: 'no rest running' });
+    start([{ id: 'a', exerciseId: idOf('Barbell Bench Press'), sets: [set('a1', { done: true }), set('a2')] }], { endsAt: Date.now() - 5000, total: 90, exerciseId: idOf('Barbell Bench Press') });
+    expect(applyDone()).toBe(true);
+    expect((await lastDone()).page).toMatchObject({ via: 'message', why: '' });
+  });
+
+  it('Done ✓ taps the Android app kept come in the address when Aven opens: each ticks its set once, from its tap time (25 Oct)', async () => {
+    const bench = idOf('Barbell Bench Press');
+    const t0 = Date.now() - 400_000;
+    start([{ id: 'a', exerciseId: bench, restSec: 120, sets: [set('a1', { done: true, completedAt: t0 }), set('a2'), set('a3'), set('a4')] }], { endsAt: t0 + 120_000, total: 120, exerciseId: bench });
+    const t1 = t0 + 125_000, t2 = t1 + 125_000;
+    location.hash = `dn=w1:${t1},w1:${t2}&hc=AAAAAAAA`;
+    applyDoneFromAddress();
+    for (let i = 0; i < 20 && done().length < 3; i++) await new Promise((r) => setTimeout(r, 5));
+    expect(done().map((x) => x.id)).toEqual(['a1', 'a2', 'a3']);
+    expect(done()[1].completedAt).toBe(t1);
+    expect(location.hash).toBe('#hc=AAAAAAAA'); // (the watch's numbers stay for their own reader)
+    // the same taps heard again (Chrome passed one on late, or the address came twice): nothing more is ticked
+    expect(applyDone(t2 + 800, 'message')).toBe(false); // (Chrome's copy of the last tap, a moment apart)
+    location.hash = `dn=w1:${t2}`;
+    applyDoneFromAddress();
+    await new Promise((r) => setTimeout(r, 20));
+    await applyPendingDone();
+    expect(done()).toHaveLength(3);
   });
 });

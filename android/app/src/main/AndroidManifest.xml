@@ -115,6 +115,18 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- the rest timer's log (Aven's Settings › Training › App log): where a Done ✓ stopped, on a real phone -->
+        <activity
+            android:name=".RestLogActivity"
+            android:exported="true"
+            android:label="Aven rest log">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="aven" android:host="restlog" />
+            </intent-filter>
+        </activity>
         <!-- Connect watch / Sync now / Disconnect from Aven's Settings (aven://health/…): see-through, gone in a moment -->
         <activity
             android:name=".HealthActivity"
@@ -180,6 +192,16 @@
 
         <receiver android:name=".RestAlarmReceiver" android:exported="false" />
         <receiver android:name=".RestActionReceiver" android:exported="false" />
+        <!-- Done ✓ on the rest-over alert: an invisible screen that closes at once, over the lock screen too (it may press
+             Chrome's button, which a message can't on newer Android) -->
+        <activity
+            android:name=".RestDoneActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:showWhenLocked="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <!-- the half-hourly read of the watch (only when reading in the background is allowed) -->
         <service
             android:name=".HealthJob"

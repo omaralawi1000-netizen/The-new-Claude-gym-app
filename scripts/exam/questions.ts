@@ -14,6 +14,8 @@ export interface Question {
    *  spoken (may be misheard); `orb` = said to the voice orb; `where` = where the app was opened */
   set?: 'dev' | 'held' | 'mech'; health?: boolean; dictated?: boolean; orb?: boolean; where?: string;
   check?: (a: Answer) => string | null; // null = fine, else what is wrong
+  /** changes to the persona's data before it is asked (what was logged a moment ago, and so on) */
+  tweak?: (d: any) => void;
   good: string;
 }
 const has = (a: Answer, type: string) => a.actions.filter((x) => x.type === type);
@@ -23,7 +25,63 @@ const fold = (s: unknown) => String(s ?? '').toLowerCase();
 const breakfast = (m: unknown) => /breakfast|morgenmad/.test(fold(m));
 const noCut = (a: Answer) => (has(a, 'catch_up').some((x) => x.on === true) ? 'set a catch-up' : null);
 
+// Omar, 20 Oct: lunch logged a minute ago as "10 × serving (100 g)" of paprika corn cakes (4170 kcal) and 450 g cottage
+// cheese; then he corrects it. A real coach fixes it on the spot.
+const CORN = 'Majskiks Med Paprika', CC = 'Cottage Cheese';
+const lunchLogged = (d: any) => {
+  const at = new Date(2026, 9, 19, 12, 29).getTime();
+  d.entries.push(
+    { id: 'e_mvgpz3edhvmlo', date: '2026-10-19', mealId: 'lunch', at, snap: { name: CORN, basis: 'g', per100: { kcal: 417, protein: 8, carbs: 80, fat: 5 }, portions: [{ id: 'p1', label: 'serving (100 g)', amount: 100, verified: true }] }, qty: { amount: 10, unit: 'portion', portionId: 'p1' }, base: 1000, nutrients: { kcal: 4170, protein: 80, carbs: 800, fat: 50 } },
+    { id: 'e_mvgpz3edi7xq', date: '2026-10-19', mealId: 'lunch', at, snap: { name: CC, basis: 'g', per100: { kcal: 96, protein: 12, carbs: 3.4, fat: 1.5 }, portions: [] }, qty: { amount: 450, unit: 'g' }, base: 450, nutrients: { kcal: 432, protein: 54, carbs: 15, fat: 7 } },
+  );
+};
+const fixHistory = [
+  { role: 'user' as const, text: 'Jeg mener majskiks. Fjern alt det der, der er. Sæt det til frokost. Jeg har majskiks og hytteost. 1,5%.' },
+  { role: 'model' as const, text: `(done: Logged to Lunch — ${CORN} 10 × serving (100 g) · 4170 kcal [ref e_mvgpz3edhvmlo], ${CC} 450 g · 432 kcal [ref e_mvgpz3edi7xq])` },
+];
+const fixes = (a: Answer, what: RegExp) => a.actions.some((x) => ['edit_food', 'replace_food', 'delete_food'].includes(x.type) && (what.test(fold(x.target)) || what.test(fold(x.ref)) || what.test(fold(x.name))));
+
+// Honest voice (25 Oct): the week's workouts with what was planned when each was finished (`plannedSets`), bench cut short
+// and an exercise left out; or every planned set done; or a few days a little over the calorie target.
+const recent = (d: any) => d.sessions.filter((s: any) => s.status === 'done' && s.routineId && s.date >= '2026-10-13' && s.date < '2026-10-19');
+const planAll = (d: any) => { for (const s of recent(d)) for (const e of s.exercises) e.plannedSets = e.sets.filter((x: any) => x.type === 'working').length; };
+const skippedWeek = (d: any) => {
+  planAll(d);
+  for (const r of d.routines) r.updatedAt = 0; // (the starter routines are dated now: as if made before the workouts)
+  const rs = recent(d);
+  for (const s of rs.slice(-2)) { const e = s.exercises[0]; if (e) e.sets = e.sets.slice(0, 2); }
+  const last = rs[rs.length - 1];
+  if (last && last.exercises.length > 3) last.exercises = last.exercises.slice(0, -1);
+};
+// (and this morning's workout too: its first exercise cut short, the third time in a row)
+const skippedAgain = (d: any) => { skippedWeek(d); const t = d.sessions.find((s: any) => s.id === 'legs-today'); if (t) t.exercises.forEach((e: any, i: number) => { e.plannedSets = i === 0 ? 5 : e.sets.length; }); };
+const overWeek = (d: any) => { for (const i of [2, 4, 6]) { const date = `2026-10-${String(19 - i).padStart(2, '0')}`; d.entries.push({ id: `ov${i}`, date, mealId: 'snacks', at: new Date(2026, 9, 19 - i, 21).getTime(), snap: { name: 'Chocolate', basis: 'g', per100: { kcal: 540, protein: 7 } }, qty: { amount: 70, unit: 'g' }, base: 70, nutrients: { kcal: 378, protein: 5 } }); } };
+// (one week for every honest question, so their answers can be checked against each other: the same facts everywhere)
+const honestWeek = (d: any) => { skippedAgain(d); overWeek(d); };
+const tellsLighter = (a: Answer) => (/\b(train lighter|go lighter|take it easy|lighter (day|session)|skip (today|the session)|rest day instead|træn(e)? lettere|tag det roligt|(do|try|stick to|aim for|go for) fewer sets|(tag|lav|kør) færre sæt|drop(ping)? to \d sets|(cut|reduce|lower)\w* (it )?to \d sets|sænk\w* til \d sæt|skru\w* .{0,30}ned|justere? rutinen til \d|justere? (det )?planlagte antal sæt|planlagte (antal )?sæt ned|(adjust|lower|reduce|trim)\w* the planned( leg)? (number of )?sets|sæt\w* planen til \d|\d (faste )?(arbejds)?sæt i stedet)\b/i.test(a.reply) ? 'told him to train lighter or do less' : null);
+const bodyTalk = (a: Answer) => (/\b(look(s|ing)? (lean|fat|soft|bigger|smaller)|your (belly|gut|stomach|physique|abs)|ser (fed|tyk|slank) ud)\b/i.test(a.reply) ? 'talked about his body' : null);
+const tooLong = (a: Answer) => (a.reply.split(/\s+/).length > 150 ? `too long for a phone (${a.reply.split(/\s+/).length} words)` : null);
+const honest = (a: Answer) => none(a) ?? tellsLighter(a) ?? bodyTalk(a) ?? tooLong(a);
+
 export const QUESTIONS: Question[] = [
+  // ── Omar, 21 Oct: every food log also said "Part of the answer couldn't be read" ──
+  { id: 'log-potatoes', persona: 'omar', kind: 'easy', set: 'mech', lang: 'da', dictated: true, orb: true, q: '460 gram parketafler og 30 gram cornflakes.',
+    check: (a) => (has(a, 'log_food').length ? null : 'no log_food'), good: 'Logs both (power potatoes, cornflakes), says almost nothing.' },
+  { id: 'log-potatoes-me', persona: 'me', kind: 'easy', set: 'mech', lang: 'da', dictated: true, orb: true, q: '460 gram parketafler og 30 gram cornflakes.',
+    check: (a) => (has(a, 'log_food').length ? null : 'no log_food'), good: 'Logs both on his real data.' },
+  { id: 'log-potatoes-en', persona: 'omar', kind: 'easy', set: 'mech', dictated: true, orb: true, q: '450 grams of power potatoes and 30 grams of corn flakes.',
+    check: (a) => (has(a, 'log_food').length ? null : 'no log_food'), good: 'Logs both, says almost nothing.' },
+  // ── corrections: done on the spot, never just repeated back (Omar, 20 Oct) ──
+  { id: 'fix-pieces', persona: 'omar', kind: 'easy', set: 'mech', lang: 'da', dictated: true, orb: true, tweak: lunchLogged, history: fixHistory,
+    q: 'Almindelige majskiks, 8 majskiks og hytteost 450 gram med 1,5 fedt.',
+    check: (a) => (fixes(a, /majskiks|mvgpz3edhvmlo/) ? null : `did not fix the corn cakes (${a.actions.map((x) => x.type).join(', ') || 'no action'})`),
+    good: 'Replaces the paprika corn cakes with 8 plain ones (about 8 g each, ~250–300 kcal), keeps the cottage cheese, says briefly what changed. Does not ask for a brand.' },
+  { id: 'fix-kcal', persona: 'omar', kind: 'easy', set: 'mech', lang: 'da', dictated: true, orb: true, tweak: lunchLogged,
+    history: [...fixHistory, { role: 'user', text: 'Almindelige majskiks, 8 majskiks og hytteost 450 gram med 1,5 fedt.' }, { role: 'model', text: 'Jeg forstår det som 8 almindelige majskiks og 450 g hytteost med 1,5 % fedt. Jeg kan rette frokosten, men hvilket hytteost-mærke var det?' }],
+    q: 'Jeg ved ikke, hvor fin mærke det er, men det er i hvert fald, der er ca. 75 kalorier på 100 gram. Det er det, jeg kan huske.',
+    check: (a) => (fixes(a, /cottage|hytteost|mvgpz3edi7/) ? null : `did not fix the cottage cheese (${a.actions.map((x) => x.type).join(', ') || 'no action'})`),
+    good: 'Sets the cottage cheese to 75 kcal per 100 g (and fixes the corn cakes it left last time), says what changed, no more questions.' },
+
   // ── logging and doing (should be fast and exact) ──
   { id: 'log-breakfast', persona: 'omar', kind: 'easy', q: 'log 200g skyr and a banana for breakfast',
     check: (a) => { const f = has(a, 'log_food')[0]; if (!f) return 'no log_food'; const names = (f.foods ?? []).map((x: any) => fold(x.name)).join('|'); if (!/skyr/.test(names) || !/banan/.test(names)) return `foods: ${names}`; if (fold(f.meal) !== 'breakfast') return `meal ${f.meal}`; const sk = f.foods.find((x: any) => /skyr/.test(fold(x.name))); return sk?.amount === 200 ? null : `skyr amount ${sk?.amount}`; },
@@ -116,6 +174,27 @@ export const QUESTIONS: Question[] = [
     history: [{ role: 'user', text: 'plan my food for tomorrow' }, { role: 'model', text: 'Tomorrow: 2,300 kcal, 180 g protein: skyr and oats, chicken rice bowl, pasta bolognese, a protein bar.' }],
     check: (a) => (/\?/.test(a.reply) && !a.actions.filter((x) => !SHOW.has(x.type)).length ? null : 'no single question back'),
     good: 'Asks ONE short question: what should change (the foods, the amounts, the calories?). No new plan yet.' },
+  // ── honest voice (25 Oct): misses named with numbers, firmer on repeats, wins said exactly, no body talk, never "train lighter" ──
+  { id: 'honest-week', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: 'how was my training this week? be honest',
+    check: honest, good: 'Names the planned sets he skipped, with the numbers from DATA (which lift, how many of how many, which day, and the exercise left out), plainly and without a lecture; says what went well, exactly; offers one useful fix only if there is one. Never "train lighter", nothing about his body.' },
+  { id: 'honest-repeat', persona: 'omar', kind: 'think', set: 'dev', lang: 'da', dictated: true, tweak: honestWeek, q: 'jeg droppede de sidste sæt på første øvelse igen er det et problem',
+    check: honest, good: 'Firmer because it is a repeat: says it happened in all three of the last workouts (this morning, Friday, Wednesday), with the numbers; asks the one reason (time, tiredness, the rest) or gives one concrete fix. No shame, no "train lighter", short.' },
+  { id: 'honest-clean', persona: 'omar', kind: 'think', set: 'dev', tweak: planAll, q: 'did I do everything I planned in the gym this week?',
+    check: honest, good: 'Yes, and says it exactly (every planned working set, the count from DATA); warm but no hype. Mentions the wrestling only if useful.' },
+  { id: 'honest-plan', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: 'did I do everything I planned in the gym this week?',
+    check: honest, good: 'No, and the same facts as honest-week: 5 of 33 planned working sets skipped (pulldown Wed, squat Fri, leg press today), calf raises not done Friday; the sessions themselves all happened.' },
+  { id: 'honest-count', persona: 'omar', kind: 'easy', set: 'dev', tweak: honestWeek, q: 'how many sets did I skip this week',
+    check: (a) => (/\b5\b/.test(a.reply) ? null : 'not the 5 sets in DATA'), good: '5 of 33, with where; one line or two.' },
+  { id: 'honest-squat', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: 'is my squat going anywhere?',
+    check: honest, good: 'Stalled at 60 × 12 since September, AND 2 of 3 sets skipped Friday (the same facts as honest-week); one change only if it helps; never fewer sets.' },
+  { id: 'honest-praise', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: 'what did I do well this week?',
+    check: (a) => honest(a) ?? (/across the board|every meal|even on the|protein[^.]*every (single )?day|nailed|right at (your )?\d+ ?g|intensity/i.test(a.reply) ? 'praise rounded up' : null), good: 'Only what DATA shows, counted exactly, in DATA\'s window (Tue 13 – Mon 19): 3 gym sessions (Wed Pull, Fri Legs, today Legs & shoulders instead of the planned Push) and both wrestling sessions, PRs on Pull (2, barbell row) and Legs (3, walking lunge); last Monday\'s Push PRs only if named as last Monday; protein exactly as DATA counts it (on target on some days, close on the rest: never "every day"). No praise for finishing every set (he did not).' },
+  { id: 'honest-focus', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: 'what should I focus on this week?',
+    check: honest, good: 'One or two focuses from the same facts: finishing planned sets on the first exercise (3 workouts in a row) and/or the evenings over target (4 of 7 days); no new facts that contradict the other answers.' },
+  { id: 'honest-food', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: "how's my eating this week",
+    check: (a) => none(a) ?? bodyTalk(a) ?? tooLong(a) ?? (/binge|blowout|cheat|bad day|raid|grazing|off-plan|starv/i.test(a.reply) ? 'judgy food word' : null) ?? (/\b[34]\d\d\b|\b([34]|three|four) (of (the |the last |those )?(7|seven|6|six) )?(finished )?days\b/i.test(a.reply.replace(/,(?=\d{3})/g, '')) ? null : 'did not name the days over'), good: 'Names the evenings over target with the numbers (a few days roughly 300–500 over, plus the big night), puts it in proportion with the trend, gives one practical fix (the evening snack). No guilt, no moralising, nothing about his body.' },
+  { id: 'honest-night', persona: 'omar', kind: 'think', set: 'dev', tweak: honestWeek, q: 'slept like 5 hours. still doing push today',
+    check: (a) => honest(a) ?? (/nervous system|\bCNS\b|your body (is|will)/i.test(a.reply) ? 'body claim as fact' : null) ?? (/4\s?h|4:50|5 (h|hours)|sleep|søvn|sov/i.test(a.reply) ? null : 'said nothing about the short night'), good: 'Says in a line that Legs & shoulders is already logged today and still answers: the short night (4h50, HRV down) honestly, his call, go train; one useful tip (a longer warm-up, caffeine timing, eat before). Never tells him to go lighter or skip (MEMORY: trains to failure).' },
 ];
 
 // Coach 2.1 (20 Oct): dictated and misheard, follow-ups, the voice orb, Danish

@@ -7,7 +7,7 @@ import { TabBar } from './ui/TabBar';
 import { Toaster } from './ui/Toaster';
 import { SphereStage } from './ui/Sphere';
 import { Overlays } from './screens/Overlays';
-import { useRestCue, openWorkout } from './screens/workout/rest';
+import { useRestCue, openWorkout, applyDoneFromAddress } from './screens/workout/rest';
 import { useStaleWorkout } from './screens/workout/stale';
 import { applyHcFromAddress } from './lib/healthSync';
 import { useKeepStorage } from './lib/persist';
@@ -27,7 +27,7 @@ import { FpsMeter } from './ui/FpsMeter';
 import { useLaunch } from './ui/launch';
 import { BgBody, PER_TAB, barColor, useSkyClock, type BgKind } from './ui/Backdrop';
 import { FieldGlow } from './ui/Glows';
-import { surfaceOf } from './lib/types';
+import { lookOf, surfaceOf } from './lib/types';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -95,6 +95,8 @@ function useTheme() {
   useLayoutEffect(() => { document.documentElement.dataset.glow = glow; }, [glow]);
   const surface = useStore((x) => surfaceOf(x.settings.surface));
   useLayoutEffect(() => { document.documentElement.dataset.surface = surface; }, [surface]);
+  const look = useStore((x) => lookOf(x.settings.look));
+  useLayoutEffect(() => { document.documentElement.dataset.look = look; }, [look]);
   const bg = useStore((x) => x.settings.background ?? 'classic');
   useLayoutEffect(() => { document.documentElement.dataset.bg = bg; }, [bg]);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
@@ -297,7 +299,7 @@ export function App() {
   useTheme();
   useRestCue(); // the end of a rest, wherever you are in the app
   useStaleWorkout(); // a workout left running for hours asks once whether to finish it
-  useEffect(() => { applyHcFromAddress(); window.addEventListener('hashchange', applyHcFromAddress); return () => window.removeEventListener('hashchange', applyHcFromAddress); }, []); // the watch's numbers (lib/healthSync.ts)
+  useEffect(() => { const fromAddress = () => { applyDoneFromAddress(); applyHcFromAddress(); }; fromAddress(); window.addEventListener('hashchange', fromAddress); return () => window.removeEventListener('hashchange', fromAddress); }, []); // Done ✓ taps the Android app kept (workout/rest.ts) // the watch's numbers (lib/healthSync.ts)
   useKeepStorage(); // asks the browser not to clear Aven's data on its own (lib/persist.ts)
   useDriveAuto(); // Google Drive backups while you use the app (lib/drive.ts)
   useKeyboard();

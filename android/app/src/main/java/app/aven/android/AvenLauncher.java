@@ -83,7 +83,11 @@ public class AvenLauncher extends LauncherActivity {
     @Override
     protected Uri getLaunchingUrl() {
         Uri url = super.getLaunchingUrl();
-        return watch == null ? url : url.buildUpon().fragment("hc=" + watch).build();
+        // Done ✓ taps from the rest notification and the watch that Aven may not have heard of yet (RestNotifications.keepDone)
+        String dn = RestNotifications.takeDone(this);
+        if (watch == null && dn == null) return url;
+        String frag = (dn == null ? "" : "dn=" + dn) + (dn != null && watch != null ? "&" : "") + (watch == null ? "" : "hc=" + watch);
+        return url.buildUpon().fragment(frag).build();
     }
 
     @Override

@@ -14,6 +14,8 @@ import { writeThread } from '../lib/thread';
 import { dismissRule, learnedRules, type Rule } from '../lib/ledger';
 import { mealName } from '../lib/derive';
 import { specOf } from '../lib/settingSpec';
+import { goalShort, goalState } from '../lib/goals';
+import { fmtNum, kgToDisplay } from '../lib/units';
 
 const KIND_GROUP: Record<MemoryKind, string> = { goal: 'Goals', health: 'Body', schedule: 'Schedule', preference: 'Preferences', gear: 'Gym', food: 'Food', other: 'Notes' };
 const GROUP_ORDER: MemoryKind[] = ['goal', 'health', 'schedule', 'preference', 'gear', 'food', 'other'];
@@ -30,7 +32,7 @@ export function CoachMemory() {
   const today = dayKey(Date.now(), useStore((s) => s.settings.dayStartHour));
   const groups = useMemo(() => {
     const by = new Map<MemoryKind | 'ended', MemoryNote[]>();
-    for (const m of memory) { const k = m.until && m.until < today ? 'ended' : m.kind; (by.get(k) ?? by.set(k, []).get(k)!).push(m); }
+    for (const m of memory) { const k = (m.until && m.until < today) || m.goal?.status ? 'ended' : m.kind; (by.get(k) ?? by.set(k, []).get(k)!).push(m); }
     return [...GROUP_ORDER, 'ended' as const].filter((k) => by.has(k)).map((k) => [k, by.get(k)!] as const);
   }, [memory, today]);
   const add = () => {
@@ -180,6 +182,7 @@ function MemoryRow({ m, ended = false }: { m: MemoryNote; ended?: boolean }) {
           ? <button className="mem-text" onClick={() => setEdit(m.text)} aria-label={`${t('Edit')}: ${m.text}`}>{m.text}</button>
           : <textarea className="input mem-edit" autoFocus value={edit} maxLength={240} rows={2} onChange={(e) => setEdit(e.target.value)} onBlur={save} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); } if (e.key === 'Escape') { e.stopPropagation(); setEdit(null); } }} />}
         {about.length > 0 && <div className="xs t3" style={{ marginTop: 4 }}><Icon name="dumbbell" size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />{about.join(' · ')}</div>}
+        {m.goal && <GoalLine m={m} />}
         {!!m.was?.length && (
           <>
             <button className="xs t3 mem-hist-btn press" aria-expanded={history} onClick={() => setHistory((x) => !x)}>{history ? t('Hide earlier wording') : t('Earlier wording ({n})', { n: m.was.length })}</button>
@@ -192,4 +195,27 @@ function MemoryRow({ m, ended = false }: { m: MemoryNote; ended?: boolean }) {
       <button className="icon-btn flat sm press" aria-label={t('Remove')} onClick={remove}><Icon name="trash" size={17} /></button>
     </div>
   );
+}
+
+/** Where a goal stands (lib/goals.ts): "81.9 → 80 kg · on pace · by 16 Nov", or when it was reached or dropped. */
+function GoalLine({ m }: { m: MemoryNote }) {
+  const t = useT();
+  const lang = useLang();
+  const u = useStore((s) => s.settings.units.weight);
+  // (drawn again when a weigh-in, a workout or a meal comes in while the screen is open)
+  useStore((s) => s.weights); useStore((s) => s.sessions); useStore((s) => s.entries);
+  const g = m.goal!;
+  const day = (x: string) => fmtDate(x, lang, { day: 'numeric', month: 'short' });
+  let text: string;
+  // (an ended goal without its day, from an older backup: no line rather than an invalid date)
+  if (g.status) text = !g.endedOn ? '' : g.status === 'done' ? t('Reached {date}', { date: day(g.endedOn) }) : t('Dropped {date}', { date: day(g.endedOn) });
+  else {
+    const s = useStore.getState();
+    const st = goalState(s, m, dayKey(Date.now(), s.settings.dayStartHour));
+    const short = st ? goalShort(st, t, (kg) => `${fmtNum(kgToDisplay(kg, u), lang, 1)} ${u}`) : '';
+    // (the date only when the note's words don't already say it)
+    text = [short, g.by && !m.text.includes(g.by) && t('by {date}', { date: day(g.by) })].filter(Boolean).join(' · ');
+  }
+  if (!text) return null;
+  return <div className="xs t3 num" style={{ marginTop: 4 }}><Icon name={g.metric === 'lift' ? 'bolt' : 'scale'} size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />{text}</div>;
 }

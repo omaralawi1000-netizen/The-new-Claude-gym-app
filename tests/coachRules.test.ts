@@ -22,7 +22,7 @@ describe('talking steers the Coach', () => {
     expect(sys).toMatch(/Plans ahead.*remember with until/);
     expect(sys).toContain('"Age: N (as of YYYY-MM-DD)"');
     expect(sys).toMatch(/NOT SATISFIED.*remember the preference/);
-    expect(sys).toMatch(/a change of goal now → also offer set_setting goal/);
+    expect(sys).toMatch(/a change of profile goal now \(cutting → bulking\) → also offer set_setting goal/);
   });
   it('heavy-day talk: off and quiet by words, a catch-up only when asked, help once, eating-disorder signals', () => {
     expect(sys).toMatch(/"No catch-ups ever".*set_setting heavyDays off/);
@@ -39,13 +39,14 @@ describe('talking steers the Coach', () => {
 });
 
 describe('frequent heavy days', () => {
-  it('3+ a week two weeks running: a fact (and when help was suggested), never an order to say something', () => {
+  it('3+ a week two weeks running: a fact, never an order to say something, and no doctor', () => {
     const entries: FoodEntry[] = [];
     for (let i = 1; i <= 14; i++) entries.push(food(addDays(today, -i), i % 2 ? 3300 : 2300));
     const L = eatingLines(data({ entries }), today).join('\n');
     expect(L).toMatch(/Frequent heavy days: \d in the last 7 days and \d in the 7 before; \d weeks running\.$/m);
     expect(L).not.toMatch(/doctor|dietitian/);
-    expect(eatingLines(data({ entries, marks: { helpSaid: '2026-10-12' } }), today).join('\n')).toMatch(/was suggested to them on 2026-10-12/);
+    // (no doctor or GP line, ever: Omar, 25 Oct)
+    expect(eatingLines(data({ entries, marks: { helpSaid: '2026-10-12' } }), today).join('\n')).not.toMatch(/GP|dietitian|doctor/);
     // notices off: nothing about heavy days at all
     const off = data({ entries }); off.settings.heavyDays = 'off';
     expect(eatingLines(off, today).join('\n')).not.toMatch(/Frequent|Heavy days, last 4 weeks/);
