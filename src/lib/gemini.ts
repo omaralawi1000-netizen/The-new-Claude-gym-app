@@ -11,6 +11,8 @@ import { MAX_ITEMS, validateFoodItems, validateWorkoutItems, validateEstimate, t
 const API = 'https://generativelanguage.googleapis.com/v1beta';
 /** Google's rolling aliases always point at the newest Flash / Flash-Lite: a safe last resort. */
 export const FALLBACK_MODELS = { fast: 'gemini-flash-lite-latest', brain: 'gemini-flash-latest' };
+/** The Coach thinks with Gemini 4 Argon (Omar, 26 Oct: better answers than Flash); Flash takes over if the key lacks it or it is busy. */
+export const COACH_MODEL = 'gemini-4-argon';
 
 // ── model choice (pure) ─────────────────────────────────────
 const idOf = (m: any): string => String(m?.name || m).replace(/^models\//, '');
@@ -90,7 +92,8 @@ export async function withFallback<T>(models: string[], fn: (m: string) => Promi
     for (const m of list) {
       try { return await fn(m); } catch (e: any) {
         last = e;
-        if (!retryable(e)) throw e;
+        // (a model too slow to start answering hands over to the next one rather than failing the whole turn)
+        if (!retryable(e) && !(e?.code === 'timeout' && m !== list[list.length - 1])) throw e;
         if (e.code === 'quota') markExhausted(m, now());
         else if (e.code === 'busy' && e.extra?.retryMs && e.extra.retryMs <= maxWait && !waited && m === list[list.length - 1]) {
           waited = true; await sleep(e.extra.retryMs);

@@ -7,6 +7,14 @@ guide in the same pull request. `README.md` is the history of why; this file is 
 Omar judges on his phone (Galaxy S26 Ultra, 120 Hz, Chrome, installed app, DPR 3.75, 384 css px wide). Explain things to
 him in plain, short words. Rules marked **[Omar]** are his own words or decisions: never reverse them without his yes.
 
+**Rules are guides, not vetoes [Omar, 26 Oct: "remove all the rules that are not good for me… we can make live blur
+actually good, a lot of apps do that"].** Blur and motion rules here are defaults and lessons learned, not bans. Live
+blur, animated blur, animated shadows, glows and livelier or faster motion may all be tried: build it, measure it on his
+phone (Beta), and let him judge. A past measurement ("half the frame rate") is a warning to measure again, not a reason
+not to try. What stays firm is what protects him: no flicker or black frames, no layout jumps, a smooth result (120 fps
+target, measured on Beta), backups and quick revert, his colour taste (no grey, no navy, no brown, no orange wash), his
+data and keys, and the go rule (nothing starts or ships without his clear go).
+
 ## The quality bar [Omar, 14 Oct]
 
 Omar wants the standard for animation, look and everything to be **very high, Apple-level**. Nothing goes to him that a top
@@ -15,8 +23,10 @@ reason to show something mediocre: spend the extra round before he sees it, not 
 
 ## 0. The four things that must always hold
 
-1. **Blur AND 120 fps.** Frosted glass stays; make it cheap, never remove it (section 5).
-2. **Slow, calm, Apple-like motion.** Never faster or snappier unless Omar agrees (section 4).
+1. **Blur AND smooth.** Frosted glass stays and may go further (live blur, animated blur) as long as it measures smooth
+   on his phone (120 fps target, Beta). Never solve lag by removing blur (section 5).
+2. **Motion that feels great.** Calm and Apple-like is the house default; livelier or faster motion is welcome to try,
+   and Omar judges it on the phone (section 4).
 3. **See-through frost, never a solid block** for anything floating (section 1).
 4. **No orange on surfaces.** Colour only on things you can tap or that mean something (section 2).
 
@@ -31,12 +41,13 @@ Tokens live in `src/styles.css` (`:root` dark block and `:root[data-theme='light
   card are soft fills with **no outline** (outlines inside an outlined card read as clutter). No accent glow inside cards.
 - **Edge of light:** every glass surface has a 1 px white top line (`--hl`) and a hairline ring (`--line`). Do not add
   coloured rims. Shadows are deep and neutral (black / navy), never tinted.
-- **Shadow ladder:** `--sh-c` card, `--sh-a` floating, `--sh-f` sheet. Pick one; do not invent new ones. Shadows are static:
-  never animate `box-shadow` (it repaints on the main thread every frame).
+- **Shadow ladder:** `--sh-c` card, `--sh-a` floating, `--sh-f` sheet. Pick one; do not invent new ones. Animating `box-shadow`
+  repaints every frame, so the default is a static shadow (or one that fades as its own layer); a real animated shadow may
+  be tried if it measures smooth on Beta.
 - **Real frost (backdrop-filter) only where something passes underneath:** the tab bar, sheets, pop-ups, toasts, the Coach
-  controls. On tab screens and in the live workout, cards, buttons and chips have **no** backdrop blur on purpose: they sit
-  over the soft colour field only, and frosting them cost 36 fps on Train/Progress. Look identical, cost far less
-  (`.screen .plinth …` and `.wk-window .plinth …` rules). Do not turn it back on.
+  controls. Today, tab-screen and live-workout cards, buttons and chips have no backdrop blur: frosting them measured
+  36 fps on Train/Progress (20 Oct), so they use a still copy of the field (`src/ui/frost.ts`). Live blur on them may be
+  tried again [Omar, 26 Oct]: build it cheaply, measure it on Beta, and keep it only if it is smooth and he likes it.
 - **Sheets (`.sheet`):** two layers under the content. `::before` = the blur (`--sheet-frost`, 44 px, dark adds
   `brightness(2)`); `::after` = the tint (`--sheet-tint`) carrying `--dither`. Drop shadow is on `.sheet` itself, not on
   the dithered layer (it doubled the cost). Sheet radius `--r-xl` on top corners.
@@ -55,8 +66,8 @@ Tokens live in `src/styles.css` (`:root` dark block and `:root[data-theme='light
 - **Surfaces [Omar, 25 Oct, v0.1.170] (dark theme, `src/surfaces.css`, `data-look='a'` for everyone, no picker):**
   pop-ups/sheets are untinted dark frost ("I liked C because it didn't have a tint", "I don't want the pop-ups to feel like
   you can see through"): 44 px blur, saturate 2, brightness .84, black .34 on top; this overrides the palette tint above
-  in dark. Page cards are a still, soft copy of the field behind them (`src/ui/frost.ts`, no live blur; live blur cost about
-  half the frame rate for no visible gain). On loud or slab backgrounds (Mesh on Golden hour/Sunset, Night sky, Colour per
+  in dark. Page cards are a still, soft copy of the field behind them (`src/ui/frost.ts`; live blur measured about half the
+  frame rate on 20 Oct, a lesson to measure again, not a ban). On loud or slab backgrounds (Mesh on Golden hour/Sunset, Night sky, Colour per
   tab, Time of day) the copy becomes "dark glass with one soft glow coming through", like Champagne + Mesh, which stays
   untouched; darkened orange leans wine (never brown), navy leans plum, never darker than 60 % (no holes), every switch
   fades over a range (hard steps drew bands). The copies are rebuilt the moment the theme changes (never show old colours).
@@ -77,7 +88,8 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
   separate layer right over it with `background: var(--dither), <tint>` and `image-rendering: pixelated`. Noise drawn after
   rounding only hides the rings' edges. Full recipe and the maths: the "Dither" comment in `styles.css`; noise tile is
   installed by `src/lib/grain.ts` (`installDither`).
-- Never put a picture inside a blurring layer (extra full-screen pass: frames halved).
+- A picture inside a blurring layer costs an extra full-screen pass (frames halved when measured): avoid it unless a
+  Beta measurement says it is smooth.
 - Large soft glows are painted by `src/ui/glow.ts` + `glow.worker.ts` (TPDF dither into half-res canvases; the CSS
   gradient shows until the picture is ready, then `[data-dith]` swaps it out). The picture is read from the element's own
   computed CSS (`src/ui/glowCss.ts`), so changing a gradient in `styles.css` changes the picture too.
@@ -186,7 +198,8 @@ browser smooths them, so **lab shots lie: judge from Omar's own screenshots.**
 
 ## 4. Motion
 
-All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The orb **never changes shape**.
+Default feel: **calm and Apple-like** [Omar]. Livelier, faster or snappier motion is welcome to try [Omar, 26 Oct]: show
+it to him, he judges on the phone. The orb **never changes shape**.
 
 - **Use the shared springs** in `src/ui/motion.ts` (`apple(duration, bounce)` = SwiftUI's spring):
   `TAP` (0.3 s, 0.15) press/tick; `SMOOTH` (0.36 s) content settling; `SURFACE` / `WINDOW` (0.45 s) sheets and the
@@ -196,12 +209,12 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
   `--ease-out`, `--ease-io`. Same physics as the script springs.
 - **Run it on the compositor:** `springCurve` / the WAAPI mirrors in `motion.ts` let the browser draw script springs at the
   full refresh rate. Prefer them to per-frame JS.
-- **What may animate:** `transform` and `opacity` only.
-- **What never animates:**
-  - the **blur** (`backdrop-filter`, `filter: blur`) anywhere [Omar]. No blur-in on Coach text: opacity and a small
-    rise only (0.14 em, 820 ms);
-  - `box-shadow`, `width`/`height`, `top/left`, `border-radius` on a big layer, colour variables on `<html>`/`.app`;
-  - `mix-blend-mode` on a full-screen layer.
+- **Cheapest to animate:** `transform` and `opacity` (the compositor draws them). Start there.
+- **Costly to animate, allowed to try [Omar, 26 Oct]:** blur (`backdrop-filter`, `filter: blur`: blur-ins, blurred exits,
+  soft focus), `box-shadow`, `border-radius` on a big layer, `mix-blend-mode` on a full-screen layer. Build it, measure it
+  on Beta, keep it only if it stays smooth and he likes it.
+- **Avoid:** animating `width`/`height`/`top`/`left` (layout jumps) and colour variables on `<html>`/`.app` (restyles the
+  whole page every frame).
 - **Entrances:** fill `both`, **no `to` keyframe** (neutral end). Never an explicit end keyframe with fill forwards.
   Do not remove animation classes after they finish. Script-moved containers keep `will-change` permanently. Never toggle
   `border-radius`/`overflow` on `.stage`. (This is what stopped the one-frame flicker, README "No flicker as a page lands".)
@@ -233,10 +246,12 @@ All of it: **slow, calm, Apple-like, never snappier unless Omar agrees.** The or
 
 ## 5. Performance (every change must not make it worse)
 
-- **Blur only small fixed layers.** Never blur on blur. Never animate a blur. Keep a blurred layer on its own compositor
-  layer and do not re-render content under it every frame.
-- **Per frame:** animate transform and opacity only; never write CSS variables on `<html>`/`.app`/`.fields` per frame (the
-  status bar tint writes only to `[data-bar]` elements); no full-screen blend modes; no animated gradients.
+- **Blur is a budget, not a ban.** Small fixed blurred layers are cheapest; blur on blur, big live blur and animated blur
+  cost more and may be tried if they measure smooth on Beta. Keep a blurred layer on its own compositor layer and do not
+  re-render content under it every frame.
+- **Per frame:** transform and opacity are cheapest; never write CSS variables on `<html>`/`.app`/`.fields` per frame (the
+  status bar tint writes only to `[data-bar]` elements). Full-screen blend modes and animated gradients are costly: Beta
+  first.
 - **Pause what is off-screen.** Nothing animates behind an open pop-up. Idle redraws should be ~0.
 - **Keep memory low.** Big layers (a full-screen field plus a window plus a page) starve the phone's GPU tiles and show as
   blank patches; warm the stage before a handover, release the leaving layer fast, never hold two full-screen layers longer
@@ -314,8 +329,6 @@ something that looks good disagree, show Omar both and let him decide.
 | Full step-back stacking (lower sheet 0.93 + peek) | replaced by the subtle step-back (`backup/stacking-r7-before-no-stepback`) |
 | Swipe to tick a set | Omar 12 Oct |
 | Collapsing / large titles; top bar under the status bar | dropped; impossible in standalone TWA |
-| Animated blur (blur-in on Coach text, blurred exits, soft focus via blur) | GPU cost; rule |
-| Tab-screen cards, chips or buttons with real backdrop blur | 36 fps on Train/Progress |
 | Rosé / Emerald or any new colour | Omar 14 Oct: no more colours |
 | Accent glow in a card corner (hero workout card) | read as a stain (14 Oct, removed in v0.1.129) |
 | Accent-tinted card glass ("colour glass") | Golden hour reads brown (14 Oct preview) |
@@ -336,6 +349,6 @@ The Barbell Curl figure is the reference. Every other figure follows
 
 - [ ] Both themes, Danish strings, Aurora (teal) palette, tab bar and Coach composer in view.
 - [ ] Nothing floating is a solid block; no warm tint on a surface.
-- [ ] Only transform/opacity animate; no new blur on blur; springs from `motion.ts`.
+- [ ] Springs from `motion.ts`; anything costly (blur, shadow, blend) measured smooth on Beta.
 - [ ] `npm run verify` is green; the `scripts/` journey that touches your change passes.
 - [ ] Judge passed (visual/motion), Omar said yes, version bumped, deploy green, phone check written out.
