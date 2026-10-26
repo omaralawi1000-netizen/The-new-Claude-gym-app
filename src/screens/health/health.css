@@ -1,0 +1,155 @@
+/* Health (screens/Health.tsx): no boxes, no lines; space and type size carry the sections. Colours as in the mock Omar
+   liked (sleep lilac, heart red, steps orange, cardio gold, body warm white). Only transform and opacity ever move. */
+.hx-root { position: absolute; inset: 0; }
+.hx-screen > * { animation: none; }
+.hx-screen > * + * { margin-top: 0; }
+.hx-top { display: flex; justify-content: space-between; align-items: center; margin: 4px 0 6px; }
+.hx-title { font: 400 34px/1 var(--f-display); margin: 0; letter-spacing: -0.01em; }
+.hx-date { font-size: 13px; color: var(--tx3); margin: 0 0 6px; }
+.hx-sent { font: 400 25px/1.44 var(--f-display); margin: 6px 0 18px; text-wrap: pretty; }
+.hx-w { display: inline-block; }
+/* until the watch's detail is read (a moment), the sentence waits unseen: it would change under its own entrance */
+.hx-wait .hx-sent { opacity: 0; }
+.hx-pill { display: inline-flex; align-items: baseline; gap: 5px; padding: 0 10px 1px; border-radius: 999px; background: rgba(255, 255, 255, .045);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 0 0 1px color-mix(in srgb, var(--c) 42%, transparent);
+  font: 500 21px/1.25 var(--f-ui); color: color-mix(in srgb, var(--c) 70%, #fff); font-variant-numeric: tabular-nums; cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+.hx-pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); align-self: center; }
+.hx-pill > span { display: inline-block; }
+.hx-tight { margin-left: 3px; } /* punctuation right after a chip never touches its rim */
+.hx-note { font-size: 14px; color: var(--tx2); margin-top: 28px !important; }
+
+/* the Coach speaking on top (26 Oct): its orb, small, and its name; the sentence is the Coach's line */
+.hx-coach { display: flex; align-items: center; gap: 9px; margin: 14px 0 2px; font: 500 13px var(--f-ui); color: var(--tx2); letter-spacing: .01em; }
+.hx-orb { flex: none; display: block; }
+/* the goal it follows: a thin outline and no fill, so it reads as part of the Coach's voice, not one more card */
+.hx-goal { display: block; width: 100%; text-align: left; margin: 2px 0 10px; padding: 15px 18px 14px; border: 0; border-radius: 22px; background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09); color: var(--tx); font: inherit; cursor: pointer; --press: .985; -webkit-tap-highlight-color: transparent; }
+.hx-ghead { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.hx-gt { font: 400 23px/1.15 var(--f-display); text-wrap: balance; min-width: 0; }
+.hx-gpace { flex: none; font: 500 12.5px var(--f-ui); padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+  color: color-mix(in srgb, var(--c) 85%, #fff); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent); }
+.hx-gchev { color: rgba(255, 255, 255, .6); font-size: 20px; }
+.hx-gwarn { color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 122, 106, .5); }
+.hx-gbar { position: relative; height: 26px; margin-top: 6px; }
+.hx-gbar::before { content: ''; position: absolute; left: 0; right: 0; bottom: 3px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .08); }
+.hx-gbar::after { content: ''; position: absolute; left: 0; right: 0; bottom: 3px; height: 4px; border-radius: 2px; background: var(--c); transform-origin: left; transform: scaleX(var(--f)); }
+.hx-gbar i { position: absolute; bottom: 0; left: calc(var(--f) * 100%); width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--c); z-index: 1; }
+.hx-gnow { position: absolute; top: 0; left: clamp(28px, calc(var(--f) * 100%), calc(100% - 28px)); transform: translateX(-50%); font: 500 12px/1 var(--f-ui); color: var(--c); white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* where the bar starts and ends, so its fill is a number he can check */
+.hx-gexp { position: absolute; bottom: -1px; width: 2px; height: 12px; margin-left: -1px; border-radius: 1px; background: rgba(255, 255, 255, .7); }
+.hx-gends { display: flex; justify-content: space-between; margin-top: 4px; font: 500 11.5px var(--f-ui); color: var(--tx2); font-variant-numeric: tabular-nums; }
+.hx-gline { margin-top: 8px; font-size: 14px; color: var(--tx2); text-wrap: pretty; font-variant-numeric: tabular-nums; }
+.hx-gline b { font-weight: 500; color: var(--tx); }
+.hx-goal + .hx-rib { margin-top: 18px; }
+
+.hx-bleed { margin-left: -20px; margin-right: -20px; }
+.hx-rib { margin-top: 4px; }
+.hx-ribbon { position: relative; overflow: hidden; }
+.hx-rl { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.hx-rl > div { width: 100%; height: 100%; }
+.hx-ax { font: 500 11px var(--f-ui); fill: var(--tx2); }
+.hx-ax3 { font: 500 11px var(--f-ui); fill: var(--tx3); color: var(--tx3); }
+
+.hx-sec { position: relative; display: block; margin: 40px -20px 0; padding: 0 20px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.hx-lab { font: 500 13px var(--f-ui); color: color-mix(in srgb, var(--c) 78%, #fff); letter-spacing: .01em; display: flex; align-items: center; gap: 7px; }
+.hx-lab i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
+.hx-sub { font-size: 13px; color: var(--tx2); }
+.hx-unit { margin-left: 6px; }
+.hx-hi { color: var(--tx); font-weight: 400; }
+.hx-n { font-family: var(--f-ui); font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1; display: inline-block; }
+.hx-n small { font-size: 15px; letter-spacing: 0; color: var(--tx2); margin-left: 6px; font-weight: 400; }
+.hx-n28 { font-weight: 300; font-size: 28px; } .hx-n34 { font-weight: 300; font-size: 34px; } .hx-n46 { font-weight: 200; font-size: 46px; }
+.hx-n52 { font-weight: 200; font-size: 52px; } .hx-n56 { font-weight: 200; font-size: 56px; } .hx-n64 { font-weight: 200; font-size: 64px; }
+.hx-hyp { margin-top: 10px; }
+.hx-wipe { overflow: hidden; }
+[data-share=chart] { display: flow-root; }
+.hx-rowc { display: flex; align-items: center; gap: 14px; }
+.hx-rowc > div:first-child { min-width: 0; flex: 1; }
+.hx-bodyrow { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
+
+.hx-wk { display: grid; grid-template-columns: repeat(7, 1fr); margin-top: 12px; text-align: center; }
+.hx-wk .d { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.hx-wk .m { height: 34px; display: flex; flex-direction: column-reverse; align-items: center; gap: 4px; overflow: hidden; }
+.hx-wk b { font: 500 11.5px var(--f-ui); color: var(--tx2); }
+.hx-wk b.today { color: var(--tx); }
+.hx-wk .mk { display: block; border-radius: 99px; width: 8px; height: 8px; flex: none; }
+.hx-wk .mk.wr { height: 18px; background: #ffd060; }
+.hx-wk .mk.run { background: #ffd060; }
+.hx-wk .mk.gym { background: #ff9a5c; }
+.hx-wk .mk.miss { box-shadow: inset 0 0 0 1.5px var(--line-2); }
+
+.hx-ring { position: relative; flex: none; }
+.hx-half { position: absolute; top: 0; overflow: hidden; }
+.hx-half.l { left: 0; }
+.hx-rs, .hx-ls { position: absolute; top: 0; }
+.hx-ls { left: 0; }
+
+/* the page a section grows into: hidden by moving it aside, never by visibility or pointer-events (expand.ts) */
+.hx-detail { position: absolute; inset: 0; z-index: 5; opacity: 0; transform: translateX(120%); }
+.hx-detail.live { opacity: 1; transform: none; }
+.hx-L { position: absolute; inset: 0; overflow: hidden; will-change: transform; }
+/* the window's edges are rounded like a card while it moves (a fixed radius, never animated); square once it fills the screen */
+.moving .hx-rnd { border-radius: 22px; }
+.hx-edge { position: absolute; left: 0; right: 0; top: 0; height: 16px; pointer-events: none; opacity: 0; z-index: 2; background: linear-gradient(rgba(0, 0, 0, .18), transparent); }
+.hx-mat { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 58%, transparent); }
+/* the page keeps the screen's warm background (home steps back underneath), with a soft glow of the section's colour */
+.hx-mat::after { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 55% at 15% -5%, color-mix(in srgb, var(--c) 12%, transparent), transparent 70%); }
+.hx-dsc { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; padding: calc(var(--sat) + 12px) 20px calc(var(--bar-h) + var(--sab) + 44px); scrollbar-width: none; }
+.hx-dsc::-webkit-scrollbar { display: none; }
+/* a page's body is its own layer for good: the chip swap slides it, and a layer dropped at the end would snap its text by a pixel */
+.hx-dsc .hx-body { will-change: transform; }
+.hx-fly { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+.hx-fly > * { position: absolute; margin: 0; transform-origin: 0 0; }
+.hx-dhead { display: flex; align-items: center; gap: 10px; margin: 4px 0 12px; }
+.hx-x { width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .08); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), inset 0 0 0 1px var(--line); color: var(--tx); font: 400 18px/1 var(--f-ui); cursor: pointer; }
+.hx-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -20px 18px; padding: 0 20px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 36px), transparent); }
+.hx-chips::-webkit-scrollbar { display: none; }
+.hx-chips button { position: relative; isolation: isolate; flex: none; border: 0; border-radius: 999px; padding: 8px 13px; font: 500 13px var(--f-ui); color: var(--tx2); background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; display: flex; gap: 6px; align-items: center; }
+.hx-chips button i { width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
+.hx-chips button.on { color: var(--tx); background: transparent; box-shadow: none; }
+.hx-chips button.on::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; transform-origin: 0 50%;
+  background: rgba(255, 255, 255, .09); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 50%, transparent); }
+.hx-dt { font: 400 32px/1.1 var(--f-display); margin: 22px 0 6px; text-wrap: balance; }
+.hx-dsub { color: var(--tx2); font-size: 15px; margin: 0 0 18px; }
+.hx-panel { margin: 0 0 30px; }
+.hx-ptitle { font: 500 13px var(--f-ui); color: var(--tx2); margin: 0 0 10px; }
+.hx-stages { display: grid; grid-template-columns: auto 1fr auto; gap: 8px 10px; font-size: 13px; margin-top: 4px; align-items: center; }
+.hx-strow { display: contents; }
+.hx-stages b { font-weight: 500; }
+.hx-sbar { position: relative; height: 10px; overflow: hidden; border-radius: 3px; }
+.hx-sbar::before { content: ""; position: absolute; left: 0; right: 0; top: 3px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .07); }
+/* a filled bar (a measure, not a slider: no knob) */
+.hx-sb { position: relative; display: block; height: 4px; margin-top: 3px; border-radius: 2px; background: var(--sc); }
+.hx-sport { display: grid; grid-template-columns: 90px 1fr 36px; align-items: center; gap: 8px; margin: 6px 0; }
+.hx-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hx-kv div { display: flex; flex-direction: column; }
+.hx-kv span { font-size: 12px; color: var(--tx3); }
+.hx-kv b { font: 400 24px/1.2 var(--f-ui); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.hx-vit { display: grid; grid-template-columns: 78px 1fr 64px; gap: 14px 12px; align-items: center; }
+.hx-vrow { display: contents; }
+.hx-vit span { font-size: 13px; color: var(--tx2); }
+.hx-vit b { font: 400 17px var(--f-ui); text-align: right; font-variant-numeric: tabular-nums; }
+.hx-rg { position: relative; height: 12px; }
+.hx-rg::before { content: ""; position: absolute; left: 0; right: 0; top: 5.5px; height: 1px; background: rgba(255, 255, 255, .12); }
+.hx-rg u { position: absolute; top: 5px; height: 2px; border-radius: 1px; background: color-mix(in srgb, #ff5c7a 55%, transparent); }
+.hx-rg i { position: absolute; top: 0; width: 3px; height: 12px; margin-left: -1.5px; border-radius: 1.5px; background: #ff5c7a; }
+.hx-ends { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; }
+/* the Progress charts inside the Training page: drawn as on the tab screen (no frost on cards, the screen's own fills) */
+.hx-training { margin-top: 18px; }
+.hx-training > * + * { margin-top: 22px; }
+.hx-dsc .plinth, .hx-dsc .btn, .hx-dsc .icon-btn, .hx-dsc .chip, .hx-dsc .glass { -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root:not([data-theme='light']) .hx-dsc { --s1: rgb(17 19 29 / .72); --s2: rgb(23 25 37 / .76); --s3: rgb(36 39 54 / .8); }
+
+/* light: the same picture, with the white hairlines turned dark */
+:root[data-theme='light'] .hx-sbar::before, :root[data-theme='light'] .hx-rg::before { background: rgba(20, 28, 48, .12); }
+:root[data-theme='light'] .hx-chips button.on::before { background: rgba(20, 28, 48, .06); }
+:root[data-theme='light'] .hx-x { background: rgba(20, 28, 48, .06); }
+:root[data-theme='light'] .hx-pill { background: rgba(255, 255, 255, .5); color: color-mix(in srgb, var(--c) 70%, #000); }
+:root[data-theme='light'] .hx-lab { color: color-mix(in srgb, var(--c) 70%, #000); }
+:root[data-theme='light'] .hx-goal { box-shadow: inset 0 0 0 1px rgba(20, 28, 48, .12); }
+:root[data-theme='light'] .hx-gbar::before { background: rgba(20, 28, 48, .1); }
+:root[data-theme='light'] .hx-gpace, :root[data-theme='light'] .hx-gnow { color: color-mix(in srgb, var(--c) 60%, #000); }
+:root[data-theme='light'] .hx-gwarn { color: #b0362a; }
+:root[data-theme='light'] .hx-gchev { color: rgba(0, 0, 0, .5); }
+:root[data-theme='light'] .hx-gexp { background: rgba(0, 0, 0, .55); }

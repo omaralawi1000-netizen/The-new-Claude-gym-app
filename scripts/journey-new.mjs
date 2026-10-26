@@ -28,7 +28,7 @@ assert.equal(wr.durationSec, 5400); assert.equal(wr.rounds, 6); assert.equal(wr.
 assert(await p.getByText('90 min this week').isVisible(), 'plan tile shows this week’s mat time');
 await p.getByRole('tab', { name: 'History' }).click(); await wait(p, 700);
 assert(await p.getByText(/90 min · 6 rounds · Max/).isVisible(), 'history line');
-await p.locator('.tabbar').getByRole('button', { name: 'Progress', exact: true }).click(); await wait(p, 1200);
+await p.locator('.tabbar').getByRole('button', { name: 'Health', exact: true }).click(); await wait(p, 1200); { const tr = p.locator('.hx-sec[data-k="training"]'); await tr.scrollIntoViewIfNeeded(); await wait(p, 600); await tr.click({ position: { x: 30, y: 10 } }); await wait(p, 2500); }
 assert(await p.getByText('Mat time per week').count() >= 0);
 assert(await p.getByText(/90/).first().isVisible());
 await p.screenshot({ path: 'shots/new-2-progress.png' });

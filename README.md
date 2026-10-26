@@ -3466,3 +3466,16 @@ page's main thread and add full-screen glow passes over the glass):
 - **Swipes:** down puts it away (as before); up opens the Coach chat (the whole conversation, and typing).
 - **Seamless from the dock:** the dust appears 120 ms after opening and rides with the orb as it flies up (it follows the drawn
   orb, `.sphere-stage`, until it lands, then its place and your finger).
+### Step 2 polish + the Coach on Gemini 4 Argon (26 Oct 2026, v0.1.181)
+Omar, 11:47: "focus on polish and perfect it first"; 15:22: out of OpenAI credit, "Use Argon for the coach"; 15:33 chose
+"ship both". Twelve rounds on Gemini 4 Argon, four judges: the live Coach ~5 → 7–7.5 (Flash 6–6.5), replies 190 → 85 words.
+- **The Coach thinks with Argon** (`gemini.ts` `COACH_MODEL`, `agentModels(big, coach)`): Coach, its pin, week review and the
+  eating watch try `gemini-4-argon` first, then the newest Flash. The orb stays on Flash (Argon takes 6–20 s). A model too
+  slow to start answering now hands over to the next one (`withFallback`) instead of failing the turn.
+- **Honesty checks** (`answerCheck.ts`, one retry): a routine, plan, target or goal said changed/saved must have its action;
+  1–2 routine changes are applied, so the reply must say so; previews are never "created"; one question per reply; a goal
+  reply over ~150 words is asked to shorten. Dates are written day first ("24 December", `readableDates`).
+- **What the model forgets, the app fills** (`agent.ts`): a routine change only said in words becomes the edit; a goal lift's
+  new plan is saved on the goal when only the routine got it (`savePlanFromGoals`); a setting already at its value makes no card.
+- Prompt: plans ~110 words, follow-ups ~80, at most three numbers a sentence; weigh-in odds are "likely or tight", never a
+  promise; no diet weeks or numbers for under-18s.
