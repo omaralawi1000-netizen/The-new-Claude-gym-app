@@ -142,9 +142,11 @@ void main() {
   float tw = pow(0.5 + 0.5 * sin(uT * (1.3 + aRnd.y * 2.6) + uTwP * (0.5 + aRnd.y) + aRnd.x * 40.0), mix(14.0, 6.0, uHigh)) * (aRnd.w > 2.4 ? 1.0 : 0.35 + uHigh * 0.4) * (1.0 - uReduce);
   // the far side small and faint, the near side crisp: depth
   gl_PointSize = (1.0 + vGlowPre(lit, hot, tw) * 0.7) * max(1.0 + 0.4 * uSmall, aRnd.w * uSz * mix(mix(0.55, 1.05, depth), 1.0, wr) * (1.0 + hot * 0.5 + tw * 0.6) * (1.0 + bv * 0.4 * (1.0 - uReduce)) * mix(mix(0.5, 1.2, lit), 1.0, wr));
+  gl_PointSize *= 1.0 - 0.4 * uHz; // (the horizon: finer, denser dust, a surface rather than bubbles)
   // (writing, every speck is the same fine size whatever the orb's: the outline and the words read cleanly)
   gl_PointSize = mix(gl_PointSize, clamp(aRnd.w, 0.8, 1.6) * uDpr * mix(1.15, 0.9, uKind), wr);
-  float a0 = mix(0.05, 1.0, pow(depth, 1.6)) * (0.09 + 0.91 * lit) + rim * 0.3;
+  float a0 = mix(0.05, 1.0, pow(depth, 1.6)) * mix(0.09 + 0.91 * lit, 0.26 + 0.74 * lit, uHz) + rim * 0.3;
+  a0 *= 1.0 + uHz * (0.7 + 0.8 * depth); // (the horizon is a world: its face fuller, its near side brightest)
   // (once the words are written in crisp text, their dust steps back to a faint shimmer behind them)
   vA = mix(a0, mix(0.95, 0.22, uCrisp), wr) * ap * (1.0 + 1.6 * ap * (1.0 - ap) * (1.0 - uReduce)) * (1.0 + bv * 0.35 + uIn * uListen * 0.15 + gk * 0.9 + uAttn * 0.35 + tw * 0.8) * (1.0 - 0.45 * uQuiet) * (1.0 + 0.7 * uSmall);
   // only the hottest specks get a halo of light (the glow is a highlight, never a fog over the whole orb)
@@ -178,7 +180,7 @@ void main() {
   col = mix(col, uMood > 0.0 ? mix(uAlt, vec3(1.0), 0.25 * uDark) * (0.7 + lum) : uAc * 0.55, clamp(abs(uMood), 0.0, 1.0) * 0.35);
   col = mix(col, uOk, clamp(vOk, 0.0, 1.0));
   // (a card in dust takes the colour of the card's own words)
-  col = mix(col, uDark > 0.5 ? vec3(1.0, 0.97, 0.95) : vec3(0.1, 0.08, 0.1), clamp(vWr * 0.8, 0.0, 1.0));
+  col = mix(col, uDark > 0.5 ? vec3(1.0, 0.97, 0.95) : vec3(0.1, 0.08, 0.1), clamp(vWr * 0.95, 0.0, 1.0));
   float a = clamp(vA * (core * mix(0.6, 0.75, vGlow) + glow * mix(0.4, 0.5, vGlow)) * mix(1.0, 1.6, 1.0 - uDark), 0.0, 1.0);
   o = vec4(col * a, a);
 }`;

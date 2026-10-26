@@ -274,7 +274,10 @@ it to him, he judges on the phone. The orb **never changes shape**.
 - **API keys** are typed into Settings and stay on the phone: never in code, commits, logs or backups. No paid services.
 - **Orb:** never changes shape; it moves, glows, breathes. It tucks under nothing (the v0.1.77 tuck was a regression).
 - **Stardust** (the orb screen's orb while talking live, Omar 26 Oct): its dust may fold into a galaxy, swell with a voice,
-  scatter from a finger and fly out to write words; that is the design he chose. The usual orb keeps its shape everywhere.
+  scatter from a finger and fly out to write words; that is the design he chose. While it answers it sinks into the Horizon
+  (a large sphere below the screen's edge, kept below the words), and its dust draws each new card (outline and words) before
+  the real card takes over. The small orb (dock, Coach) is drawn as the same dust; beads only for the launch logo. The usual
+  orb keeps its shape everywhere.
 - **Focus view / workout:** the live workout is a full page; Focus (one exercise per page) is a view of it. Rest bar is
   floating frost, never a solid block.
 - **Tab-screen buttons/chips** stay without blur (section 1).

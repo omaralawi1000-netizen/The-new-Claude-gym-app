@@ -6,12 +6,12 @@
  * Returns css px pairs in the page's coordinates, shuffled, at most `budget` of them (the words first, then the outlines,
  * then the face).
  */
-export function shapeOf(el: HTMLElement, budget = 6000): Float32Array {
+export function shapeOf(el: HTMLElement, budget = 6000, clip?: DOMRect): Float32Array {
   const box = el.getBoundingClientRect();
   if (!box.width || !box.height) return new Float32Array(0);
   const S = 2, PAD = 4; // (drawn at twice the size: thin letters still have pixels to sample)
   const w = Math.ceil(box.width + PAD * 2), h = Math.ceil(box.height + PAD * 2);
-  const layer = () => { const c = document.createElement('canvas'); c.width = w * S; c.height = h * S; const g = c.getContext('2d')!; g.scale(S, S); g.translate(PAD - box.left, PAD - box.top); return { c, g }; };
+  const layer = () => { const c = document.createElement('canvas'); c.width = w * S; c.height = h * S; const g = c.getContext('2d', { willReadFrequently: true })!; g.scale(S, S); g.translate(PAD - box.left, PAD - box.top); return { c, g }; };
   const words = layer(), lines = layer();
   lines.g.strokeStyle = '#fff'; lines.g.lineWidth = 1.3;
   const radius = (cs: CSSStyleDeclaration, r: DOMRect) => Math.min(parseFloat(cs.borderTopLeftRadius) || 0, r.height / 2, r.width / 2);
@@ -46,13 +46,18 @@ export function shapeOf(el: HTMLElement, budget = 6000): Float32Array {
   }
   // sample: the words densely, the outlines a little less, the face sparsely
   const take = (c: HTMLCanvasElement, step: number, thr: number) => {
-    const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data, out: number[] = [];
+    const d = c.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, c.width, c.height).data, out: number[] = [];
     for (let y = 0; y < c.height; y += step) for (let x = 0; x < c.width; x += step) if (d[(y * c.width + x) * 4 + 3] > thr) out.push(box.left - PAD + x / S, box.top - PAD + y / S);
     return out;
   };
   const shuffle = (a: number[]) => { for (let i = a.length / 2 - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i * 2], a[j * 2]] = [a[j * 2], a[i * 2]]; [a[i * 2 + 1], a[j * 2 + 1]] = [a[j * 2 + 1], a[i * 2 + 1]]; } return a; };
-  const tw = shuffle(take(words.c, 2, 90)), ol = shuffle(take(lines.c, 2, 60));
-  const face: number[] = []; for (let k = 0; k < budget * 0.06; k++) face.push(box.left + 6 + Math.random() * (box.width - 12), box.top + 6 + Math.random() * (box.height - 12));
-  const nW = Math.min(tw.length / 2, Math.round(budget * 0.66)), nO = Math.min(ol.length / 2, Math.round(budget * 0.94) - nW), nF = Math.max(0, Math.min(face.length / 2, budget - nW - nO));
-  return new Float32Array(shuffle([...tw.slice(0, nW * 2), ...ol.slice(0, nO * 2), ...face.slice(0, nF * 2)]));
+  const tw = shuffle(take(words.c, 1, 80)), ol = shuffle(take(lines.c, 2, 60));
+  const face: number[] = []; for (let k = 0; k < budget * 0.03; k++) face.push(box.left + 6 + Math.random() * (box.width - 12), box.top + 6 + Math.random() * (box.height - 12));
+  const nW = Math.min(tw.length / 2, Math.round(budget * 0.72)), nO = Math.min(ol.length / 2, Math.round(budget * 0.97) - nW), nF = Math.max(0, Math.min(face.length / 2, budget - nW - nO));
+  const all = shuffle([...tw.slice(0, nW * 2), ...ol.slice(0, nO * 2), ...face.slice(0, nF * 2)]);
+  if (!clip) return new Float32Array(all);
+  // (only what you can see of it: not the part scrolled away, nor under the conversation's soft top and bottom edges)
+  const out: number[] = [];
+  for (let i = 0; i < all.length; i += 2) if (all[i + 1] > clip.top + 18 && all[i + 1] < clip.bottom - 22 && all[i] > clip.left && all[i] < clip.right) out.push(all[i], all[i + 1]);
+  return new Float32Array(out);
 }

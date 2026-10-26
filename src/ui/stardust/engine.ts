@@ -121,10 +121,11 @@ export class DustEngine {
   }
 
   /** the greeting's shape: points (css px, pairs) sampled from its text where it will be written */
-  setText(points: Float32Array) {
+  setText(points: Float32Array, use = this.writers.length) {
     const n = points.length / 2;
     this.tg.fill(-1);
-    if (n) this.writers.forEach((w, k) => { const j = k % n; this.tg[w * 2] = points[j * 2]; this.tg[w * 2 + 1] = points[j * 2 + 1]; });
+    // (`use`: how many writers take part: the greeting its 3,400, a card all 6,000)
+    if (n) this.writers.forEach((w, k) => { if (k >= use) return; const j = k % n; this.tg[w * 2] = points[j * 2]; this.tg[w * 2 + 1] = points[j * 2 + 1]; });
     const gl = this.gl; gl.bindBuffer(gl.ARRAY_BUFFER, this.tgBuf); gl.bufferData(gl.ARRAY_BUFFER, this.tg, gl.DYNAMIC_DRAW);
   }
 

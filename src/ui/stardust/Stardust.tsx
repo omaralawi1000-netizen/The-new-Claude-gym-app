@@ -106,15 +106,16 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
       // shuffled, so every writer speck lands somewhere along the whole line
       for (let i = pts.length / 2 - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pts[i * 2], pts[j * 2]] = [pts[j * 2], pts[i * 2]]; [pts[i * 2 + 1], pts[j * 2 + 1]] = [pts[j * 2 + 1], pts[i * 2 + 1]]; }
       const arr = new Float32Array(pts);
-      if (worker) post({ text: arr }, [arr.buffer]); else eng?.setText(arr);
+      if (worker) post({ text: arr, use: 3400 }, [arr.buffer]); else eng?.setText(arr, 3400); // (the greeting: as many specks as it always had)
     };
 
     const bands: number[] = new Array(16).fill(0), obands: number[] = new Array(16).fill(0);
     // the horizon's air: a soft ring of light along its rim (one element, moved and faded by transform and opacity only)
     const air = document.createElement('div');
-    air.style.cssText = 'position:absolute;left:0;top:0;width:1000px;height:1000px;border-radius:50%;pointer-events:none;opacity:0;will-change:transform,opacity;transform-origin:500px 500px';
+    air.style.cssText = 'position:absolute;left:0;top:0;width:400px;height:400px;border-radius:50%;pointer-events:none;opacity:0;will-change:transform,opacity;transform-origin:200px 200px';
     holder.insertBefore(air, canvas);
-    let airKey = '', airO = -1, hz = 0, lastT = performance.now(), shapeN = 0;
+    let airKey = '', airO = -1, hz = 0, lastT = performance.now(), shapeN = 0, topS = -1;
+    let froze = { x: 0, y: 0, r: 0 }; // (the orb's place just before it sank: the horizon grows from there, not from its small slot)
     const paintAir = () => {
       const c = (colors.dark ? colors.ac : colors.alt).map((x) => Math.round(Math.min(1, x / (colors.dark ? 1 : 0.75)) * 255)).join(',');
       if (c === airKey) return; airKey = c;
@@ -144,18 +145,22 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
       hz += ((L.horizon ? 1 : 0) - hz) * (1 - Math.exp(-dt * 2.4));
       const hzE = hz * hz * (3 - 2 * hz);
       const vw = canvas.clientWidth || window.innerWidth, vh = canvas.clientHeight || window.innerHeight;
-      const RH = Math.min(vw * 0.64, 360), top = Math.min(vh - 66, Math.max(vh - RH * 0.46, L.textBottom() + 30));
-      const hx = vw / 2 + mx * 0.35, hy = top + RH + my * 0.25;
+      const RH = Math.min(vw * 0.64, 360);
+      // (its top eases to its place below the words: a streaming answer never steps it down a line at a time)
+      const top = hz > 0.001 || L.horizon ? Math.min(vh - 66, Math.max(vh - RH * 0.46, L.textBottom() + 30)) : vh - RH * 0.46;
+      topS = topS < 0 || hz < 0.001 ? top : topS + (top - topS) * (1 - Math.exp(-dt * 3));
+      const hx = vw / 2 + mx * 0.35, hy = topS + RH + my * 0.25;
+      if (!L.horizon && hz < 0.02) froze = { x: r.left + r.width / 2, y: r.top + r.height / 2, r: (r.width / 2) * 0.66 };
+      const sx = L.horizon ? froze.x : r.left + r.width / 2 + (flying ? 0 : mx), sy = L.horizon ? froze.y : r.top + r.height / 2 + (flying ? 0 : my), sr = L.horizon ? froze.r : (r.width / 2) * 0.66;
       const lv = L.levels();
       if (lv) for (let i = 0; i < 16; i++) { bands[i] = lv.bands[i] ?? 0; obands[i] = lv.obands?.[i] ?? 0; }
       // (your voice for a moment, not a click or a breath, takes the greeting back into the orb)
       if (L.greet) { sendText(); voiceFor = (lv?.in ?? 0) > 0.16 ? voiceFor + 1 : 0; if (voiceFor > 12) L.onVoice(); }
       const st: DustState = {
         at: performance.timeOrigin + performance.now(),
-        w: canvas.clientWidth || window.innerWidth, h: canvas.clientHeight || window.innerHeight, dpr: Math.min(2.5, window.devicePixelRatio || 1),
+        w: vw, h: vh, dpr: Math.min(2.5, window.devicePixelRatio || 1),
         // (the sphere fills two thirds of the orb's place, as the usual orb does)
-        cx: (r.left + r.width / 2 + (flying ? 0 : mx)) * (1 - hzE) + hx * hzE, cy: (r.top + r.height / 2 + (flying ? 0 : my)) * (1 - hzE) + hy * hzE,
-        r: (r.width / 2) * 0.66 * (1 - hzE) + RH * hzE, hz: hzE,
+        cx: sx * (1 - hzE) + hx * hzE, cy: sy * (1 - hzE) + hy * hzE, r: sr * (1 - hzE) + RH * hzE, hz: hzE,
         kind: L.greet ? 0 : 1, writeN: L.shape.n, writeJump: L.jump, shift: L.greet ? [0, 0] : L.shift(),
         on: L.on ? 1 : 0, listen: L.listen, think: L.think, speak: L.speak, quiet: L.quiet,
         vin: lv?.in ?? 0, bands, vout: lv?.out ?? 0, obands, mood: L.mood,
@@ -163,10 +168,10 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
         reduced: reducedQ.matches || document.documentElement.dataset.motion === 'reduce', colors,
       };
       // (a card to write: its points go to the drawing once)
-      if (L.shape.n !== shapeN) { shapeN = L.shape.n; sentText = ''; const pts = L.shape.pts; if (pts?.length) { const a = pts.slice(); if (worker) post({ text: a }, [a.buffer]); else eng?.setText(a); } }
+      if (L.shape.n !== shapeN) { shapeN = L.shape.n; sentText = ''; const pts = L.shape.pts; if (pts?.length) { const a = pts.slice(); if (worker) post({ text: a, use: 6000 }, [a.buffer]); else eng?.setText(a, 6000); } }
       paintAir();
-      air.style.transform = `translate(${(st.cx - 500).toFixed(1)}px, ${(st.cy - 500).toFixed(1)}px) scale(${((st.r * 2.36) / 1000).toFixed(4)})`;
       const ao = Math.round(hzE * (0.6 + 0.4 * Math.min(1, (lv?.out ?? 0) * 1.6 + (lv?.in ?? 0) * 0.8)) * (colors.dark ? 1 : 0.55) * 100) / 100;
+      if (ao > 0) air.style.transform = `translate(${(st.cx - 200).toFixed(1)}px, ${(st.cy - 200).toFixed(1)}px) scale(${((st.r * 2.36) / 400).toFixed(4)})`;
       if (ao !== airO) { airO = ao; air.style.opacity = String(ao); }
       if (worker) post({ state: st }); else eng?.frame(performance.now(), st);
     };

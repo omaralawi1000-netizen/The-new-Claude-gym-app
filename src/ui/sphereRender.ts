@@ -67,7 +67,7 @@ function drawDust(ctx: Ctx2D, c: number, R: number, t: number, rot: number, vis:
     const base: RGB = [alt[0] + (hi[0] - alt[0]) * a, alt[1] + (hi[1] - alt[1]) * a, alt[2] + (hi[2] - alt[2]) * a];
     const d = dark ? 1 : 0.72; pal.push(`rgb(${((base[0] + (255 - base[0]) * w) * d) | 0},${((base[1] + (255 - base[1]) * w) * d) | 0},${((base[2] + (255 - base[2]) * w) * d) | 0})`); }
   void lo;
-  const count = Math.min(DN, Math.max(900, Math.round(vis * 16)));
+  const count = Math.min(DN, Math.max(650, Math.round(vis * 14)));
   const small = 1 + 1.1 * smooth(110, 40, vis); // (a small orb, in the dock: brighter, so it is still dust, not haze)
   const tilt = 0.38, ct = Math.cos(tilt), st = Math.sin(tilt), T = reduced ? 0 : t;
   const px = R / 70; // (a speck's size follows the orb, as on the live orb)
@@ -596,6 +596,7 @@ export class SphereRenderer {
     // disc under it), its core is crisp, and the brightest ones have a white-hot heart. The far side stays small and quiet,
     // so the sphere reads as deep glass with light inside it.
     const glowK = 0.1;
+    if (LK > 0) this.dk = 0; // (the logo is beads; the dust fades in only once it has become the sphere)
     if (LK > 0) {
       this.drawLogo(LK, c, R, dots, buckets, NB, NH, NM, (b, h, q) => tint(b, h, q), alphaOf, dark, glowK, B.hi);
     } else {
@@ -611,7 +612,7 @@ export class SphereRenderer {
       ctx.globalAlpha = 1;
     }
     // the launch's coil: added light over the beads it lights (a quarter brighter, even where a bead is already at full)
-    if (launchIgn && LK <= 0) this.coil(dots.map((d) => d.x), dots.map((d) => d.y), dots.map((d) => d.r), B.hi, 1, dark);
+    if (launchIgn && LK <= 0 && this.dk < 0.5) this.coil(dots.map((d) => d.x), dots.map((d) => d.y), dots.map((d) => d.r), B.hi, 1, dark);
     // highlights (a flash, a comet, the arrival spiral): sparkles with a halo and a white heart
     const hiX = lerp3(hi, B.hi), altX = lerp3(alt, B.alt), okX = lerp3(ok, B.ok);
     const hiC: RGB = [Math.min(255, hiX[0] + 30), Math.min(255, hiX[1] + 50), Math.min(255, hiX[2] + 50)];

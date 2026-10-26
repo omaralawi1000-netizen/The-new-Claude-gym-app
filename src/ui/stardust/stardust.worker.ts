@@ -25,7 +25,7 @@ self.onmessage = (e: MessageEvent) => {
     }
     catch (err) { self.postMessage({ failed: true, why: String(err) }); }
   }
-  if (d.text && eng) eng.setText(d.text as Float32Array);
+  if (d.text && eng) eng.setText(d.text as Float32Array, d.use ?? undefined);
   if (d.state) {
     // (the speed from when the page sent each one, not when they arrived: two can arrive together after a hiccup)
     const n = d.state as DustState, t = n.at ?? performance.timeOrigin + performance.now(), dt = t - at;
