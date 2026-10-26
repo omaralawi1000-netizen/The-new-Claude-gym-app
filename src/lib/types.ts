@@ -429,6 +429,27 @@ export interface MemoryNote {
   updatedAt?: number;
   /** its earlier wordings, newest first (up to 3) */
   was?: { text: string; at: number }[];
+  /** a goal with a number the app follows (lib/goals.ts) */
+  goal?: GoalPlan;
+}
+
+/** What a goal note tracks: bodyweight or a lift (by its estimated max), or "other" (no number: no pace). */
+export interface GoalPlan {
+  metric: 'weight' | 'lift' | 'other';
+  /** weight: target bodyweight in kg; lift: the kg on the bar */
+  target?: number;
+  /** lift: the reps at that weight (1 = a single) */
+  reps?: number;
+  /** the day it should be reached (YYYY-MM-DD), when they gave one */
+  by?: string;
+  /** the day it was set, and where it stood: the weight trend in kg, or the lift's estimated max */
+  startDate: string;
+  start?: number;
+  /** reached or dropped, and the day */
+  status?: 'done' | 'dropped';
+  endedOn?: string;
+  /** the plan agreed for it, in a few words ("77.5 × 6, 7, 8 then 80 × 5"; "2,200 kcal, 180 g protein") */
+  plan?: string;
 }
 
 /** One weekly review as kept: the week's last day, the Coach's verdict and up to two priorities (ids from lib/weekReview). */

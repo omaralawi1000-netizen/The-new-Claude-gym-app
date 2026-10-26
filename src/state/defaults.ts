@@ -1,9 +1,20 @@
-import type { ActivityKind, AppData, MemoryKind, Schedule, Settings, Lang } from '../lib/types';
+import type { ActivityKind, AppData, GoalPlan, MemoryKind, Schedule, Settings, Lang } from '../lib/types';
 import { ACTIVITY_KINDS } from '../lib/activity';
 
 export const DATA_VERSION = 1;
 /** The Coach remembers at most this many things: each one is sent with every question, so the list stays short and sharp. */
 export const MEMORY_MAX = 60;
+
+const isDay = (x: unknown): x is string => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x);
+const isNum = (x: unknown, lo: number, hi: number): x is number => typeof x === 'number' && Number.isFinite(x) && x >= lo && x <= hi;
+/** A goal note's numbers from a backup or an older save: only what still makes sense (lib/goals.ts). */
+export function cleanGoal(g: any): GoalPlan | undefined {
+  if (!g || typeof g !== 'object' || !['weight', 'lift', 'other'].includes(g.metric) || !isDay(g.startDate)) return undefined;
+  return { metric: g.metric, startDate: g.startDate, ...(isNum(g.target, 1, 1000) ? { target: g.target } : {}), ...(isNum(g.reps, 1, 50) ? { reps: Math.round(g.reps) } : {}),
+    ...(isDay(g.by) ? { by: g.by } : {}), ...(isNum(g.start, 1, 1000) ? { start: g.start } : {}),
+    ...(g.status === 'done' || g.status === 'dropped' ? { status: g.status } : {}), ...(isDay(g.endedOn) ? { endedOn: g.endedOn } : {}),
+    ...(typeof g.plan === 'string' && g.plan.trim() ? { plan: g.plan.trim().slice(0, 160) } : {}) };
+}
 export const MEMORY_KINDS: MemoryKind[] = ['goal', 'preference', 'health', 'schedule', 'gear', 'food', 'other'];
 
 export function detectLang(): Lang {
@@ -93,7 +104,8 @@ export function normaliseData(raw: any, lang: Lang = 'en'): AppData {
       .map((m: any) => ({ id: m.id, text: m.text.trim().slice(0, 240), kind: MEMORY_KINDS.includes(m.kind) ? m.kind : 'other', at: typeof m.at === 'number' ? m.at : 0, ...(Array.isArray(m.exerciseIds) && m.exerciseIds.length ? { exerciseIds: m.exerciseIds.filter((x: unknown) => typeof x === 'string').slice(0, 6) } : {}),
         ...(typeof m.until === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(m.until) ? { until: m.until } : {}),
         ...(typeof m.updatedAt === 'number' ? { updatedAt: m.updatedAt } : {}),
-        ...(Array.isArray(m.was) ? { was: m.was.filter((w: any) => w && typeof w.text === 'string' && typeof w.at === 'number').slice(0, 3).map((w: any) => ({ text: w.text.slice(0, 240), at: w.at })) } : {}) })),
+        ...(Array.isArray(m.was) ? { was: m.was.filter((w: any) => w && typeof w.text === 'string' && typeof w.at === 'number').slice(0, 3).map((w: any) => ({ text: w.text.slice(0, 240), at: w.at })) } : {}),
+        ...(cleanGoal(m.goal) ? { goal: cleanGoal(m.goal) } : {}) })),
     demo: !!raw.demo,
   };
 }
