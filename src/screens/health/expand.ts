@@ -39,7 +39,7 @@ const bez = (x1: number, y1: number, x2: number, y2: number) => (x: number) => {
 const SLIDE_E = bez(0.3, 0.3, 0.1, 1);
 /** the same curve as samples on whole screen pixels of a `w` px trip, so its last fraction of a pixel never holds a frame
  * and then lands with a redraw */
-const slideCurve = (w: number) => {
+export const slideCurve = (w: number) => {
   const d = window.devicePixelRatio || 1, n = 64;
   const xs = Array.from({ length: n + 1 }, (_, i) => +(Math.round(SLIDE_E(i / n) * w * d) / (w * d)).toFixed(5));
   return { duration: 620, easing: `linear(${xs.join(', ')})` };
@@ -361,8 +361,18 @@ export class Expander {
     const o = slideCurve(W);
     st.anims.push(this.anim(L[0], [{ transform: `translateX(${W}px)` }, { transform: 'none' }], o));
     st.anims.push(this.anim(scr, [{ transform: 'none' }, { transform: `translateX(${-W}px)` }], o));
+    this.wave(1, o.duration);
     this.playPage(Math.round(o.duration * 0.25));
     st.anims[1].finished.then(() => { if (this.st === st && !st.closing) this.e.det.classList.remove('moving'); }).catch(() => {});
+  }
+  /** the page's blocks arrive as a soft wave: each trails the one above it by a few px and they close up as the page lands
+   *  (same curve and end as the slide, so nothing moves after it) */
+  private wave(dir: number, duration: number) {
+    $$(':scope > .hx-page > .hx-body > *', this.e.dsc).slice(0, 12).forEach((x, i) => {
+      x.getAnimations().filter((a) => a.id === 'hx-wave').forEach((a) => a.cancel());
+      const k = dir * Math.min(150, 26 + i * 16), a = this.anim(x, [{ transform: `translateX(${k}px)` }, { transform: 'none' }], { duration, easing: slideCurve(Math.abs(k)).easing });
+      a.id = 'hx-wave';
+    });
   }
   private slideClose(st: State) {
     this.e.det.classList.remove('moving');
@@ -412,6 +422,8 @@ export class Expander {
     if (!st.slide) $$('[data-share]', newSrc).forEach((x) => { x.style.opacity = '0'; });
     const { dsc, L } = this.e;
     const old = $$(':scope > .hx-page > .hx-body > *', dsc);
+    // the page may still be sliding in from a chip tapped a moment ago: it leaves from where it is drawn
+    const body = dsc.querySelector(':scope > .hx-page > .hx-body'), cx = body && curT(body) !== 'none' ? new DOMMatrix(curT(body)).e : 0;
     const first = old[0] ? old[0].getBoundingClientRect().top - dsc.getBoundingClientRect().top : 0;
     const ghost = document.createElement('div');
     ghost.className = 'hx-ghost';
@@ -421,7 +433,7 @@ export class Expander {
     L[2].appendChild(ghost);
     // pages sit side by side in chip order: the old one slides out as the new one slides in, on one spring
     const W = dsc.clientWidth + 48, sc = slideCurve(W); // a gap between the two pages; the open/close slide's curve
-    ghost.animate([{ transform: 'none' }, { transform: `translateX(${-dir * W}px)` }], { duration: reduced() ? 1 : sc.duration, fill: 'both', easing: sc.easing }).finished.then(() => ghost.remove()).catch(() => ghost.remove());
+    ghost.animate([{ transform: `translateX(${cx}px)` }, { transform: `translateX(${cx - dir * W}px)` }], { duration: reduced() ? 1 : sc.duration, fill: 'both', easing: sc.easing }).finished.then(() => ghost.remove()).catch(() => ghost.remove());
     return dir;
   }
   /** React has rendered the new page: it arrives from the side the chip sits on */
@@ -429,6 +441,7 @@ export class Expander {
     const { dsc } = this.e;
     this.playPage(160, false);
     const W = dsc.clientWidth + 48;
+    this.wave(dir, slideCurve(W).duration);
     // the body moves as one layer that stays a layer (dropping it at the end would snap the text by a pixel)
     $$(':scope > .hx-page > .hx-body', dsc).forEach((x) => this.anim(x, [{ transform: `translateX(${dir * W}px)` }, { transform: 'none' }], slideCurve(W)));
   }

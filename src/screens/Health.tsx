@@ -25,10 +25,9 @@ import { exName } from './workout/common';
 import { LOGO } from '../ui/logoDots';
 import type { AppData } from '../lib/types';
 import { C, Hypnogram, NightHeart, Ribbon, RouteLine, ScoreRing, Spark, StepsDay, Trace, WeekStrip, useWidth } from './health/charts';
-import { Expander } from './health/expand';
+import { Expander, slideCurve } from './health/expand';
 import { ProgressBody } from './Progress';
 import { Roll } from '../ui/Roll';
-import { springCurve, SMOOTH } from '../ui/motion';
 import { Icon } from '../ui/Icon';
 import { useUI } from '../state/ui';
 import './health/health.css';
@@ -100,13 +99,18 @@ export function HealthScreen() {
     const on = chips.current?.querySelector<HTMLElement>('button.on'), f = chipFrom.current; chipFrom.current = null;
     if (!on || !f || reduced()) return;
     const r = on.getBoundingClientRect();
-    on.animate([{ transform: `translateX(${f.x - r.left}px) scaleX(${f.w / r.width})` }, { transform: 'none' }], { pseudoElement: '::before', duration: 560, easing: springCurve(SMOOTH).easing, fill: 'both' });
+    // the same curve as the page's slide, so the capsule lands with the page
+    const sc = slideCurve(Math.max(1, Math.abs(f.x - r.left)));
+    on.animate([{ transform: `translateX(${f.x - r.left}px) scaleX(${f.w / r.width})` }, { transform: 'none' }], { pseudoElement: '::before', duration: sc.duration, easing: sc.easing, fill: 'both' });
     const row = chips.current!, want = on.offsetLeft - (row.clientWidth - on.offsetWidth) / 2;
     row.scrollTo({ left: Math.max(0, want), behavior: 'smooth' });
   };
   const swap = (k: K) => {
     const e = eng.current, st = e?.st; if (!e || !st || st.closing || st.k === k) return;
-    const was = chips.current?.querySelector<HTMLElement>('button.on')?.getBoundingClientRect(); chipFrom.current = was ? { x: was.left, w: was.width } : null;
+    // the capsule leaves from where it is drawn (it may still be on its way from a chip tapped a moment ago)
+    const ob = chips.current?.querySelector<HTMLElement>('button.on'), was = ob?.getBoundingClientRect();
+    const cm = ob ? getComputedStyle(ob, '::before').transform : 'none', m = new DOMMatrix(cm === 'none' ? undefined : cm);
+    chipFrom.current = was ? { x: was.left + m.e, w: was.width * m.a } : null;
     const sec = scr.current?.querySelector<HTMLElement>(`.hx-sec[data-k="${k}"]`); if (!sec) return;
     swapDir.current = e.swapOut(k, sec, ORDER.indexOf(k) > ORDER.indexOf(st.k as K) ? 1 : -1, scr.current!) ?? 0;
     setOpenK(k);
