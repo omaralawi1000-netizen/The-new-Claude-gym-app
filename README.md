@@ -3265,6 +3265,13 @@ rounds, each checked by a fresh judge that only suggests (6.5 → 7.5 → 8.0 �
   81 kg" for a goal closed in the last 2 days and "No lifting in 2 weeks" on a cut, with a button asking the Coach for a
   2-day full-body routine. Rules: "I want…" alone is not a set-up ask; a weigh-in's calories come with the offer to set
   them until the day.
+- **Judge round 8 fixes:** the habit line keeps every day of the week that is 300+ kcal over ("4 days a week (Sun, Tue,
+  Thu, Fri)"), and late food means after 21:00 so a late dinner isn't the habit. Behind because of a few big days →
+  those days are a MUST SAY with a new tactic, and RECOMMEND keeps the target (no fewer calories on the other days).
+  A goal closed earlier in the same answer is never reopened by a second save of it (`ctx.closedGoals`). A promise's
+  days left are counted one way everywhere ("3 days left including today"). Rules: under 18 → no goal saved without a
+  yes, and one positive line for the week; a vague goal's "leaner" example is a modest 2–3 kg from the app's rows; one
+  question at most; numbers named in a plan that is set up now are set too (kcalGoal, proteinGoal).
 - Tests: `tests/goals.test.ts`. Before/after on Gemini Flash: `scripts/exam/_goals.test.ts` (scratch, never committed; a
   copy and `show.py` live in `/mnt/project-files/living-coach/tools/`), run as
   `G_OUT=dir G_TAG=after npx vitest run --config scripts/exam/vitest.config.ts scripts/exam/_goals.test.ts`.
