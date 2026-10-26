@@ -13,7 +13,7 @@ import { exerciseMap, missedWorkouts, plannedFor } from '../state/store';
 import { addDays, diffDays, fmtDate, weekdayOf } from './dates';
 import { setsPerMuscle, stalledLifts, nutritionByDay, average, weightTrend, trendRate, weeklyTraining, MUSCLES } from './stats';
 import { lastBackup } from './persist';
-import { activeGoals, goalState, tracked, type Pace } from './goals';
+import { activeGoals, loggingCount, goalState, tracked, type Pace } from './goals';
 import { fmtNum, kgToDisplay } from './units';
 import type { AppData, Lang, MuscleGroup } from './types';
 import type { IconName } from '../ui/Icon';
@@ -182,7 +182,7 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     else if (st.rate !== undefined && st.pace !== 'reached' && st.pace !== 'too early') body.push(t('Going {rate} a week.', { rate: kg2(st.rate) }));
     // (a weigh-in days away and only a little over: what is left is gut content and water, not fat at a safe pace)
     const closeCall = !lift && st.daysLeft !== undefined && st.daysLeft <= 7 && st.now !== undefined && Math.abs(st.target! - st.now) <= st.now * 0.025;
-    if (closeCall) { /* the body's days left says it */ } else if (st.need !== undefined && (st.pace === 'behind' || st.pace === 'wrong way' || st.dateUnsafe)) body.push(st.dateUnsafe ? t('The date needs {need} a week, faster than is safe.', { need: kg(Math.abs(st.need)) }) : t('The date needs {need} a week.', { need: kg(Math.abs(st.need)) }));
+    if (closeCall) { /* the body's days left says it */ } else if (st.need !== undefined && (st.pace === 'behind' || st.pace === 'wrong way' || st.dateUnsafe)) body.push(st.dateUnsafe ? t('The date needs {need} a week, faster than is safe.', { need: `${fmtNum(kgToDisplay(Math.abs(st.need), u), lang, 2)} ${u}` }) : t('The date needs {need} a week.', { need: `${fmtNum(kgToDisplay(Math.abs(st.need), u), lang, 2)} ${u}` }));
     // (only when the weigh-ins are few: someone who weighs in daily doesn't need telling)
     const lately = d.weights.filter((w) => w.date > addDays(today, -7) && w.date <= today).length;
     if (st.pace === 'too early' && st.why?.includes('weigh-in') && !st.eating && lately < 4) body.push(t('Weigh in most mornings so the pace can be judged.'));
@@ -193,6 +193,15 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
       action: st.pace === 'too early' && st.metric === 'weight'
         ? { label: t('Log weight'), run: { type: 'open', overlay: 'weight' } }
         : { label: t('Ask the Coach'), run: { type: 'coach', prompt: st.pace === 'reached' ? t('I reached my goal “{goal}”. What’s next?', { goal: name }) : t('How am I doing on my goal “{goal}”? Be honest.', { goal: name }) } } });
+  }
+  // a promise to log every meal: how many days were full, while it runs
+  for (const m of activeGoals(d, today)) {
+    const c = loggingCount(d, m, today);
+    if (!c || !c.left) continue;
+    add({ id: `promise:${m.id}:${c.full}:${c.n}`, kind: c.full < c.n ? 'warning' : 'insight', icon: 'food', priority: 40,
+      title: t('Logging promise: {full} of {n} full days', { full: c.full, n: c.n }),
+      body: c.n === 0 ? t('Log each meal when you eat it.') : c.full < c.n ? t('{left} days left. Log each meal when you eat it.', { left: c.left }) : t('All full so far. {left} days left.', { left: c.left }),
+      action: { label: t('Log food'), run: { type: 'open', overlay: 'foodSearch', props: { date: today } } } });
   }
   // no goal told yet: asked once (✕ for good), when they use the app enough to have one
   if (!(d.memory ?? []).some((m) => m.kind === 'goal') && (done.length >= 5 || d.entries.length >= 30)) add({ id: 'goal-ask', kind: 'suggestion', icon: 'info', priority: 22,

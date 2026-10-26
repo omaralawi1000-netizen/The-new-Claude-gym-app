@@ -453,11 +453,11 @@ describe('judge round 5 (26 Oct)', () => {
     // 4 weeks: Fridays at 3,400, other days 2,500
     const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); return entry(date, new Date(`${date}T12:00:00`).getDay() === 5 ? 3400 : 2500); });
     useStore.setState({ weights: weighIns(28, 82, 0), entries });
-    expect(goalLines(data(), today, name).join('\n')).toMatch(/What most likely breaks a plan \(last 4 weeks, 28 finished logged days\): Fridays average 3,400 kcal, against 2,500 on the other days; protein at or above 180 g on 0 of 28 days/);
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/What most likely breaks a plan \(last 4 weeks, 28 finished logged days\): Fridays average 3,400 kcal, against 2,500 on the other days, mostly the lunch meal: 3,400 kcal on those days vs 2,500 on the others; a cap for those days that still holds a plan: its daily target \+ 300 \(now 2,900\); protein at or above 180 g on 0 of 28 days/);
     useStore.setState({ memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 80 kg', at: 0, goal: { metric: 'weight', target: 80, by: addDays(today, 40), startDate: addDays(today, -3), start: 82 } }] });
     expect(goalLines(data(), today, name).join('\n')).toMatch(/Check-in 2026-11-05 \(every 2 weeks\): the scale's pace under half of what the date needs then → 150 kcal less/);
     useStore.setState({ memory: [{ id: 'p', kind: 'goal', text: 'Log every meal this week', at: 0, goal: { metric: 'other', by: addDays(today, 2), startDate: addDays(today, -3) } }], entries: entries.filter((e) => e.date !== addDays(today, -2)) });
-    expect(goalLines(data(), today, name).join('\n')).toMatch(/Logging since it was set \(3 finished days, today not counted\): fully logged 2 of 3; nothing logged: \w{3} 2026-10-23; today has nothing yet/);
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Logging since it was set \(3 finished days, today not counted\): fully logged 2 of 3; nothing logged: \w{3} 2026-10-23; today has nothing yet\. Verdict: broken on \w{3}; 3 days left including today to finish the rest clean/);
   });
   it('behind on a cut while sleep is off: the app recommends the later date, not fewer calories', () => {
     const pre = weighIns(38, 82, 0).filter((w) => w.date <= addDays(today, -10));
@@ -468,5 +468,19 @@ describe('judge round 5 (26 Oct)', () => {
     expect(g).toMatch(/STATUS: BEHIND/);
     expect(g).toMatch(/RECOMMEND \(recovery is off: sleep \d+ min under usual\): keep the current target/);
     expect(g).not.toMatch(/the date's [\d.]+ kg\/week = about/);
+  });
+});
+
+describe('judge round 6 (26 Oct)', () => {
+  it('names the habit (late food), the weigh-in cut-off, the promise on Today, and no lifting on a cut', async () => {
+    const late = (date: string, kcal: number): FoodEntry => ({ ...entry(date, kcal), mealId: 'snacks', at: new Date(`${date}T21:30:00`).getTime() });
+    const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); return new Date(`${date}T12:00:00`).getDay() === 0 ? [entry(date, 2000), late(date, 1500)] : [entry(date, 2100)]; }).flat();
+    useStore.setState({ weights: weighIns(28, 82, 0), entries, memory: [{ id: 'a', kind: 'other', text: 'Age: 24 (as of 2026-10-01)', at: 0 }] });
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Sundays average 3,500 kcal, against 2,100 on the other days, mostly food after 20:00: 1,500 kcal on those days vs 0/);
+    expect(goalWatchLines(data(), today, name).join('\n')).toMatch(/SIGN TO RAISE: no strength training in the last 2 weeks during a cut/);
+    await act({ type: 'remember', kind: 'goal', text: `Weigh-in: 81 kg class on ${addDays(today, 5)}`, goal: { metric: 'weight', target: 81, by: addDays(today, 5) } });
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Cut-off: the morning before \(2026-10-29\) over 81\.5 kg → the next class up/);
+    useStore.setState({ memory: [{ id: 'p', kind: 'goal', text: 'Log every meal this week', at: 0, goal: { metric: 'other', by: addDays(today, 2), startDate: addDays(today, -3) } }] });
+    expect(findNudges(data(), today, 21, t, 'en', name).find((x) => x.id.startsWith('promise:'))!.title).toBe('Logging promise: 3 of 3 full days');
   });
 });
