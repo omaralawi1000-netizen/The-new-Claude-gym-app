@@ -24,7 +24,9 @@ builder implements it, and a fresh judge checks it.
 **How to see before/after Coach replies without the phone:** the exam's OpenRouter key isn't reachable from a cloud
 session, but Gemini is (proxy-injected). Build the real system prompt with `agentSystem` on an exam persona (`scripts/exam`),
 swap in the old `COACH_STYLE` from the default branch for "before", and call `gemini-flash-latest` with `AGENT_SCHEMA`
-(the app's fallback brain; on Omar's phone the main brain is GPT-6.1 Sol, so wording differs).
+(the app's fallback brain; on Omar's phone the main brain is GPT-6.1 Sol, so wording differs). The ready-made harness is `/mnt/project-files/living-coach/tools/_ba.test.ts` (never commit it): copy it to
+`scripts/exam/`, run `BA_OUT=out.json BA_AFTER_ONLY=1 npx vitest run --config scripts/exam/vitest.config.ts scripts/exam/_ba.test.ts`
+(it also writes Today's notes); for "before", run it in a git worktree of the default branch; delete the copy afterwards.
 
 Omar's answers (25 Oct, 20:12): the tone and how often are the Coach's call, like a real coach. No fixed number of messages. "Like a ChatGPT app that knows all my data." He picked **thinking in the background** (shown as about 30 kr a month on OpenAI; the honest range after review is below). 20:14: no rules per topic. "I just tell it, I need to gain some weight, or I need to take on 2 kilos, help me", and it remembers and helps, like a real coach.
 
