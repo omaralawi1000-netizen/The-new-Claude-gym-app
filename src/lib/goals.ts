@@ -96,9 +96,15 @@ function mainLifts(d: Data, today: string) {
 
 /** The finished food days from `from` to yesterday: logged, not cut short, and not a day with its usual dinner missing
  *  (an unfinished log is not a day they ate little; lib/dataQuality.ts). */
-function foodDays(d: Pick<AppData, 'entries'>, from: string, today: string) {
+export function foodDays(d: Pick<AppData, 'entries'>, from: string, today: string) {
   const open = new Set(unfinishedDays(d, today, Math.min(90, Math.max(28, diffDays(today, from)))).map((u) => u.date));
   return nutritionByDay(d.entries, from, addDays(today, -1)).filter((x) => x.logged && !x.partial && x.kcal >= 800 && !open.has(x.date));
+}
+
+/** The days far over the target since a goal started (the Coach's "MUST SAY" when the goal is behind): finished food days
+ *  at the target + 500 or more. One helper, so the Coach and the notes on Today and Health name the same days. */
+export function bigDays(d: Pick<AppData, 'entries'>, from: string, today: string, target: number) {
+  return foodDays(d, from, today).filter((x) => x.kcal >= target + 500);
 }
 
 /** The weigh-ins to judge from: Aven's and the watch's scale, without the ones that are clearly a typo or a glitch. */
@@ -129,6 +135,7 @@ export function goalStart(d: Pick<AppData, 'weights' | 'health' | 'sessions'>, p
   return undefined;
 }
 
+export type WhyCode = 'untracked' | 'noWeighIns' | 'stale' | 'young' | 'fewWeighIns' | 'fewInWindow' | 'noExercise' | 'notTrained' | 'liftUntrained' | 'fewWorkouts';
 export type Pace = 'reached' | 'ready' | 'on pace' | 'ahead' | 'behind' | 'too fast' | 'wrong way' | 'slow' | 'stalled' | 'date passed' | 'too early';
 export interface GoalState {
   note: MemoryNote;
@@ -165,6 +172,10 @@ export interface GoalState {
   pace: Pace;
   /** why the pace can't be judged, when it can't */
   why?: string;
+  /** the same, as a code the screens build their own words from (never the prompt text above) */
+  whyCode?: WhyCode;
+  /** a weight goal judged on its food (its first 2 weeks): `rate` is then what they eat, `scaleRate` the scale's */
+  byFood?: boolean;
   stalled?: boolean;
   /** a lift goal not trained since it was set: the workout screen's next target, its first step */
   next?: { kg: number; reps: number };
@@ -188,12 +199,12 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
   const daysIn = Math.max(0, diffDays(today, startDate));
   const daysLeft = g.by ? diffDays(g.by, today) : undefined;
   const base: GoalState = { note, metric: g.metric, daysIn, daysLeft, target: g.target, pace: 'too early' };
-  if (g.metric === 'other' || g.target === undefined) return { ...base, pace: daysLeft !== undefined && daysLeft < 0 ? 'date passed' : 'too early', why: 'not a number the app can track' };
+  if (g.metric === 'other' || g.target === undefined) return { ...base, pace: daysLeft !== undefined && daysLeft < 0 ? 'date passed' : 'too early', why: 'not a number the app can track', whyCode: 'untracked' };
 
   if (g.metric === 'weight') {
     const ws = cleanWeighIns(d, today);
     const last = ws[ws.length - 1];
-    if (!last) return { ...base, start: g.start, why: 'no weigh-ins' };
+    if (!last) return { ...base, start: g.start, why: 'no weigh-ins', whyCode: 'noWeighIns' };
     const trend = weightTrend(ws);
     // the pace: since the goal started once that has 5 weigh-ins over a week (what they do now, not before the plan),
     // else the last 4 weeks with 6 over 14+ days (fewer is mostly water)
@@ -227,7 +238,7 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
     // (a short goal is made by one morning on or before its day)
     if (short && ws.some((w) => w.date >= startDate && w.date <= g.by! && there(w.kg))) return { ...st, pace: 'reached' };
     if (short) st.short = true;
-    if (stale > 10) return { ...st, pace: daysLeft !== undefined && daysLeft < 0 ? 'date passed' : 'too early', why: `no weigh-in for ${stale} days` };
+    if (stale > 10) return { ...st, pace: daysLeft !== undefined && daysLeft < 0 ? 'date passed' : 'too early', why: `no weigh-in for ${stale} days`, whyCode: 'stale' };
     // in its first 2 weeks (and until it has 8 weigh-ins of its own), a goal is judged on what they eat against the
     // maintenance from before it: the scale still swings 1–2 kg with water, and a week of it called a goal on plan
     // "behind" (judge round 1, 26 Oct). Without food logs: on its own week of weigh-ins, else not yet.
@@ -236,6 +247,7 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
     // (judged on food, it is also where they are: the start plus what the food since then adds up to, so the kilos left
     // and the pace the date needs aren't read off a scale that dropped a kilo of water; judge round 4, 26 Oct)
     let cur = now;
+    if (byFood) st.byFood = true;
     if (byFood && !short && start !== undefined) { cur = start + (st.eating!.kgPerWeek * daysIn) / 7; st.now = r1(cur); st.scaleKg = r1(now); }
     const left = g.target - cur;
     if (daysLeft !== undefined && daysLeft > 0) st.need = r2((left / daysLeft) * 7);
@@ -245,9 +257,9 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
     const scale4 = sl4 !== null ? `${fmtPace(r2(sl4 * 7))} on the scale over the last 4 weeks, mostly before the goal` : undefined;
     if (early && !byFood && !(slS !== null && daysIn >= 7)) {
       if (scale4) st.rateBasis = scale4;
-      return { ...st, pace: 'too early', why: daysIn < 7 ? `the goal is ${daysIn} day${daysIn === 1 ? '' : 's'} old; its own pace shows after about a week of weigh-ins${st.eating ? '' : ' (or a few logged days of food)'}` : `${since.length} weigh-in${since.length === 1 ? '' : 's'} since it started and no logged food to judge by (the pace needs 5 weigh-ins over a week)` };
+      return { ...st, pace: 'too early', whyCode: daysIn < 7 ? 'young' : 'fewWeighIns', why: daysIn < 7 ? `the goal is ${daysIn} day${daysIn === 1 ? '' : 's'} old; its own pace shows after about a week of weigh-ins${st.eating ? '' : ' (or a few logged days of food)'}` : `${since.length} weigh-in${since.length === 1 ? '' : 's'} since it started and no logged food to judge by (the pace needs 5 weigh-ins over a week)` };
     }
-    if (!early && sl === null) return { ...st, pace: 'too early', why: `${four.length} weigh-ins over ${span4} days in the last 4 weeks (the pace needs 6 over 14+ days)` };
+    if (!early && sl === null) return { ...st, pace: 'too early', whyCode: 'fewInWindow', why: `${four.length} weigh-ins over ${span4} days in the last 4 weeks (the pace needs 6 over 14+ days)` };
     st.rate = byFood ? st.eating!.kgPerWeek : r2((slS ?? sl!) * 7);
     if (byFood && slS !== null) st.scaleRate = r2(slS * 7);
     st.rateBasis = byFood ? `what they eat since the goal started, against the maintenance from before it (the guide for its first 2 weeks; ${slS !== null ? `the scale so far says ${fmtPace(r2(slS * 7))}, mostly water swings this early` : scale4 ?? 'too few weigh-ins of its own yet'})`
@@ -269,7 +281,7 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
 
   // a lift: its best estimated max against the target's
   const id = note.exerciseIds?.[0];
-  if (!id) return { ...base, why: 'no exercise' };
+  if (!id) return { ...base, why: 'no exercise', whyCode: 'noExercise' };
   const targetE = est(g.target, g.reps ?? 1);
   const tops = liftTops(d, id, addDays(today, -55), today);
   const recent3 = tops.slice(-3);
@@ -277,7 +289,7 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
   const start = g.start ?? best(liftTops(d, id, addDays(startDate, -42), startDate))?.e;
   const st: GoalState = { ...base, start: start !== undefined ? r1(start) : undefined, now: nowTop ? r1(nowTop.e) : undefined, target: r1(targetE) };
   st.stalled = stalledLifts(d.sessions, today).some((s) => s.exerciseId === id);
-  if (!nowTop) return { ...st, why: 'not trained in the last 8 weeks' };
+  if (!nowTop) return { ...st, why: 'not trained in the last 8 weeks', whyCode: 'notTrained' };
   // reached: a real set at it (a heavy single, double or triple is only proven by doing it); the estimate alone says it is
   // there to test
   const reps = g.reps ?? 1;
@@ -301,7 +313,7 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
   if (!tops.some((x) => x.date > startDate)) {
     const nx = liftNext(d, id);
     if (nx) st.next = nx;
-    return { ...st, pace: 'too early', why: `no workout of it since the goal was set${nx ? `; the next target is ${r1(nx.kg)} kg × ${nx.reps}` : ''}` };
+    return { ...st, pace: 'too early', whyCode: 'liftUntrained', why: `no workout of it since the goal was set${nx ? `; the next target is ${r1(nx.kg)} kg × ${nx.reps}` : ''}` };
   }
   const left = targetE - nowTop.e;
   if (daysLeft !== undefined && daysLeft > 0) st.need = r2((left / daysLeft) * 7);
@@ -311,7 +323,7 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
   const span = win.length ? diffDays(win[win.length - 1].date, win[0].date) : 0;
   const sl = win.length >= 4 && span >= 14 ? slope(win.map((x) => ({ date: x.date, v: x.e })), 5) : null;
   if (st.plateau) { st.rate = sl !== null ? r2(sl * 7) : 0; st.rateBasis = `its best set per workout, ${win.length} workouts over the last ${span + 1} days`; return { ...st, pace: 'stalled' }; }
-  if (sl === null) return { ...st, pace: 'too early', why: `${win.length} workouts with it over ${span} days in the last 4 weeks (the pace needs 4 over 14+ days)` };
+  if (sl === null) return { ...st, pace: 'too early', whyCode: 'fewWorkouts', why: `${win.length} workouts with it over ${span} days in the last 4 weeks (the pace needs 4 over 14+ days)` };
   st.rate = r2(sl * 7);
   st.rateBasis = `its best set per workout, ${win.length} workouts over the last ${span + 1} days`;
   if (st.rate > 0.05) st.eta = addDays(today, Math.ceil((left / st.rate) * 7));
@@ -319,6 +331,16 @@ export function goalState(d: Data, note: MemoryNote, today: string): GoalState |
     : st.need !== undefined ? (st.rate < st.need * 0.75 ? 'behind' : st.rate > st.need * 1.3 ? 'ahead' : 'on pace')
     : st.rate <= 0.05 ? 'slow' : 'on pace';
   return st;
+}
+
+/** A weight goal reached: what to eat to hold it, the same numbers goalCalories gives the Coach (a week halfway from the
+ *  target first when they are 300+ apart, then TRUE MAINTENANCE). */
+export function holdKcal(d: Data, st: GoalState, today: string): { first?: number; hold: number } | undefined {
+  if (st.metric !== 'weight' || st.pace !== 'reached') return undefined;
+  const m = goalMaintenance(d, st.note.goal?.startDate ?? today, today);
+  if (!m) return undefined;
+  const cur = d.settings.goals.kcal;
+  return { hold: m.kcal, ...(cur && Math.abs(m.kcal - cur) >= 300 ? { first: rk((m.kcal + cur) / 2) } : {}) };
 }
 
 /** The calorie numbers for a weight goal, from TRUE MAINTENANCE (never under a safe floor). */
@@ -479,7 +501,7 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
     let bigBehind = false;
     const tk = d.settings.goals.kcal;
     if (st.metric === 'weight' && tk && tg < (st.start ?? st.now ?? tg)) {
-      const bigD = foodDays(d, g.startDate, today).filter((x) => x.kcal >= tk + 500);
+      const bigD = bigDays(d, g.startDate, today, tk);
       if (bigD.length >= 2) {
         const rest = foodDays(d, g.startDate, today).filter((x) => x.kcal < tk + 500).map((x) => x.date);
         const what = rest.length ? habitSlot(d, bigD.map((x) => x.date), rest) : undefined;
