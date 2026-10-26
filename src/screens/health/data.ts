@@ -91,6 +91,8 @@ export interface HealthView {
   steps: { today?: number; usual?: number; curve: number[]; usualCurve: number[]; week: { date: string; count?: number }[]; nowFrac: number };
   week: { days: { date: string; marks: ('gym' | 'wr' | 'run' | 'miss')[] }[]; cardioMin: number; workouts: number; target: number; sports: { label: string; min: number }[]; last?: ActivityLog };
   body: { kg?: number; date?: string; series: number[]; rate: number | null; fat?: number; lean?: number; water?: number; bone?: number; bmr?: number };
+  /** workouts per week, the last eight weeks (this week last), and in the last 28 days */
+  train: { weeks: number[]; n28: number };
   ribbon: DayRibbon | null;
   hasWatch: boolean;
   /** the watch's detail has been read from the phone (until then the sentence can still change) */
@@ -199,8 +201,14 @@ export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | nu
   const comp = [...days].reverse().find((d) => d.leanKg || d.bmr);
   if (comp) Object.assign(body, { lean: comp.leanKg, water: comp.bodyWaterKg, bone: comp.boneKg, bmr: comp.bmr });
 
+  const done = data.sessions.filter((x) => x.status === 'done' && x.date <= today);
+  const train: HealthView['train'] = {
+    weeks: Array.from({ length: 8 }, (_, i) => { const a0 = addDays(wkStart, -7 * (7 - i)), a1 = addDays(a0, 6); return done.filter((x) => x.date >= a0 && x.date <= a1).length; }),
+    n28: done.filter((x) => x.date > addDays(today, -28)).length,
+  };
+
   const hasWatch = !!(days.length || data.steps.length || (det && det.size));
-  return { today, day, night, ready, heart, steps, week, body, ribbon: det && det.size ? buildRibbon(D, data, now, a.label) : null, hasWatch, loaded: det !== null };
+  return { today, day, night, ready, heart, steps, week, body, train, ribbon: det && det.size ? buildRibbon(D, data, now, a.label) : null, hasWatch, loaded: det !== null };
 }
 
 /** 5-minute averages, so a night's curve is calm */

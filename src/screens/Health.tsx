@@ -35,9 +35,9 @@ import './health/health.css';
 
 type K = 'ready' | 'sleep' | 'heart' | 'move' | 'week' | 'body' | 'training';
 // (no Ready on the screen: Omar dropped readiness on 16 Oct and the Coach line on top says what matters; 26 Oct)
-const ORDER: K[] = ['sleep', 'heart', 'move', 'week', 'body', 'training'];
+const ORDER: K[] = ['sleep', 'heart', 'move', 'week', 'training', 'body'];
 const COL: Record<K, string> = { ready: '#f6f7fb', sleep: C.sleep, heart: C.heart, move: C.move, week: C.cardio, body: C.body, training: C.train };
-const NAME: Record<K, string> = { ready: 'Ready', sleep: 'Sleep', heart: 'Heart', move: 'Steps', week: 'This week', body: 'Body', training: 'Training' };
+const NAME: Record<K, string> = { ready: 'Ready', sleep: 'Sleep', heart: 'Heart', move: 'Steps', week: 'This week', body: 'Weight', training: 'Training' };
 
 /** 432 min → "7 h 12" (the hour sign in Danish is t) */
 /** within this many minutes of the usual night is "about your usual", on the Coach line and the Sleep page alike */
@@ -54,7 +54,7 @@ export function HealthScreen() {
   const label = useCallback((a: ActivityLog) => a.name || t(ACTIVITY_LABEL[a.kind]), [t]);
   const v = useHealthView(s, today, label);
 
-  const root = useRef<HTMLDivElement>(null), scr = useRef<HTMLDivElement>(null), det = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null), scr = useRef<HTMLDivElement>(null), shade = useRef<HTMLDivElement>(null), det = useRef<HTMLDivElement>(null);
   const L1 = useRef<HTMLDivElement>(null), L2 = useRef<HTMLDivElement>(null), L3 = useRef<HTMLDivElement>(null);
   const mat = useRef<HTMLDivElement>(null), dsc = useRef<HTMLDivElement>(null), fly = useRef<HTMLDivElement>(null), edge = useRef<HTMLDivElement>(null);
   const eng = useRef<Expander | null>(null);
@@ -65,7 +65,7 @@ export function HealthScreen() {
   const chips = useRef<HTMLDivElement>(null), chipFrom = useRef<{ x: number; w: number } | null>(null);
 
   useLayoutEffect(() => {
-    eng.current = new Expander({ root: root.current!, scr: scr.current!, det: det.current!, L: [L1.current!, L2.current!, L3.current!], mat: mat.current!, dsc: dsc.current!, fly: fly.current!, edge: edge.current! });
+    eng.current = new Expander({ root: root.current!, scr: scr.current!, shade: shade.current!, det: det.current!, L: [L1.current!, L2.current!, L3.current!], mat: mat.current!, dsc: dsc.current!, fly: fly.current!, edge: edge.current! });
     return () => eng.current?.closeNow();
   }, []);
 
@@ -129,9 +129,9 @@ export function HealthScreen() {
         <CoachLine v={v} d={s} today={today} t={t} lang={lang} onTap={tap} />
         <GoalCard d={s} today={today} t={t} lang={lang} />
         {v.ribbon && <RibbonBlock v={v} t={t} lang={lang} />}
-        {shown.map((k) => <Section key={k} k={k} v={v} t={t} lang={lang} onTap={tap} />)}
-        {!v.hasWatch && <p className="hx-note">{t('Connect your watch in Settings → Watch, and sleep, heart and steps fill in here.')}</p>}
+        <Chapters v={v} t={t} lang={lang} onTap={tap} />
       </div>
+      <div ref={shade} className="hx-shade" />
       <div ref={det} className="hx-detail" style={{ ['--c' as string]: openK ? COL[openK] : C.sleep }} onClick={passTap}>
         <div ref={L1} className="hx-L hx-rnd"><div ref={L2} className="hx-L hx-rnd"><div ref={L3} className="hx-L">
           <div ref={mat} className="hx-mat" />
@@ -157,7 +157,7 @@ function has(k: K, v: HealthView): boolean {
     case 'sleep': return !!v.night;
     case 'heart': return v.heart.rest !== undefined || v.heart.trace.length > 1;
     case 'move': return v.steps.today !== undefined;
-    case 'week': return v.week.workouts + v.week.cardioMin > 0 || v.hasWatch;
+    case 'week': return true;
     case 'body': return v.body.kg !== undefined;
     case 'training': return true;
   }
@@ -205,27 +205,27 @@ function useIntro(scr: React.RefObject<HTMLDivElement | null>, v: HealthView) {
     layer('now')?.animate([{ opacity: 0, transform: 'translateY(-6px)', offset: 0 }], { duration: 450, delay: 1050, easing: EO, fill: 'both' });
   });
 
-  // sections rise when they come into view (not all at once below the fold, where nobody sees it); the first ones come in
-  // order during the last part of the ribbon's sweep. One observer for the screen's life: a re-render (data arriving) must not cut a rise short.
+  // chapters and rows rise as they come into view. The ones on screen at the start carry on the same wave as the lines above
+  // (one calm wave, no waiting: Omar 26 Oct); later ones rise the moment they scroll in. One observer for the screen's life:
+  // a re-render (data arriving) must not cut a rise short.
   const io = useRef<IntersectionObserver | null>(null), t0 = useRef(0), order = useRef(0);
   useLayoutEffect(() => {
-    const el = scr.current; if (!el) return;
-    const fresh = [...el.querySelectorAll<HTMLElement>('.hx-sec')].filter((x) => !seen.current.has(x.dataset.k!));
+    const el = scr.current; if (!el || !v.loaded) return;
+    const fresh = [...el.querySelectorAll<HTMLElement>('.hx-chap,.hx-row')].filter((x) => !seen.current.has(x.dataset.k!));
     if (!fresh.length) return;
     fresh.forEach((x) => seen.current.add(x.dataset.k!));
     if (reduced()) return;
     if (!io.current) {
       t0.current = performance.now();
-      io.current = new IntersectionObserver((es) => es.forEach((e) => {
-        if (!e.isIntersecting) return;
+      // where the wave above ends: one step after the goal card
+      const first = 60 + Math.min(el.querySelectorAll('.hx-sent .hx-w').length ? 7 : 3, 7) * 60;
+      io.current = new IntersectionObserver((es) => es.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top).forEach((e) => {
         const x = e.target as HTMLElement; io.current?.unobserve(x);
-        const late = Math.max(0, 720 + order.current++ * 110 - (performance.now() - t0.current));
+        const since = performance.now() - t0.current;
+        const late = since < 400 ? Math.max(0, Math.min(first + order.current++ * 55, 760) - since) : 0;
         x.style.opacity = '';
-        x.animate([{ opacity: 0, transform: 'translateY(12px)', offset: 0 }], { duration: 520, delay: late, easing: 'cubic-bezier(.25,1,.5,1)', fill: 'both' });
-        const c = x.querySelector<HTMLElement>('.hx-wipe');
-        const inner = c?.firstElementChild;
-        if (c && inner) { c.animate([{ transform: 'translateX(-100%)', offset: 0 }], { duration: 1000, delay: late + 120, easing: EO, fill: 'both' }); inner.animate([{ transform: 'translateX(100%)', offset: 0 }], { duration: 1000, delay: late + 120, easing: EO, fill: 'both' }); }
-      }), { root: el, threshold: 0.35 });
+        x.animate([{ opacity: 0, transform: 'translateY(12px)', offset: 0 }], { duration: 560, delay: late, easing: 'cubic-bezier(.25,1,.5,1)', fill: 'both' });
+      }), { root: el, threshold: 0.2 });
     }
     fresh.forEach((x) => { x.style.opacity = '0'; io.current!.observe(x); });
   });
@@ -404,52 +404,86 @@ function RibbonBlock({ v, t, lang }: { v: HealthView; t: TFn; lang: Lang }) {
   );
 }
 
-/** a section on the home screen: label, number, a line of context and its picture (no box: space and size carry it) */
+/** the home screen's rows, in three chapters (the Q layout, Omar 26 Oct "a better layout"): Recovery, Activity, Body */
+const CHAPTERS: { name: string; keys: K[] }[] = [{ name: 'Recovery', keys: ['sleep', 'heart'] }, { name: 'Activity', keys: ['move', 'week', 'training'] }, { name: 'Body', keys: ['body'] }];
+
+function Chapters({ v, t, lang, onTap }: { v: HealthView; t: TFn; lang: Lang; onTap: (k: K, el: HTMLElement) => void }) {
+  return <>{CHAPTERS.map(({ name, keys }) => {
+    const ks = keys.filter((k) => has(k, v));
+    // no watch: Recovery says, once, what fills it in (a row of its own, never an empty chapter)
+    const empty = name === 'Recovery' && !v.hasWatch;
+    if (!ks.length && !empty) return null;
+    return (
+      <div key={name} className="hx-chapter">
+        <h2 className="hx-chap" data-k={`ch-${name}`}>{t(name)}</h2>
+        {empty && <div className="hx-row hx-quiet" data-k="ch-watch"><div className="hx-rmain"><div className="hx-lab" style={{ ['--c' as string]: C.sleep }}><i />{t('Sleep and heart')}</div><div className="hx-sub hx-cap">{t('Connect your watch in Settings → Watch, and sleep, heart and steps fill in here.')}</div></div></div>}
+        {ks.map((k) => <Section key={k} k={k} v={v} t={t} lang={lang} onTap={onTap} />)}
+      </div>
+    );
+  })}</>;
+}
+
+/** this week as seven dots: filled on a day he trained, a ring on a day gone by without, faint ahead; today is marked */
+function WeekDots({ days, today }: { days: HealthView['week']['days']; today: string }) {
+  return <div className="hx-wd">{days.map((d) => {
+    const m = d.marks.find((x) => x !== 'miss');
+    return <i key={d.date} className={`${m ? 'on' : d.date < today ? 'past' : ''}${d.date === today ? ' now' : ''}`} style={m ? { background: m === 'gym' ? C.train : C.cardio } : undefined} />;
+  })}</div>;
+}
+
+/** workouts per week, the last eight weeks, as small bars (this week on the right) */
+function WeekBars({ weeks, target, w = 88, h = 30 }: { weeks: number[]; target: number; w?: number; h?: number }) {
+  const top = Math.max(target, ...weeks, 1), bw = 5, gap = (w - bw * weeks.length) / (weeks.length - 1);
+  return <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden>{weeks.map((n, i) => {
+    const bh = n ? Math.max(3, (n / top) * h) : 2;
+    return <rect key={i} x={i * (bw + gap)} y={h - bh} width={bw} height={bh} rx={2} fill={n ? C.train : 'rgba(255,255,255,.12)'} opacity={i === weeks.length - 1 ? 1 : 0.75} />;
+  })}</svg>;
+}
+
+/** a row on the home screen, one style for all: label, number, one line of context, a small picture on the right */
 function Section({ k, v, t, lang, onTap }: { k: K; v: HealthView; t: TFn; lang: Lang; onTap: (k: K, el: HTMLElement) => void }) {
-  const [ref, w] = useWidth<HTMLDivElement>(344);
-  const wu = useScreenStore().settings.units.weight;
-  const W = w; // the section itself reaches the screen's edges, so its charts do too
-  let body: ReactNode = null;
+  const u = useScreenStore().settings.units.weight;
+  let num: ReactNode = null, unit: ReactNode = null, cap: ReactNode = null, side: ReactNode = null;
   if (k === 'sleep') {
     const n = v.night!;
-    body = <>
-      <div className="hx-n hx-n46" data-share="num"><Roll text={hm(n.asleep, lang)} /></div>
-      <div className="hx-sub">{fmtTime(n.session.start, lang)} → {fmtTime(n.session.end, lang)}{n.score ? ` · ${t('score')} ${n.score.score}` : ''} · {t('deep')} {hm(n.stages.deep, lang)}</div>
-      <div className="hx-bleed hx-hyp hx-wipe" data-share="chart"><div><Hypnogram night={n.session} w={W} /></div></div>
-    </>;
+    num = <Roll text={hm(n.asleep, lang)} />;
+    cap = <>{fmtTime(n.session.start, lang)} → {fmtTime(n.session.end, lang)} · {t('deep')} {hm(n.stages.deep, lang)}</>;
+    const nights = n.last14.map((x) => x.min).filter(Boolean);
+    if (nights.length > 2) side = <Spark values={[...nights, n.asleep]} w={92} h={28} color={C.sleep} />;
   } else if (k === 'heart') {
     const h = v.heart;
-    body = <>
-      <div><span className="hx-n hx-n64" data-share="num"><Roll text={h.rest !== undefined ? String(h.rest) : '—'} /></span><span className="hx-sub hx-unit" data-share="unit">{t('bpm resting')}</span></div>
-      <div className="hx-bleed hx-wipe" data-share="chart" style={{ marginTop: 4 }}><div><Trace values={h.trace} band={h.restRange} w={W} usualLabel={t('your usual')} /></div></div>
-      {h.hrv !== undefined && <div className="hx-sub" style={{ marginTop: 8 }}>{h.hrvRange && h.hrv >= h.hrvRange[0] && h.hrv <= h.hrvRange[1] ? t('HRV {n} ms, inside your usual range', { n: Math.round(h.hrv) }) : h.hrvRange && h.hrv < h.hrvRange[0] ? t('HRV {n} ms, under your usual range', { n: Math.round(h.hrv) }) : t('HRV {n} ms', { n: Math.round(h.hrv) })}</div>}
-    </>;
+    num = <Roll text={h.rest !== undefined ? String(h.rest) : '—'} />; unit = t('bpm resting');
+    if (h.hrv !== undefined) cap = h.hrvRange && h.hrv >= h.hrvRange[0] && h.hrv <= h.hrvRange[1] ? t('HRV {n} ms, inside your usual range', { n: Math.round(h.hrv) }) : h.hrvRange && h.hrv < h.hrvRange[0] ? t('HRV {n} ms, under your usual range', { n: Math.round(h.hrv) }) : t('HRV {n} ms', { n: Math.round(h.hrv) });
+    if (h.trace.length > 2) side = <Spark values={h.trace} w={92} h={28} color={C.heart} />;
   } else if (k === 'move') {
     const st = v.steps;
-    body = <>
-      <div><span className="hx-n hx-n34" data-share="num"><Roll text={fmtNum(st.today ?? 0, lang, 0)} /></span>{st.usual ? <span className="hx-sub hx-unit" data-share="unit">{t('of your usual {n}', { n: fmtNum(Math.round(st.usual / 100) * 100, lang, 0) })}</span> : null}</div>
-      {st.curve.length > 1 && <div className="hx-bleed hx-wipe" data-share="chart" style={{ marginTop: 8 }}><div><StepsDay today={st.curve} usual={st.usualCurve} w={W} h={48} /></div></div>}
-    </>;
+    num = <Roll text={fmtNum(st.today ?? 0, lang, 0)} />;
+    if (st.usual) cap = t('of your usual {n}', { n: fmtNum(Math.round(st.usual / 100) * 100, lang, 0) });
+    if (st.curve.length > 1) side = <StepsDay today={st.curve} usual={st.usualCurve} w={92} h={30} pad={0} />;
   } else if (k === 'week') {
     const wk = v.week;
-    body = <>
-      <div className="hx-sub" style={{ marginTop: 2 }}><b className="hx-hi">{wk.cardioMin} min</b> {t('cardio')} · <b className="hx-hi">{t('{a} of {b}', { a: wk.workouts, b: wk.target })}</b> {t('workouts')}</div>
-      <div data-share="chart"><WeekStrip days={wk.days} today={v.today} letter={(d) => fmtDate(d, lang, { weekday: 'narrow' })} /></div>
-    </>;
+    num = String(wk.workouts); unit = t('of {n} workouts', { n: wk.target });
+    cap = t('{n} min cardio this week', { n: wk.cardioMin });
+    side = <WeekDots days={wk.days} today={v.today} />;
   } else if (k === 'body') {
-    const b = v.body; const u = wu;
-    body = <div className="hx-bodyrow">
-      <span className="hx-n hx-n28" data-share="num"><Roll text={fmtNum(kgToDisplay(b.kg!, u), lang, 1)} /><small>{u}</small></span>
-      <div style={{ flex: 1, minWidth: 0 }}><Spark values={b.series} w={Math.max(60, w - 250)} /></div>
-      {b.rate !== null && <span className="hx-sub">{fmtSigned(kgToDisplay(b.rate, u), lang)} {u}/{t('wk')}</span>}
-    </div>;
+    const b = v.body;
+    num = <Roll text={fmtNum(kgToDisplay(b.kg!, u), lang, 1)} />; unit = u;
+    cap = b.rate !== null ? `${fmtSigned(kgToDisplay(b.rate, u), lang)} ${u}/${t('wk')}` : b.date ? t('Last weigh-in {d}', { d: fmtDate(b.date, lang, { day: 'numeric', month: 'short' }) }) : null;
+    if (b.series.length > 2) side = <Spark values={b.series} w={92} h={28} />;
   } else if (k === 'training') {
-    body = <div className="hx-sub" style={{ marginTop: 2 }}>{t('Your progress charts, records and exercise trends.')}</div>;
+    num = String(v.train.n28); unit = t('workouts in 4 weeks');
+    cap = t('Charts, records and exercise trends');
+    side = <WeekBars weeks={v.train.weeks} target={v.week.target} />;
   }
   return (
-    <section ref={ref as React.Ref<HTMLElement>} className="hx-sec" data-k={k} style={{ ['--c' as string]: COL[k] }} onClick={(e) => onTap(k, e.currentTarget)}>
-      <div className="hx-lab"><i />{t(NAME[k])}</div>
-      {body}
+    <section className="hx-sec hx-row" data-k={k} style={{ ['--c' as string]: COL[k] }} onClick={(e) => onTap(k, e.currentTarget)}>
+      <div className="hx-rmain">
+        <div className="hx-lab"><i />{t(NAME[k])}</div>
+        <div className="hx-rnum"><span className="hx-n hx-n34" data-share="num">{num}</span>{unit && <span className="hx-sub hx-unit" data-share="unit">{unit}</span>}</div>
+        {cap && <div className="hx-sub hx-cap">{cap}</div>}
+      </div>
+      {side && <div className="hx-rside">{side}</div>}
+      <span className="hx-chev" aria-hidden>›</span>
     </section>
   );
 }
@@ -553,7 +587,8 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     const wk = v.week, mx = Math.max(1, ...wk.sports.map((x) => x.min));
     out = <>
       <div className="hx-lab"><i />{t('This week')}</div>
-      <div className="hx-sub" style={{ marginTop: 2 }}><b className="hx-hi">{wk.cardioMin} min</b> {t('cardio')} · <b className="hx-hi">{t('{a} of {b}', { a: wk.workouts, b: wk.target })}</b> {t('workouts')}</div>
+      <div className="hx-rnum"><span className="hx-n hx-n52" data-share="num">{wk.workouts}</span><span className="hx-sub hx-unit" data-share="unit">{t('of {n} workouts', { n: wk.target })}</span></div>
+      <div className="hx-sub" style={{ marginTop: 6 }}>{t('{n} min cardio this week', { n: wk.cardioMin })}</div>
       <div data-share="chart" style={{ marginBottom: 28 }}><WeekStrip days={wk.days} today={v.today} letter={(d) => fmtDate(d, lang, { weekday: 'narrow' })} /></div>
       {wk.sports.length > 0 && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Minutes by sport')}</div>{wk.sports.map((x) => <div key={x.label} className="hx-sport"><span className="hx-sub">{x.label}</span><div className="hx-sbar"><span className="hx-sb" style={{ ['--sc' as string]: C.cardio, width: `${Math.round((x.min / mx) * 100)}%` }} /></div><span className="hx-sub" style={{ textAlign: 'right' }}>{x.min}</span></div>)}</div>}
       {wk.last && <div className="hx-panel hx-rise"><div className="hx-ptitle">{t('Last session')}</div><div className="hx-n" style={{ fontSize: 26, fontWeight: 300 }}>{wk.last.name || t(ACTIVITY_LABEL[wk.last.kind])} · {Math.round(wk.last.durationSec / 60)} min</div>
@@ -564,7 +599,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     const b = v.body, u = wu, ser = b.series.map((x) => kgToDisplay(x, u));
     const lo = Math.min(...ser), hi = Math.max(...ser);
     out = <>
-      <div className="hx-lab"><i />{t('Body')}</div>
+      <div className="hx-lab"><i />{t('Weight')}</div>
       <div className="hx-n hx-n52" data-share="num">{fmtNum(kgToDisplay(b.kg!, u), lang, 1)}<small>{u}</small></div>
       <h3 className="hx-dt hx-rise">{b.rate === null ? t('Your weight') : Math.abs(b.rate) < 0.1 ? t('Steady') : b.rate < 0 ? t('Slowly down') : t('Slowly up')}</h3>
       {b.rate !== null && <p className="hx-dsub hx-rise">{t('About {n} {u} a week.', { n: fmtSigned(kgToDisplay(b.rate, u), lang), u })}</p>}
@@ -582,7 +617,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
   } else if (k === 'training') {
     out = <>
       <div className="hx-lab"><i />{t('Training')}</div>
-      <div className="hx-sub">{t('Your progress charts, records and exercise trends.')}</div>
+      <div className="hx-rnum"><span className="hx-n hx-n52" data-share="num">{v.train.n28}</span><span className="hx-sub hx-unit" data-share="unit">{t('workouts in 4 weeks')}</span></div>
       <div className="hx-rise hx-training"><ProgressBody /></div>
     </>;
   }

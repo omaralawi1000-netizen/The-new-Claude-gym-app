@@ -2095,4 +2095,10 @@ export const da: Record<string, string> = {
  "{n} weeks": "{n} uger",
  "{what} Help me with those days. Be honest.": "{what} Hjælp mig med de dage. Vær ærlig.",
  "Your last 7 days averaged {x}, about {over} over your {target} target.": "Dine sidste 7 dage lå i snit på {x}, omkring {over} over dit mål på {target}.",
+ "Sleep and heart": "Søvn og puls",
+ "of {n} workouts": "af {n} træninger",
+ "{n} min cardio this week": "{n} min kondition i denne uge",
+ "Last weigh-in {d}": "Sidste vejning {d}",
+ "workouts in 4 weeks": "træninger på 4 uger",
+ "Charts, records and exercise trends": "Grafer, rekorder og øvelsestendenser",
 };
