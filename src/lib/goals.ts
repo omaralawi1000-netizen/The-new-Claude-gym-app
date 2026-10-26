@@ -336,7 +336,9 @@ export function goalCalories(d: Data, st: GoalState, today: string, hold = false
   const dir = Math.sign(st.target - now);
   const per = (kgWk: number) => (kgWk * KCAL_PER_KG) / 7;
   const prot = dir < 0 ? `protein 1.8–2.2 g/kg = ${Math.round(now * 1.8)}–${Math.round(now * 2.2)} g (keeps muscle on a cut)` : `protein 1.6–2.0 g/kg = ${Math.round(now * 1.6)}–${Math.round(now * 2)} g`;
-  const cur = d.settings.goals.kcal ? `; the current target is ${fmtK(d.settings.goals.kcal)} kcal${d.settings.goals.protein ? ` and ${d.settings.goals.protein} g protein` : ''}` : '; no calorie target set yet';
+  const lowP = Math.round(now * (dir < 0 ? 1.8 : 1.6));
+  const cur = (d.settings.goals.kcal ? `; the current target is ${fmtK(d.settings.goals.kcal)} kcal${d.settings.goals.protein ? ` and ${d.settings.goals.protein} g protein` : ''}` : '; no calorie target set yet')
+    + (d.settings.goals.protein && d.settings.goals.protein < lowP - 2 ? `; their protein target is under this range: the plan says at least ${lowP} g and offers to set it (set_setting proteinGoal)` : '');
   if (!m) return `Calories for it: no TRUE MAINTENANCE yet (it needs 10 logged days and 4 weigh-ins over 2 weeks), so any number is an estimate: say so, and that it gets exact from their logs. ${prot}${cur}.`;
   const floor = Math.max(sex === 'female' ? 1400 : 1700, rk(m.kcal * 0.7));
   const at = (kgWk: number) => Math.max(floor, m.kcal + dir * per(kgWk));
