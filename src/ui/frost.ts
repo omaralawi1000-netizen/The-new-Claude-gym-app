@@ -4,7 +4,7 @@
  * 1. Frosted cards. A page's cards show a soft copy of the colour field behind them, as frosted glass would, without a
  *    backdrop blur: real blur under scrolling cards cost a third of the frame rate at the phone's 3.75 dpr. Each tab's field
  *    holds still (every background but Classic's sway and Orb light's moving glows), so its picture is copied once, small
- *    (1/6 of the screen) and soft, with the look's own frost baked in, into a tiny picture per tab. Every card holds a tiny
+ *    (1/3 of the screen) and soft, with the look's own frost baked in, into a tiny picture per tab. Every card holds a tiny
  *    canvas the size of the screen, drawn from it, that stays put on the screen while the card scrolls: a scroll-driven
  *    `transform` (styles.css `.frost`), which the compositor runs. Nothing is blurred per frame. The canvases are made with
  *    their cards (when a page is built), never added or dropped at the end of an animation; a tab's picture only draws into
@@ -14,7 +14,9 @@
  *    the root as --bh-h, with how deep and how coloured the sheets' glass should be (--bh-sl, --bh-sc), for the tab on show.
  *    The sheets take that colour instead of the palette's, so Golden hour on a blue morning sky gets blue glass, not brown.
  */
-const SC = 6; // the frost picture's scale: 1 pixel for 6 css px
+// the frost picture's scale: 1 pixel for 3 css px (at 6 each pixel was stretched over ~22 of the phone's, and its soft
+// gradients showed as steps behind the cards: Omar's banding, judge 26 Oct)
+const SC = 3;
 const pics = new Map<string, HTMLCanvasElement>(); // tab → its frost picture
 const hues = new Map<string, { h: number; sl: number; sc: number }>(); // tab → the colour behind its sheets
 const live = new Set<HTMLCanvasElement>();
@@ -27,7 +29,14 @@ const look = () => root().dataset.look ?? 'a';
 // the frost each look bakes into the copy (the card's own see-through fill lies over it, surfaces.css): A today's clear
 // glass with a little frost, B and C let more of the colour through
 const recipe = () => RECIPE[look()];
-const RECIPE: Record<string, string> = { a: 'blur(4px) saturate(1.35)', b: 'blur(4px) saturate(1.9) brightness(0.94)', c: 'blur(4px) saturate(1.9) brightness(0.94)' };
+const RECIPE: Record<string, string> = { a: 'blur(8px) saturate(1.35)', b: 'blur(8px) saturate(1.9) brightness(0.94)', c: 'blur(8px) saturate(1.9) brightness(0.94)' };
+/** the copy with its frost, then (J) a wide soft copy over it: frost scatters a glow's light, so the colour reaches the cards
+ * near it graded, fading away from it (judge 26 Oct) */
+function bake(o: CanvasRenderingContext2D, raw: HTMLCanvasElement, rec: string, w: number, h: number) {
+  o.filter = rec; o.drawImage(raw, 0, 0);
+  if (look() === 'a' && (root().dataset.cards ?? 'between') === 'between') { o.globalAlpha = 0.35; o.filter = 'blur(32px) saturate(1.35)'; o.drawImage(raw, 0, 0); o.globalAlpha = 1; }
+  o.filter = 'none'; tame(o, w, h);
+}
 
 function paint(cv: HTMLCanvasElement) {
   const hue = hueOf(cv), made = pics.get(hue), last = made ? undefined : keptFor(hue);
@@ -166,7 +175,7 @@ export function frostFromField(field: HTMLElement, everyTab = false) {
   const out = pics.get(hue) ?? document.createElement('canvas');
   out.width = w; out.height = h;
   const o = out.getContext('2d'); if (!o) return;
-  o.filter = rec; o.drawImage(raw, 0, 0); o.filter = 'none'; tame(o, w, h);
+  bake(o, raw, rec, w, h);
   pics.set(hue, out); keep(everyTab ? '*' : hue, out);
   repaint(hue);
   // (a background that is the same on every tab: the other tabs get the same picture now, not when they are opened)
@@ -192,7 +201,7 @@ export function frostAhead(hue: string, pic: ImageData, at: string) {
   if (moves || !rec) return;
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const o = out.getContext('2d'); if (!o) return;
-  o.filter = rec; o.drawImage(raw, 0, 0); o.filter = 'none'; tame(o, w, h);
+  bake(o, raw, rec, w, h);
   pics.set(hue, out); keep(hue, out); repaint(hue);
 }
 export const frostStamp = stamp;
@@ -234,7 +243,6 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
   if (g <= 0) { for (let i = 0; i < d.length; i++) if ((i & 3) !== 3) d[i] = q(d[i]); o.putImageData(im, 0, 0); return; }
   const mix = (x: number, y: number) => x + (y - x) * g;
   const hue = Math.atan2(hB, hA); // the page's own colour (its most colourful parts win)
-  const rosy = root().dataset.palette === 'sunset';
   const cx = gx / gw, cy = gy / gw, R = Math.hypot(w, h) * 0.32; // the brightest glow, and how far its light reaches
   const out = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
@@ -267,9 +275,6 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         const L0 = px[i * 3];
         L += (0.7 - L) * 0.13; if (mC >= 0.05) C *= 0.96;
         L = Math.min(L, L0 + (L0 < 0.2 ? 0.04 : 0.025)); // (a little more light over a near-black page: not navy-black)
-        // the glass always holds a little light, in the page's colour (the floor below): over a near-black page a card read as a
-        // black slab (Colour per tab's Pull and Legs, 25 Oct); a lift with no colour read as grey plastic (judge r3)
-        const fl = Math.max(0.215, Math.min(0.24, L0)); if (L < fl) L = fl - (fl - L) * 0.3;
         // the darkest glass leans to the page's own colour too (the teal of Colour per tab, not the navy under one card): only
         // from a neighbouring colour, as an angle (from far away the turn went through colours a near-black can't show: grey, judge r5)
         let dh = hue - H; dh -= Math.round(dh / (2 * Math.PI)) * 2 * Math.PI;
@@ -278,12 +283,15 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         // the floor: the card's fill over it takes some colour away, and mauve and pink lose the most (Sunset, judge r4)
         const hd = (H * 180) / Math.PI, fC = 0.05 + 0.012 * step(hd, -55, -45) * step(-hd, 0, 10);
         if (C < fC) { let dt = hue - H; dt -= Math.round(dt / (2 * Math.PI)) * 2 * Math.PI; H += dt * (1 - C / fC); C = Math.min(fC, cMax); }
-        // on Sunset, dark red, orange and olive glass read brown or wine (its Train cards, 25 Oct): they lean on to berry-rose,
-        // a little lighter and more colourful (only Sunset: Golden hour's dark orange is its own colour)
-        if (rosy) {
-          const hr = (H * 180) / Math.PI, rose = step(hr, -15, -5) * step(-hr, -85, -75) * step(-L, -0.45, -0.38);
-          if (rose > 0) { H += ((-20 - hr) * Math.PI / 180) * 0.8 * rose; C = Math.min(Math.max(C, C + (0.06 - C) * rose), Math.max(C, cMax)); L += 0.02 * rose; }
-        }
+        // last, and always winning: the glass stays close to the page under it, so it shows the page instead of sitting on it.
+        // Over a near-black page a lifted, coloured card read as a wine, navy or petrol slab, and the floors and leans before
+        // this squashed the page's gradient into flat steps (judge 26 Oct); the card's own sheen (surfaces.css) keeps it glass
+        const C0 = Math.hypot(px[i * 3 + 1], px[i * 3 + 2]), H0 = Math.atan2(px[i * 3 + 2], px[i * 3 + 1]), h0 = (H0 * 180) / Math.PI;
+        L = Math.min(L0 + 0.03, Math.max(L0 - 0.05, L));
+        const green = step(h0, 110, 120) * step(-h0, -170, -160); // (saturate lifts greens: Forest's cards went lime)
+        C = Math.min(C0 + 0.012 - (C0 + 0.012 - C0 * 1.05) * green, Math.max(0.85 * C0, C));
+        if (L0 < 0.18) C = Math.min(C, 0.022);
+        if (C0 >= 0.02) { let dt = H - H0; dt -= Math.round(dt / (2 * Math.PI)) * 2 * Math.PI; const m = Math.PI / 15; H = H0 + Math.min(m, Math.max(-m, dt)); }
       }
     }
     out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H;
