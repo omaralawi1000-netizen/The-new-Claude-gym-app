@@ -33,7 +33,7 @@ import { currentSetOf } from './currentSet';
 import { fixMisheard } from './setCommand';
 import { EQUIP_LABEL, MUSCLE_LABEL } from '../screens/workout/common';
 import { muscleOf } from './agentLookup';
-import { claimsRoutine } from './answerCheck';
+import { claimsRoutine, doneSentences, ROUTINE_ACTS } from './answerCheck';
 import { detectRecords, workoutName, workoutSearchName } from './workout';
 import { buildDayPlan, pickForMuscles } from './planDay';
 import { specOf } from './settingSpec';
@@ -1150,11 +1150,11 @@ function doCreateRoutine(a: Extract<AgentAction, { type: 'create_routine' }>, ct
  * reps: "move Barbell Bench Press in Push to 4 sets of 4–6 reps", "… to 4×5–8". Gemini sent the edit with its routine
  * only, every time, while the reply said the routine was changed (Gemini Pro and 4 Argon, 26 Oct).
  */
-export function changeFromReply(reply: string, routine: { name: string; items: RoutineItem[] }, nameOf: (id: string) => string, idOf?: (word: string) => string | undefined): RoutineBit[] {
+export function changeFromReply(reply: string, routine: { name: string; items: RoutineItem[] }, nameOf: (id: string) => string, idOf?: (word: string) => string | undefined, about = reply): RoutineBit[] {
   // (a sentence that names no exercise — "I have updated Push to 4 sets of 4–6" — is about the one exercise of the routine
-  // the reply talks about, when it talks about exactly one)
-  const all = fold(reply);
-  const words = [...reply.matchAll(new RegExp(LIFT_WORDS.source, 'gi'))].map((m) => (idOf ? idOf(m[1]) : undefined));
+  // the reply (about: the whole reply, when only some of its sentences are read) talks about, when it talks about exactly one)
+  const all = fold(about);
+  const words = [...about.matchAll(new RegExp(LIFT_WORDS.source, 'gi'))].map((m) => (idOf ? idOf(m[1]) : undefined));
   const named = routine.items.filter((i) => all.includes(fold(nameOf(i.exerciseId))) || words.includes(i.exerciseId));
   const only = named.length === 1 ? named[0] : undefined;
   const SETS = /(?<![\d.,])(\d{1,2})\s*(?:sets? of|sæt af|[×x])\s*(\d{1,2})(?:\s*[–-]\s*(\d{1,2}))?(?!\s*(?:kg|lbs?|[.,]\d))/gi;
@@ -1169,6 +1169,9 @@ export function changeFromReply(reply: string, routine: { name: string; items: R
     // said, its reps spread over the others with the same sets: "a 4th set (4 × 5), then 4 × 6" → 4 × 5–6)
     const tail = sent.slice(Math.max(sent.toLowerCase().lastIndexOf(' to '), sent.toLowerCase().lastIndexOf(' til '), 0));
     const ms = [...tail.matchAll(SETS)].length ? [...tail.matchAll(SETS)].slice(0, 1) : [...sent.matchAll(SETS)];
+    // (sets with no reps, "updated Push to 4 sets of Barbell Bench Press": its reps stay)
+    const only4 = ms.length ? null : tail.match(/(?<![\d.,])(\d{1,2})\s*(?:working\s+)?sets?\b(?!\s*of\s*\d)/i) ?? sent.match(/(?<![\d.,])(\d{1,2})\s*(?:working\s+)?sets?\b(?!\s*of\s*\d)/i);
+    if (only4) { const n = Number(only4[1]); return n >= 1 && n <= 10 && it.repMin ? [{ exercise: nameOf(it.exerciseId), sets: n, repMin: it.repMin, repMax: Math.max(it.repMax, it.repMin) }] : []; }
     if (!ms.length) return [];
     const sets = Number(ms[ms.length - 1][1]);
     const same = ms.filter((m) => Number(m[1]) === sets);
@@ -1195,14 +1198,29 @@ export function fillFromReply(reply: string, actions: AgentAction[], lang: 'en' 
   // (still empty and the reply never says the routine changed: nothing to do and nothing claimed, so no "Couldn't change
   // that routine" card about a change nobody mentioned; Flash, 26 Oct)
   }).filter((a) => !(a.type === 'edit_routine' && !a.rename && !a.add?.length && !a.remove?.length && !a.change?.length && !claimsRoutine(reply)));
+  // the reply says, as done, that it changed one of their routines ("… and updated Barbell Bench Press in Push to 4 sets of
+  // 5–8") and sent nothing for it: the change it told them about, as the edit (a preview they apply; Argon, 26 Oct)
+  if (!out.some((a) => ROUTINE_ACTS.has(a.type))) {
+    const said = doneSentences(reply).split('\n').filter((x) => /\b(?:updated|changed|set|moved|switched|added|bumped|raised|put|made|opdateret|ændret|sat|flyttet|tilføjet)\b|\b(?:let['’]?s|we['’]?ll|lad os)\s+(?:switch|move|change|go|skift\w*|gå)\b/i.test(x)).join('\n');
+    for (const r of said ? useStore.getState().routines : []) {
+      // (named as the routine, "in Push" / "your Push routine", not the verb in "push to 4 × 6")
+      const name = r.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (!new RegExp(`\\b(?:in|your|the|to|i|din|updated|changed|set|moved|opdateret|ændret)\\s+${name}(?![\\p{L}\\d])|(?<![\\p{L}\\d])${name}\\s+(?:routine|rutine|day|dag|workout)`, 'u').test(said)) continue;
+      // (the exercise from the whole reply when the sentence names only the routine: "I've updated your Push routine to 4 × 4–6")
+      const change = changeFromReply(said, r, nameOf, (w) => findExercise(w, lang)?.id, reply);
+      if (change.length) { out.push({ type: 'edit_routine', routine: r.name, change }); break; }
+    }
+  }
   // a goal note rewritten with no plan while the reply says the plan changed: the plan is the reply's sentence that
   // names it in sets and reps (GOALS reads it back as "Plan agreed" at the next follow-up)
   if (!PLAN_SAID.test(reply)) return out;
-  const plan = reply.split(/(?<=[.!?])\s+|\n+/).map((x) => x.trim()).find((x) => /\d\s*(?:[×x]|sets? of|sæt af)\s*\d/i.test(x) && /\b(?:plan|change|instead|next \d+ weeks?|add|move|push|ændr\w*|i stedet|næste \d+ uger)\b/i.test(x));
-  if (!plan) return out;
+  const sent = reply.split(/(?<=[.!?])\s+|\n+/).map((x) => x.trim()).find((x) => /\d\s*(?:[×x]|sets? of|sæt af)\s*\d/i.test(x) && /\b(?:plan|change|instead|next \d+ weeks?|add|move|push|ændr\w*|i stedet|næste \d+ uger)\b/i.test(x));
+  if (!sent) return out;
+  // (the plan itself, without "Instead of …, I've updated your plan and Push routine to")
+  const plan = sent.replace(/^.*?\b(?:I['’]?ve|I have)\s+(?:updated|changed|saved)\s+(?:your |the )?plan(?:\s+and [^,]*?routine)?\s*(?:to\s+|:\s*)/i, '').replace(/,?\s+and (?:queued|put|added|saved|made) (?:that|this|the) change\b[^.]*/i, '') || sent;
   return out.map((a) => (a.type === 'remember' && (a.kind === 'goal' || a.replaces) && !a.plan && !a.goal?.plan ? { ...a, plan: plan.length > 220 ? `${plan.slice(0, 217)}…` : plan } : a));
 }
-const PLAN_SAID = /\b(?:updated|saved|changed|new) (?:your |the |this )?(?:goal )?plan\b|\bthe plan is\b|\bplan (?:is|was) (?:now )?(?:updated|saved|changed)\b|\b(?:opdateret|gemt|ændret) (?:din |planen|plan)/i;
+const PLAN_SAID = /\b(?:updated|saved|changed|new) (?:your |the |this )?(?:goal )?plan\b|\bfor the next \d+ weeks?, let['’]?s\b|\bthe plan is\b|\bplan (?:is|was) (?:now )?(?:updated|saved|changed)\b|\b(?:opdateret|gemt|ændret) (?:din |planen|plan)/i;
 
 function doEditRoutine(a: Extract<AgentAction, { type: 'edit_routine' }>, ctx: AgentCtx): AgentResult {
   const { t, lang } = ctx;
@@ -1720,9 +1738,15 @@ export function goalFromText(text: string, until: string | undefined, old: Memor
   if (ex && kgs.length && !weightFirst) {
     // (reps: "× 5" or "for 5", never "for 12 weeks"; the target: the first weight after the lift's name, so a bodyweight
     // said later isn't read as it)
-    const reps = Number(text.match(/(?:[×x]\s*|for\s+)(\d{1,2})\b(?!\s*(?:kg|lbs?|weeks?|days?|months?|uger?|dage|måned(?:er)?))/i)?.[1] ?? 1);
-    const after = [...text.matchAll(/(\d{1,3}(?:[.,]\d+)?)\s*(kg|lbs?)\b/gi)].filter((m) => fold(text.slice(0, m.index)).length >= exAt).map((m) => toKg(m[1], m[2]));
+    // (reps said with another weight are not the goal's: "100 kg by June (from 77.5 kg × 5)" is 100 × 1; Argon, 26 Oct)
+    const REPS = /(?:[×x]\s*|for\s+)(\d{1,2})\b(?!\s*(?:kg|lbs?|weeks?|days?|months?|uger?|dage|måned(?:er)?))/i;
+    const afterM = [...text.matchAll(/(\d{1,3}(?:[.,]\d+)?)\s*(kg|lbs?)\b/gi)].filter((m) => fold(text.slice(0, m.index)).length >= exAt);
+    const after = afterM.map((m) => toKg(m[1], m[2]));
     const tgt = arrow && !weightFirst ? toKg(arrow[2], arrow[3]) : after[0] ?? kgs[kgs.length - 1];
+    const at = arrow && !weightFirst ? arrow.index! + arrow[0].length : afterM[0] ? afterM[0].index! + afterM[0][0].length : -1;
+    const own = at >= 0 ? text.slice(at).match(new RegExp(`^\\s*${REPS.source}`, 'i'))?.[1] : undefined;
+    const loose = [...text.matchAll(new RegExp(REPS.source, 'gi'))].find((m) => !/\d\s*(?:kg|lbs?)\s*$/i.test(text.slice(0, m.index)))?.[1];
+    const reps = Number(own ?? loose ?? 1);
     return { metric: 'lift', target: tgt, reps: reps >= 1 && reps <= 30 ? reps : 1, ...(by ? { by } : {}), exercise: ex };
   }
   if (arrow) return { metric: 'weight', target: toKg(arrow[2], arrow[3]), ...(by ? { by } : {}) };

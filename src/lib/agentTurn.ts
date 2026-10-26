@@ -11,7 +11,7 @@ import { AGENT_SYSTEM, APP_GUIDE, buildAgentContext, buildTodayContext, exercise
 import { learnedBlock } from './ledger';
 import { reviewsBlock } from './weekReview';
 import { fillFromReply, localActions, validateAgent, type AgentAction } from './agent';
-import { answerProblems, checkNote } from './answerCheck';
+import { answerProblems, checkNote, readableDates } from './answerCheck';
 import { lookupStatus, runLookups, validateLookups, type SaidLine } from './agentLookup';
 import { mealName } from './derive';
 import { dayKey } from './dates';
@@ -302,7 +302,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
       lastRaw = { at: Date.now(), by: brain.sol?.key && !note ? `OpenAI ${brain.sol.model ?? solModel()}` : `Gemini (${brain.models.join(', ')})`, plain: plainModels(), text: (() => { try { return JSON.stringify(raw, null, 1).slice(0, 20000); } catch { return String(raw).slice(0, 20000); } })() };
       let v = validateAgent(raw);
       if (!v) { noteTrouble('invalid', lastRaw.by); throw new AiError('invalid'); }
-      v = { ...v, actions: fillFromReply(v.reply, v.actions, lang) };
+      v = { ...v, reply: readableDates(v.reply, lang), actions: fillFromReply(v.reply, v.actions, lang) };
       // read once before it is shown: a reply that says it did what no action does, an empty action, a MUST SAY left
       // out → asked once more with the problems named (answerCheck.ts); the better of the two answers stands
       const probs = answerProblems(v.reply, v.actions, sys);
@@ -311,7 +311,7 @@ export async function decide(text: string, o: { lang: Lang; t: (k: string, v?: R
         const again = await ask(sys + '\n\nNo look-ups now: answer.' + checkNote(probs, raw)).catch((e) => { if (e?.code === 'aborted') throw e; return null; });
         o.onStatus?.('');
         const v1 = again ? validateAgent(again) : null;
-        const v2 = v1 ? { ...v1, actions: fillFromReply(v1.reply, v1.actions, lang) } : null;
+        const v2 = v1 ? { ...v1, reply: readableDates(v1.reply, lang), actions: fillFromReply(v1.reply, v1.actions, lang) } : null;
         if (v2 && v2.reply.trim() && answerProblems(v2.reply, v2.actions, sys).length < probs.length) { v = v2; raw = again; }
         else o.onReply?.(v.reply);
       }

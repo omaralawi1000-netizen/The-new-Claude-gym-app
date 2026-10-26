@@ -662,3 +662,50 @@ describe('routine change from a change sentence; an unclaimed empty edit is drop
     expect(fillFromReply('I have updated your Push routine.', [{ type: 'edit_routine', routine: 'Push', add: [], change: [], remove: [] }])).toHaveLength(1);
   });
 });
+
+describe('a routine change the reply says it made is sent; a plan is saved without "I have updated your plan to" (Argon, 26 Oct)', () => {
+  const push = () => useStore.setState({ routines: [{ id: 'r1', name: 'Push', updatedAt: 0, items: [{ id: 'i1', exerciseId: 'bench-press', workingSets: 3, repMin: 8, repMax: 12 }] }] as any });
+  it('"… and updated Barbell Bench Press in Push to 4 sets of 5–8" with no action → the edit', async () => {
+    const { fillFromReply } = await import('../src/lib/agent');
+    push();
+    expect(fillFromReply('Saved your 100 kg bench goal for 1 June and updated Barbell Bench Press in Push to 4 sets of 5–8 reps. Next session, aim for 6 reps.', [{ type: 'remember', text: 'Goal: bench press 100 kg by 2027-06-01', kind: 'goal' } as any]))
+      .toContainEqual({ type: 'edit_routine', routine: 'Push', change: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 5, repMax: 8 }] });
+  });
+  it('"I have updated your plan and Push routine to 4 × 4–6 …, adding 2.5 kg once you hit 4 × 6" → the edit and a clean plan', async () => {
+    const { fillFromReply } = await import('../src/lib/agent');
+    push();
+    const out = fillFromReply('Your bench is stalled at 77.5 kg × 5. Instead of chasing 6 reps on 3 sets, I have updated your plan and Push routine to 4 × 4–6 reps at 77.5 kg, adding 2.5 kg once you hit 4 × 6.', [{ type: 'remember', text: 'Goal: bench press 100 kg by 2027-06-01', kind: 'goal', replaces: 4 } as any]);
+    expect(out).toContainEqual({ type: 'edit_routine', routine: 'Push', change: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 4, repMax: 6 }] });
+    expect((out[0] as any).plan).toBe('4 × 4–6 reps at 77.5 kg, adding 2.5 kg once you hit 4 × 6.');
+  });
+  it('"updated Push to 4 sets of Barbell Bench Press" keeps its reps; "For the next 4 weeks, let\'s switch to 4 sets of 4–6 reps in Push" is the change and the plan', async () => {
+    const { fillFromReply } = await import('../src/lib/agent');
+    push();
+    expect(fillFromReply('Saved your 100 kg bench goal for 1 June and updated Push to 4 sets of Barbell Bench Press.', []))
+      .toEqual([{ type: 'edit_routine', routine: 'Push', change: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 8, repMax: 12 }] }]);
+    const out = fillFromReply('Your bench is stalled at 77.5 kg × 5. For the next 4 weeks, let\'s switch to 4 sets of 4–6 reps in Push, then jump to 80 kg × 4.', [{ type: 'remember', text: 'Goal: bench', kind: 'goal', replaces: 4 } as any]);
+    expect(out).toContainEqual({ type: 'edit_routine', routine: 'Push', change: [{ exercise: 'Barbell Bench Press', sets: 4, repMin: 4, repMax: 6 }] });
+    expect((out[0] as any).plan).toMatch(/^For the next 4 weeks/);
+  });
+  it('an offer, or "push" as a verb, makes no edit', async () => {
+    const { fillFromReply } = await import('../src/lib/agent');
+    push();
+    expect(fillFromReply('Want me to update your Push routine to 4 × 5–8?', [])).toEqual([]);
+    expect(fillFromReply('I have updated your plan: stay at 77.5 kg and push to 4 × 6 before 80 kg.', [])).toEqual([]);
+    expect(fillFromReply('I can set Push to 4 × 5–8 if you want.', [])).toEqual([]);
+  });
+  it('a done sentence still counts up to its "once you" (answerProblems sees the claim)', async () => {
+    const { answerProblems } = await import('../src/lib/answerCheck');
+    expect(answerProblems('I have updated your Push routine to 4 × 4–6, adding 2.5 kg once you hit 4 × 6.', [], '')).toHaveLength(1);
+    expect(answerProblems('If you want, I can update your Push routine.', [], '')).toEqual([]);
+  });
+});
+
+describe('a lift goal\'s reps are its own (Argon, 26 Oct)', () => {
+  it('"100 kg by 2027-06-01 (from 77.5 kg × 5)" is 100 × 1; "100 kg × 3" and "80 → 100 kg × 3" are × 3', () => {
+    expect(goalFromText('Goal: bench press 100 kg by 2027-06-01 (from 77.5 kg × 5)', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100, reps: 1 });
+    expect(goalFromText('Goal: bench press 100 kg × 3 by 2027-06-01', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100, reps: 3 });
+    expect(goalFromText('Goal: bench press 80 → 100 kg × 3 by 2027-06-01', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100, reps: 3 });
+    expect(goalFromText('Goal: bench press 100 kg for 5 by summer', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100, reps: 5 });
+  });
+});

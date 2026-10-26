@@ -60,3 +60,11 @@ describe('answer check: no false alarms (judge, 26 Oct)', () => {
     expect(answerProblems('I’ve updated your Push routine.', [], '')).toHaveLength(1);
   });
 });
+
+describe('dates in a reply are said in words (Flash wrote "lands around 2027-01-04", 26 Oct)', () => {
+  it('this year without the year, another year with it, Danish too', async () => {
+    const { readableDates } = await import('../src/lib/answerCheck');
+    expect(readableDates('Christmas (2026-12-25), or around 2027-01-04.', 'en', '2026-10-26')).toBe('Christmas (25 December), or around 4 January 2027.');
+    expect(readableDates('til 2026-12-24', 'da', '2026-10-26')).toBe('til 24. december');
+  });
+});

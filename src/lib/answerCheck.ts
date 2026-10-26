@@ -1,4 +1,6 @@
 import type { AgentAction } from './agent';
+import { dayKey, fmtDate } from './dates';
+import type { Lang } from './types';
 
 /**
  * One look at an answer before it is done (living coach, 26 Oct): the reply must not say it did something the actions
@@ -12,7 +14,7 @@ const ROUTINE_CLAIM = new RegExp(String.raw`\b${DID}(?:created|made|built|set up
 const PLAN_CLAIM = new RegExp(String.raw`\b${DID}(?:updated|saved|changed|adjusted|rewritten)\b[^.!?\n]{0,30}\bplan\b|\b${DID_DA}(?:opdateret|gemt|ændret)\b[^.!?\n]{0,30}\bplan\w*`, 'i');
 // (Danish "mål" is a goal as well as a target: only a calorie or protein mål counts)
 const TARGET_CLAIM = new RegExp(String.raw`\b${DID}(?:updated|set|changed|bumped|raised|lowered|moved)\b[^.!?\n]{0,30}\btargets?\b|\btargets?\b[^.!?\n]{0,20}\b(?:is|are)\s+now\s+(?:updated|set|changed)\b|\btargets?\b[^.!?\n]{0,20}\b(?:have|has) been\s+(?:updated|set|changed)\b|\b${DID_DA}(?:opdateret|sat|ændret|hævet|sænket)\b[^.!?\n]{0,30}\b(?:kalorie|protein|kcal)\w*\s*mål\b`, 'i');
-const ROUTINE_ACTS = new Set(['create_routine', 'edit_routine', 'duplicate_routine', 'plan_day', 'set_split', 'replace_exercise', 'add_exercise', 'remove_exercise']);
+export const ROUTINE_ACTS = new Set(['create_routine', 'edit_routine', 'duplicate_routine', 'plan_day', 'set_split', 'replace_exercise', 'add_exercise', 'remove_exercise']);
 
 /** kcal-like numbers ("3,540", "2.460", "980") and decimals ("80.5"), as plain digits. */
 const numbers = (s: string) => new Set([...s.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ' ').matchAll(/\d{1,2}[,.]\d{3}(?!\d)|\d+[.,]\d(?!\d)|\b\d{3,4}\b/g)].map((m) => (/^\d{1,2}[,.]\d{3}$/.test(m[0]) ? m[0].replace(/[,.]/, '') : m[0].replace(',', '.'))));
@@ -26,8 +28,9 @@ export function mustSays(system: string): string[] {
   return [...block.matchAll(/MUST SAY THIS TURN[^:]*:([^]*?)(?=MUST SAY THIS TURN|\n|$)/g)].map((m) => m[1].trim()).filter(Boolean);
 }
 
-/** The sentences that say something was done: not a question, an offer or an if ("If I set your target to …"). */
-const doneSentences = (reply: string) => reply.split(/(?<=[.!?])\s+|\n+/).filter((x) => !/\?\s*$/.test(x) && !/\b(?:if|would|could|can|shall|should|want me|when you|once you|after you|hvis|vil du|skal jeg|kan jeg|når du)\b/i.test(x)).join('\n');
+/** The parts of sentences that say something was done: not a question, and each sentence only up to an offer or an if
+ * ("If I set your target to …" says nothing; "I've updated Push to 4 × 4–6, adding 2.5 kg once you hit 4 × 6" still does). */
+export const doneSentences = (reply: string) => reply.split(/(?<=[.!?])\s+|\n+/).filter((x) => !/\?\s*$/.test(x)).map((x) => x.split(/\b(?:if|would|could|can|shall|should|want me|when you|once you|after you|hvis|vil du|skal jeg|kan jeg|når du)\b/i)[0]).filter((x) => x.trim()).join('\n');
 
 /** The reply says (as done, not offered) that a routine was made or changed. */
 export const claimsRoutine = (reply: string) => ROUTINE_CLAIM.test(doneSentences(reply));
@@ -66,4 +69,10 @@ export function checkNote(problems: string[], raw: unknown): string {
   let last = '';
   try { last = JSON.stringify(raw).slice(0, 6000); } catch { /* (nothing to show) */ }
   return `\n\nCHECK OF YOUR ANSWER (the app read it before showing it, and found these; answer again in full, as the same JSON, keeping everything that was right and fixing only these):\n${problems.map((p) => `- ${p}`).join('\n')}${last ? `\nYour answer was: ${last}` : ''}`;
+}
+
+/** "2026-12-24" in a reply, as people say it: "24 December" ("24. december"), with the year only when it isn't this one. */
+export function readableDates(reply: string, lang: Lang, today = dayKey()): string {
+  return reply.replace(/\b(20\d\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b/g, (key, y) =>
+    fmtDate(key, lang, { day: 'numeric', month: 'long', ...(y !== today.slice(0, 4) ? { year: 'numeric' } : {}) }));
 }
