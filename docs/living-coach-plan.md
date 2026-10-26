@@ -8,7 +8,7 @@ exact step; a "yes, but…" is not a go. Omar's doc for it: https://claude.ai/ar
 | Step | State | Where |
 | --- | --- | --- |
 | 1 · Honest voice | **SHIPPED v0.1.179 (26 Oct, PR #204, Omar's go 00:18).** Refined through round 9; six fresh judges 7 → 7.5 → 7.5 → 8 → 8.2 → 8.4, every must-fix done | README "Living coach, step 1"; before/after https://claude.ai/artifact/GjDMaqc9pEpChSCGqHzvPZ; replies per round in /mnt/project-files/living-coach/step1-r*-run*.json |
-| 2 · Goals you tell it | **BUILT on branch `claude/project-thread-fomqy0` (26 Oct overnight, Omar's go 00:37), NOT shipped.** Nine fresh judges 6.5 → 7.5 → 8.0 → 7.0 → 7.8 → 7.3 → 7.8 → 7.8 → 8.2 (live Coach 6.0 on the same nine); last judge: ship-ready, what's left is polish | README "Living coach, step 2"; before/after https://claude.ai/artifact/H9vdoBAX4QC5vaLd6P1wYz; results /mnt/project-files/living-coach/step2/; harness /mnt/project-files/living-coach/tools/_goals.test.ts (never commit) |
+| 2 · Goals you tell it | **BUILT on branch `claude/project-thread-fomqy0` (26 Oct overnight, Omar's go 00:37), NOT shipped.** Thirteen fresh judges 6.5 → 7.5 → 8.0 → 7.0 → 7.8 → 7.3 → 7.8 → 7.8 → 8.2, then 4 more rounds on 26 Oct morning (Omar: "Can you do it even better?") 8.3 → 8.2 → 8.3 → 8.3 (live Coach ~6.3 on the same nine); every judge: ship-ready, what's left is polish and the test brain's variance | README "Living coach, step 2"; before/after https://claude.ai/artifact/H9vdoBAX4QC5vaLd6P1wYz; results /mnt/project-files/living-coach/step2/; harness /mnt/project-files/living-coach/tools/_goals.test.ts (never commit) |
 | 3 · Phone test (APK) | not started | — |
 | 4 · Morning looks | not started | — |
 | 5 · Full coach | not started | — |
@@ -16,9 +16,9 @@ exact step; a "yes, but…" is not a go. Omar's doc for it: https://claude.ai/ar
 
 **Next:** step 2 waits for Omar's yes on the before/after page. To ship: pull the default branch (the other session
 works on Coach memory and Gemini Live), merge it into the branch, bump the version, `npm run verify`, PR, merge.
-Polish the last judge left open (not blockers): one question per reply, a calorie row for the exact pace the date needs
-(gain set 3,450 for +0.33/week), say "broken" plainly for a promise, a tactic next to the cap at plan time, and create
-the routine after "set it up". Steps 3–6 each need a new go.
+Left open by the last judge (polish, not blockers): a stall's change is sometimes asked instead of saved (GOALS now
+writes the actions out); the first plan reply can carry two asks; a goal is sometimes saved on a "help me" before the
+yes. Steps 3–6 each need a new go.
 
 **Judges (Omar, 25 Oct):** a judge never builds fixes itself. It may suggest a better solution with the exact how-to; the
 builder implements it, and a fresh judge checks it.
