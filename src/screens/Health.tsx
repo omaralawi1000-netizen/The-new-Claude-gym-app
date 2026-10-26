@@ -264,7 +264,8 @@ function CoachLine({ v, d, today, t, lang, onTap }: { v: HealthView; d: AppData;
     const map = exerciseMap(d.exercises);
     return healthNote(rankNotes(d, today, hour, t, lang, (id) => { const e = map.get(id); return e ? exName(e, lang) : '?'; }, cachedInsights(today)));
   }, [d, today, hour, t, lang]);
-  const goalWarn = useMemo(() => activeGoals(d, today).filter(tracked).some((m) => { const p = goalState(d, m, today)?.pace; return !!p && WARN.has(p); }), [d, today]);
+  // the goal the card shows (its first tracked one)
+  const goalWarn = useMemo(() => { const m = activeGoals(d, today).filter(tracked)[0]; const p = m && goalState(d, m, today)?.pace; return !!p && WARN.has(p); }, [d, today]);
   const night = v.night;
   // last night: "about your usual" within 30 min of the median of the 30 nights before (lib/recovery.ts usualSleep)
   let p1: ReactNode = null;
@@ -325,7 +326,6 @@ const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; tod
   const kg = (x: number) => `${fmtNum(kgToDisplay(x, u), lang, 1)}\u00a0${u}`;
   const ask = (prompt: string) => useUI.getState().push('coach', { ask: prompt });
   if (!m) {
-    if ((d.memory ?? []).some((x) => x.kind === 'goal')) return null;
     return (
       <button className="hx-goal press" onClick={() => ask(t('I want to set a goal. Ask me what I’m working toward and help me make it concrete.'))}>
         <div className="hx-ghead"><span className="hx-gt">{t('What are we working on?')}</span><span className="hx-gchev">›</span></div>
@@ -333,6 +333,14 @@ const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; tod
       </button>
     );
   }
+  const name0 = m.text.replace(/^(goal|mål)\s*:\s*/i, '').replace(/^\p{Ll}/u, (c) => c.toUpperCase());
+  // a goal saved without a plan (no number, no date: "a muscle-up"): its words, and the Coach checks in
+  if (!m.goal) return (
+    <button className="hx-goal press" onClick={() => ask(t('How am I doing on my goal “{goal}”? Be honest.', { goal: name0 }))}>
+      <div className="hx-ghead"><span className="hx-gt">{name0}</span><span className="hx-gchev">›</span></div>
+      <div className="hx-gline">{t('No number to follow, so the Coach checks in with you instead.')}</div>
+    </button>
+  );
   const st = goalState(d, m, today);
   const name = m.text.replace(/^(goal|mål)\s*:\s*/i, '');
   const by = m.goal.by ? fmtDate(m.goal.by, lang, { day: 'numeric', month: 'short' }) : undefined;
@@ -352,9 +360,9 @@ const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; tod
     else if (st.byFood && st.now !== undefined && st.scaleKg !== undefined) line = t('About {now} by what you eat · scale {scale}', { now: kg(st.now), scale: kg(st.scaleKg) });
     else if (lift && st.now !== undefined && left !== undefined) line = [t('Best set worth {n}', { n: kg(st.now) }), st.now < st.target! - 0.05 ? t('{n} to go', { n: kg(left) }) : '', timeLeft(st.daysLeft, t)].filter(Boolean).join(' · ');
     else if (left !== undefined) {
-      // behind: by how much, as the pace it needs against the pace it has (a verdict with its evidence; the date is in the title)
+      // the pace it needs against the pace it has, so every pill shows its evidence (the date is in the title)
       const wk = (x: number) => `${x < 0 ? '−' : '+'}${fmtNum(Math.abs(kgToDisplay(x, u)), lang, 1)}\u00a0${u}`;
-      const why = st.pace === 'behind' && st.need !== undefined && st.rate !== undefined ? t('needs {a}/wk, now {b}', { a: wk(st.need), b: wk(st.rate).replace(/\u00a0\S+$/, '') }) : '';
+      const why = st.need !== undefined && st.rate !== undefined ? t('needs {a}/wk, now {b}', { a: wk(st.need), b: wk(st.rate).replace(/\u00a0\S+$/, '') }) : '';
       line = [t('{n} to go', { n: kg(left) }), !why && st.daysLeft !== undefined && st.daysLeft > 0 ? (st.daysLeft === 1 ? t('1 day') : t('{n} days', { n: st.daysLeft })) : '', why || (d.settings.goals.kcal ? t('{n} kcal target', { n: fmtNum(d.settings.goals.kcal, lang, 0) }) : '')].filter(Boolean).join(' · ');
     }
     if (st.start !== undefined && st.now !== undefined && st.target !== undefined && st.pace !== 'too early' && st.start !== st.target) bar = { start: st.start, now: st.now, target: st.target };

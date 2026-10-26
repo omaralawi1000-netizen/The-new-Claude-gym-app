@@ -97,13 +97,16 @@ export interface HealthView {
   loaded: boolean;
 }
 
-/** with a weight goal, Body's rate is the goal card's (lib/goals.ts goalState, the Coach's): one pace on one screen */
-function goalRate(data: AppData, today: string): number | undefined {
+/** with a weight goal, Body's weight and rate are the goal card's (lib/goals.ts goalState, the Coach's): one weight and
+ *  one pace on one screen */
+export function goalWeight(data: AppData, today: string): { now?: number; rate?: number } {
   const m = activeGoals(data, today).filter(tracked).find((x) => x.goal.metric === 'weight');
-  return m ? goalState(data, m, today)?.rate : undefined;
+  const st = m ? goalState(data, m, today) : undefined;
+  // (a goal still judged on its food: its "now" is what he eats, not the scale, so Body keeps the weigh-in)
+  return st && st.pace !== 'too early' && !st.byFood ? { now: st.now, rate: st.rate } : {};
 }
 
-export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | null; today: string; now: number; label: (a: ActivityLog) => string }): HealthView {
+export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | null; today: string; now: number; label: (a: ActivityLog) => string; gw?: { now?: number; rate?: number } }): HealthView {
   const { data, det, today, now } = a;
   const st = data.settings;
   const age = st.body?.birthYear ? new Date(now).getFullYear() - st.body.birthYear : undefined;
@@ -191,7 +194,8 @@ export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | nu
   // ── body
   const w = [...data.weights].sort((x, y) => x.date.localeCompare(y.date));
   const lw = w[w.length - 1];
-  const body: HealthView['body'] = { kg: lw?.kg, date: lw?.date, series: w.filter((x) => x.date >= addDays(today, -30)).map((x) => x.kg), rate: goalRate(data, today) ?? trendRate(weightTrend(w)), fat: [...days].reverse().find((d) => d.bodyFat)?.bodyFat };
+  const gw = a.gw ?? goalWeight(data, today);
+  const body: HealthView['body'] = { kg: gw.now ?? lw?.kg, date: lw?.date, series: w.filter((x) => x.date >= addDays(today, -30)).map((x) => x.kg), rate: gw.rate ?? trendRate(weightTrend(w)), fat: [...days].reverse().find((d) => d.bodyFat)?.bodyFat };
   const comp = [...days].reverse().find((d) => d.leanKg || d.bmr);
   if (comp) Object.assign(body, { lean: comp.leanKg, water: comp.bodyWaterKg, bone: comp.boneKg, bmr: comp.bmr });
 
@@ -211,5 +215,7 @@ export function useHealthView(data: AppData, today: string, label: (a: ActivityL
   // the minute: the ribbon's "now" and today's steps curve move on with the clock (once a minute is plenty)
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(id); }, []);
-  return useMemo(() => buildView({ data, det, today, now, label }), [data, det, today, now, label]);
+  // the goal's weight once per data change, not on the minute tick (it can land mid-animation)
+  const gw = useMemo(() => goalWeight(data, today), [data, today]);
+  return useMemo(() => buildView({ data, det, today, now, label, gw }), [data, det, today, now, label, gw]);
 }
