@@ -15,7 +15,7 @@ import { useDriveAuto } from './screens/DriveBackup';
 import { TodayScreen } from './screens/Today';
 import { TrainScreen } from './screens/Train';
 import { FoodScreen } from './screens/Food';
-import { ProgressScreen } from './screens/Progress';
+import { HealthScreen } from './screens/Health';
 import { useT } from './lib/i18n';
 import { registerSW } from './pwa';
 import { dayKey } from './lib/dates';
@@ -27,7 +27,7 @@ import { FpsMeter } from './ui/FpsMeter';
 import { useLaunch } from './ui/launch';
 import { BgBody, PER_TAB, barColor, useSkyClock, type BgKind } from './ui/Backdrop';
 import { FieldGlow } from './ui/Glows';
-import { lookOf, surfaceOf } from './lib/types';
+import { cardsOf, lookOf, surfaceOf } from './lib/types';
 
 /** Where the last tap landed — the theme switch spreads out from there. */
 const lastTap = { x: typeof window !== 'undefined' ? window.innerWidth / 2 : 0, y: 0 };
@@ -97,6 +97,8 @@ function useTheme() {
   useLayoutEffect(() => { document.documentElement.dataset.surface = surface; }, [surface]);
   const look = useStore((x) => lookOf(x.settings.look));
   useLayoutEffect(() => { document.documentElement.dataset.look = look; }, [look]);
+  const cards = useStore((x) => cardsOf(x.settings.cards));
+  useLayoutEffect(() => { document.documentElement.dataset.cards = cards; }, [cards]);
   const bg = useStore((x) => x.settings.background ?? 'classic');
   useLayoutEffect(() => { document.documentElement.dataset.bg = bg; }, [bg]);
   useEffect(() => { document.documentElement.lang = lang; }, [lang]);
@@ -267,7 +269,7 @@ function useKeyboard() {
   }, []);
 }
 
-const SCREENS = { today: TodayScreen, train: TrainScreen, food: FoodScreen, progress: ProgressScreen };
+const SCREENS = { today: TodayScreen, train: TrainScreen, food: FoodScreen, progress: HealthScreen };
 
 /**
  * While a pop-up is open (and for a moment after it has left) the app is "calm" (data-calm). The drifting colour field sits

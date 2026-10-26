@@ -30,12 +30,61 @@ const recipe = () => RECIPE[look()];
 const RECIPE: Record<string, string> = { a: 'blur(4px) saturate(1.35)', b: 'blur(4px) saturate(1.9) brightness(0.94)', c: 'blur(4px) saturate(1.9) brightness(0.94)' };
 
 function paint(cv: HTMLCanvasElement) {
-  const src = RECIPE[look()] ? pics.get(hueOf(cv)) : undefined;
+  const hue = hueOf(cv), made = pics.get(hue), last = made ? undefined : keptFor(hue);
+  const src = RECIPE[look()] ? made ?? last : undefined;
   const g = cv.getContext('2d'); if (!g) return;
   if (!src) { cv.dataset.on = ''; return; } // (fades out over the last picture; the card shows its plain glass)
+  // the picture kept from the last visit, on a fresh start: there at once, no fade from the plain glass (Omar 25 Oct: the
+  // cards opened clear and then faded into his colours)
+  if (last && cv.dataset.on !== '1') { cv.dataset.now = '1'; requestAnimationFrame(() => requestAnimationFrame(() => delete cv.dataset.now)); }
   if (cv.width !== src.width || cv.height !== src.height) { cv.width = src.width; cv.height = src.height; }
   g.clearRect(0, 0, cv.width, cv.height); g.drawImage(src, 0, 0);
   cv.dataset.on = '1';
+  cv.closest<HTMLElement>('.frost')?.style.setProperty('--frost-grain', grainFor(src));
+}
+
+/** the glass's grain, even on every card: white dots at one strength show more on dark glass (a near-black card read sandy,
+ *  judge 25 Oct), so a dark picture gets fewer of them */
+const grains = new WeakMap<HTMLCanvasElement, string>();
+function grainFor(src: HTMLCanvasElement) {
+  let v = grains.get(src); if (v) return v;
+  let s = 0, k = 0;
+  try {
+    const d = src.getContext('2d')!.getImageData(0, 0, src.width, src.height).data;
+    for (let i = 0; i < d.length; i += 16) { s += lab(d[i], d[i + 1], d[i + 2])[0]; k++; }
+  } catch { /* (no pixels to read: the usual strength) */ }
+  const L = k ? s / k : 0.3;
+  v = (0.03 * Math.max(0.55, 1 - 0.6 * Math.max(0, 1 - L / 0.3))).toFixed(4); grains.set(src, v);
+  return v;
+}
+
+// ---- each tab's picture kept on the phone (localStorage, small PNGs), so the next start shows the cards' colours from the
+// first frame instead of fading them in once the field is painted. Keyed by everything that shapes it; a stale one is
+// never shown, and the fresh copy replaces it as soon as it is made.
+const KEEP = 'aven.frost';
+const kept = new Map<string, HTMLCanvasElement>();
+const keyOf = (hue: string) => { const { w, h } = size(); return `${stamp()}|${root().dataset.cards ?? ''}|${w}x${h}|${hue}`; };
+const keptFor = (hue: string) => kept.get(keyOf(hue)) ?? kept.get(keyOf('*'));
+function loadKept() {
+  let o: Record<string, string>; try { o = JSON.parse(localStorage.getItem(KEEP) ?? '{}'); } catch { return; }
+  for (const [k, url] of Object.entries(o)) {
+    if (typeof url !== 'string' || !url.startsWith('data:image/png')) continue;
+    const im = new Image();
+    im.onload = () => {
+      const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+      c.getContext('2d')?.drawImage(im, 0, 0); kept.set(k, c);
+      for (const cv of live) if (cv.isConnected && !cv.dataset.on) paint(cv);
+    };
+    im.src = url;
+  }
+}
+let keepAt = 0;
+const toKeep = new Map<string, string>();
+function keep(hue: string, pic: HTMLCanvasElement) {
+  const at = stamp();
+  for (const k of toKeep.keys()) if (!k.startsWith(at + '|')) toKeep.delete(k); // (only the colours now in use)
+  try { toKeep.set(keyOf(hue), pic.toDataURL('image/png')); } catch { return; }
+  clearTimeout(keepAt); keepAt = window.setTimeout(() => { try { localStorage.setItem(KEEP, JSON.stringify(Object.fromEntries(toKeep))); } catch { /* full: next start fades in as before */ } }, 1500);
 }
 
 const imgs = new Map<string, HTMLImageElement>();
@@ -118,7 +167,7 @@ export function frostFromField(field: HTMLElement, everyTab = false) {
   out.width = w; out.height = h;
   const o = out.getContext('2d'); if (!o) return;
   o.filter = rec; o.drawImage(raw, 0, 0); o.filter = 'none'; tame(o, w, h);
-  pics.set(hue, out);
+  pics.set(hue, out); keep(everyTab ? '*' : hue, out);
   repaint(hue);
   // (a background that is the same on every tab: the other tabs get the same picture now, not when they are opened)
   if (everyTab) for (const t of TABS) if (t !== hue) { pics.set(t, out); if (c) hues.set(t, c); repaint(t); }
@@ -144,7 +193,7 @@ export function frostAhead(hue: string, pic: ImageData, at: string) {
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const o = out.getContext('2d'); if (!o) return;
   o.filter = rec; o.drawImage(raw, 0, 0); o.filter = 'none'; tame(o, w, h);
-  pics.set(hue, out); repaint(hue);
+  pics.set(hue, out); keep(hue, out); repaint(hue);
 }
 export const frostStamp = stamp;
 
@@ -152,7 +201,10 @@ export const frostStamp = stamp;
 // ---- busy and solid backgrounds (options on trial, `data-cards`): the copy tamed where it is too much, left alone where it
 // is calm (Champagne on Mesh, the dark backgrounds), in OKLab
 const toLin = (v: number) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-const toSrgb = (v: number) => Math.round(255 * Math.min(1, Math.max(0, v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055)));
+const toSrgb = (v: number) => 255 * Math.min(1, Math.max(0, v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055));
+// to whole levels with a level of triangular noise: the picture is small and scaled up 6 times, so a plain rounding drew
+// its soft gradients as wide flat steps (staircase bands, judge 25 Oct). Done once per picture, nothing per frame.
+const q = (v: number) => Math.min(255, Math.max(0, Math.round(v + Math.random() - Math.random())));
 function lab(r: number, g: number, b: number): [number, number, number] {
   const R = toLin(r), G = toLin(g), B = toLin(b);
   const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B), m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B), s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
@@ -164,13 +216,14 @@ function rgb(L: number, A: number, B: number): [number, number, number] {
 }
 function tame(o: CanvasRenderingContext2D, w: number, h: number) {
   if (look() !== 'a') return;
+  const M = root().dataset.cards ?? 'between'; // Cards on trial (Settings): blue E, sapphire F, clear G, plum A
   let im: ImageData; try { im = o.getImageData(0, 0, w, h); } catch { return; }
   const d = im.data, n = d.length / 4;
   const px = new Float32Array(n * 3);
-  let sL = 0, sL2 = 0, sC = 0, gx = 0, gy = 0, gw = 0;
+  let sL = 0, sL2 = 0, sC = 0, gx = 0, gy = 0, gw = 0, hA = 0, hB = 0, cMax = 0;
   for (let i = 0; i < n; i++) {
     const [L, A, B] = lab(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]); px[i * 3] = L; px[i * 3 + 1] = A; px[i * 3 + 2] = B;
-    const C = Math.hypot(A, B); sL += L; sL2 += L * L; sC += C;
+    const C = Math.hypot(A, B); sL += L; sL2 += L * L; sC += C; hA += A * C; hB += B * C; if (C > cMax) cMax = C;
     const wt = (L + C) ** 6; gx += (i % w) * wt; gy += Math.floor(i / w) * wt; gw += wt;
   }
   const mL = sL / n, mC = sC / n, sd = Math.sqrt(Math.max(0, sL2 / n - mL * mL));
@@ -178,9 +231,12 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
   // loud ones (Mesh on Golden hour or Sunset, Colour per tab, Time of day) and for an even slab of colour (Night sky)
   const clamp = (x: number) => Math.min(1, Math.max(0, x));
   const g = Math.max(clamp((mC - 0.03) / 0.03), clamp((0.055 - sd) / 0.02) * clamp((mC - 0.025) / 0.01));
-  if (g <= 0) return;
+  if (g <= 0) { for (let i = 0; i < d.length; i++) if ((i & 3) !== 3) d[i] = q(d[i]); o.putImageData(im, 0, 0); return; }
   const mix = (x: number, y: number) => x + (y - x) * g;
+  const hue = Math.atan2(hB, hA); // the page's own colour (its most colourful parts win)
+  const rosy = root().dataset.palette === 'sunset';
   const cx = gx / gw, cy = gy / gw, R = Math.hypot(w, h) * 0.32; // the brightest glow, and how far its light reaches
+  const out = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
     let L = px[i * 3], A = px[i * 3 + 1], B = px[i * 3 + 2];
     let C = Math.hypot(A, B), H = Math.atan2(B, A);
@@ -198,10 +254,43 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
       // dark orange leans to wine (not rust or chocolate), navy to plum
       const warm = step(deg, 25, 35) * step(-deg, -88, -78) * step(-L, -0.48, -0.4);
       H += ((12 - deg) * Math.PI / 180) * 0.75 * g * warm;
-      H += ((-35 - deg) * Math.PI / 180) * 0.6 * g * step(deg, -135, -125) * step(-deg, 55, 65);
+      // navy leaned to plum in A; E, F and G keep the page's own blue
+      if (M === 'plum') H += ((-35 - deg) * Math.PI / 180) * 0.6 * g * step(deg, -135, -125) * step(-deg, 55, 65);
+      if (M === 'sapphire') C = mix(C, Math.min(C * 1.35, 0.11) * cool + C * (1 - cool)); // richer blue
+      if (M === 'clear') { C *= mix(1, 0.45); L = mix(L, Math.min(L, 0.22 + (L - 0.22) * 0.5)); } // almost no colour
+      // H and I: part of the way back to the clear glass Omar saw on launch (the page straight through, before the copy faded in)
+      const back = M === 'mix' ? 0.5 : M === 'between' ? 0.62 : M === 'light' ? 0.75 : 0;
+      if (back) { const L0 = px[i * 3], C0 = Math.hypot(px[i * 3 + 1], px[i * 3 + 2]); L += (L0 - L) * back; C += (C0 - C) * back; }
+      if (M === 'between') { // J: frosted, not smoked or grey (judge 25 Oct): a veil of the colour's own light that never lifts the
+        // glass above the page under it (a lifted card on a dark page read as grey plastic), no near black where the page
+        // isn't, and never colourless: a grey part leans to the page's own colour (teal on Colour per tab, rose on Sunset)
+        const L0 = px[i * 3];
+        L += (0.7 - L) * 0.13; if (mC >= 0.05) C *= 0.96;
+        L = Math.min(L, L0 + (L0 < 0.2 ? 0.04 : 0.025)); // (a little more light over a near-black page: not navy-black)
+        // the glass always holds a little light, in the page's colour (the floor below): over a near-black page a card read as a
+        // black slab (Colour per tab's Pull and Legs, 25 Oct); a lift with no colour read as grey plastic (judge r3)
+        const fl = Math.max(0.215, Math.min(0.24, L0)); if (L < fl) L = fl - (fl - L) * 0.3;
+        // the darkest glass leans to the page's own colour too (the teal of Colour per tab, not the navy under one card): only
+        // from a neighbouring colour, as an angle (from far away the turn went through colours a near-black can't show: grey, judge r5)
+        let dh = hue - H; dh -= Math.round(dh / (2 * Math.PI)) * 2 * Math.PI;
+        const near2 = step(-Math.abs(dh), -Math.PI / 2, -Math.PI * 5 / 18); // all of it within 50°, none past 90°
+        if (L0 < 0.2) H += dh * 0.5 * (1 - L0 / 0.2) * near2;
+        // the floor: the card's fill over it takes some colour away, and mauve and pink lose the most (Sunset, judge r4)
+        const hd = (H * 180) / Math.PI, fC = 0.05 + 0.012 * step(hd, -55, -45) * step(-hd, 0, 10);
+        if (C < fC) { let dt = hue - H; dt -= Math.round(dt / (2 * Math.PI)) * 2 * Math.PI; H += dt * (1 - C / fC); C = Math.min(fC, cMax); }
+        // on Sunset, dark red, orange and olive glass read brown or wine (its Train cards, 25 Oct): they lean on to berry-rose,
+        // a little lighter and more colourful (only Sunset: Golden hour's dark orange is its own colour)
+        if (rosy) {
+          const hr = (H * 180) / Math.PI, rose = step(hr, -15, -5) * step(-hr, -85, -75) * step(-L, -0.45, -0.38);
+          if (rose > 0) { H += ((-20 - hr) * Math.PI / 180) * 0.8 * rose; C = Math.min(Math.max(C, C + (0.06 - C) * rose), Math.max(C, cMax)); L += 0.02 * rose; }
+        }
+      }
     }
-    A = C * Math.cos(H); B = C * Math.sin(H);
-    const [rr, gg, bb] = rgb(L, A, B); d[i * 4] = rr; d[i * 4 + 1] = gg; d[i * 4 + 2] = bb;
+    out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H;
+  }
+  for (let i = 0; i < n; i++) {
+    const L = out[i * 3], C = out[i * 3 + 1], H = out[i * 3 + 2];
+    const [rr, gg, bb] = rgb(L, C * Math.cos(H), C * Math.sin(H)); d[i * 4] = q(rr); d[i * 4 + 1] = q(gg); d[i * 4 + 2] = q(bb);
   }
   o.putImageData(im, 0, 0);
 }
@@ -247,6 +336,7 @@ let started = false;
 export function startFrost() {
   if (started || typeof document === 'undefined') return; started = true;
   const r = root();
+  loadKept();
   const sh = () => r.style.setProperty('--frost-sh', `${window.innerHeight}px`);
   sh(); window.addEventListener('resize', () => { sh(); const f = lastField; if (f?.isConnected) frostFromField(f); });
   const scan = (n: ParentNode) => { for (const c of n.querySelectorAll<HTMLElement>('.screen .plinth')) dress(c); };
@@ -262,7 +352,7 @@ export function startFrost() {
   new MutationObserver(showHue).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-active'] });
   // a new look: copy each field again with its frost (their pictures are painted again too, for the grain, and copied once more)
   new MutationObserver(() => { for (const f of fields.values()) if (f.isConnected) frostFromField(f); })
-    .observe(r, { attributes: true, attributeFilter: ['data-look'] });
+    .observe(r, { attributes: true, attributeFilter: ['data-look', 'data-cards'] });
   // a new palette, background, glow or theme: every tab's picture is of the old colours, so they all go now (the cards fade
   // to their plain glass with the old background) and come back, faded in, from the new field as it comes in (the tab on
   // show) or is painted ahead (the others). Opening a tab then never shows the last colours first.
