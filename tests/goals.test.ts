@@ -286,6 +286,14 @@ describe('goal words read by the app (when the model leaves out the goal field)'
     expect(goalFromText('Goal reached: 82 → 80 kg', undefined, running, 'en')?.status).toBe('done');
     expect(goalFromText('Goal: 82 → 81 kg by 26 Oct (reached 19 Oct at 80.7 kg)', undefined, running, 'en')?.status).toBe('done');
   });
+  it('the notes the Coach really wrote without the goal field (judge round 9: tracking rests on these words)', () => {
+    expect(goalFromText('Goal: 81.7 → 79.7 kg by 2026-11-16, about 0.5 kg a week', undefined, undefined, 'en')).toMatchObject({ metric: 'weight', target: 79.7, by: '2026-11-16' });
+    expect(goalFromText('Goal: gain 2 kg (81.7 → 83.7 kg) by 2026-12-01 for wrestling 86 kg class', undefined, undefined, 'en')).toMatchObject({ metric: 'weight', by: '2026-12-01' });
+    expect(goalFromText('Goal: Barbell Bench Press 100 kg by 2027-06-01', undefined, undefined, 'en')).toMatchObject({ metric: 'lift', target: 100, by: '2027-06-01' });
+    expect(goalFromText('Weigh-in: 80 kg class on 2026-10-24', '2026-10-24', undefined, 'en')).toMatchObject({ metric: 'weight', target: 80, by: '2026-10-24' });
+    expect(goalFromText('Goal: 74.8 → 71.8 kg by 2026-12-25, about 0.33 kg a week', undefined, undefined, 'en')).toMatchObject({ metric: 'weight', target: 71.8, by: '2026-12-25' });
+    expect(goalFromText('Promise: log every meal, no skipping dinner, through 2026-10-25', '2026-10-25', undefined, 'en')).toMatchObject({ metric: 'other', by: '2026-10-25' });
+  });
 });
 
 describe('a lift goal on a plateau', () => {
@@ -453,11 +461,11 @@ describe('judge round 5 (26 Oct)', () => {
     // 4 weeks: Fridays at 3,400, other days 2,500
     const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); return entry(date, new Date(`${date}T12:00:00`).getDay() === 5 ? 3400 : 2500); });
     useStore.setState({ weights: weighIns(28, 82, 0), entries });
-    expect(goalLines(data(), today, name).join('\n')).toMatch(/What most likely breaks a plan \(last 4 weeks, 28 finished logged days\): Fridays average 3,400 kcal, against 2,500 on the other days, mostly the lunch meal: 3,400 kcal on those days vs 2,500 on the others; a cap for those days that still holds a plan: its daily target \+ 300 \([^)]*2,900 at the current 2,600 target\); protein at or above 180 g on 0 of 28 days/);
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/What most likely breaks a plan \(last 4 weeks, 28 finished logged days\): Fridays average 3,400 kcal, against 2,500 on the other days, mostly the lunch meal: 3,400 kcal on those days vs 2,500 on the others[^;]*; a cap for those days that still holds a plan: its daily target \+ 300 \([^)]*2,900 at the current 2,600 target\);[^;]*; protein at or above 180 g on 0 of 28 days/);
     useStore.setState({ memory: [{ id: 'g', kind: 'goal', text: 'Goal: 82 → 80 kg', at: 0, goal: { metric: 'weight', target: 80, by: addDays(today, 40), startDate: addDays(today, -3), start: 82 } }] });
     expect(goalLines(data(), today, name).join('\n')).toMatch(/Check-in 2026-11-05 \(every 2 weeks\): the scale's pace under half of what the date needs then → 150 kcal less/);
     useStore.setState({ memory: [{ id: 'p', kind: 'goal', text: 'Log every meal this week', at: 0, goal: { metric: 'other', by: addDays(today, 2), startDate: addDays(today, -3) } }], entries: entries.filter((e) => e.date !== addDays(today, -2)) });
-    expect(goalLines(data(), today, name).join('\n')).toMatch(/Logging since it was set \(3 finished days, today not counted\): fully logged 2 of 3; nothing logged: \w{3} 2026-10-23; today has nothing yet\. Verdict: broken on \w{3}; 3 days left including today to finish the rest clean/);
+    expect(goalLines(data(), today, name).join('\n')).toMatch(/Logging since it was set \(3 finished days, today not counted\): fully logged 2 of 3; nothing logged: \w{3} 2026-10-23; today has nothing yet\. Verdict \(say it in these words\): broken on \w{3}; 3 days left including today to finish the rest clean/);
   });
   it('behind on a cut while sleep is off: the app recommends the later date, not fewer calories', () => {
     const pre = weighIns(38, 82, 0).filter((w) => w.date <= addDays(today, -10));
@@ -511,5 +519,20 @@ describe('a goal closed and saved again in the same answer', () => {
     await runActions(validateAgent({ reply: '', actions: [{ type: 'remember', kind: 'goal', replaces: 1, text: 'Goal: 82 → 81 kg by 2026-10-26 (reached 80.7 kg)' }, { type: 'remember', kind: 'goal', replaces: 1, text: 'Goal: 82 → 81 kg by 2026-10-26' }] })!.actions, ctx());
     expect(data().memory).toHaveLength(1);
     expect(data().memory[0].goal).toMatchObject({ status: 'done', startDate: addDays(today, -20) });
+  });
+});
+
+describe('judge round 9 (26 Oct)', () => {
+  it("a date's own pace has its calories, the habit comes with how to hold its cap, and a promise shows on Today the day it is set", () => {
+    const entries = Array.from({ length: 28 }, (_, i) => { const date = addDays(today, -28 + i); return entry(date, new Date(`${date}T12:00:00`).getDay() === 5 ? 3400 : 2500); });
+    useStore.setState({ weights: weighIns(28, 82, 0), entries });
+    const g = goalLines(data(), today, name).join('\n');
+    expect(g).toMatch(/every 0\.05 kg\/week, then kcal a day: [^)]*\+0\.3 2,960, \+0\.35 3,020/);
+    expect(g).toMatch(/HOW to hold that cap \(say it next to the cap\): that lunch meal plated once at about 2,700 kcal/);
+    expect(g).toMatch(/with the one you recommend as the default \(no question about which\)/);
+    useStore.setState({ memory: [{ id: 'p', kind: 'goal', text: 'Promise: log every meal this week', at: 0, goal: { metric: 'other', by: addDays(today, 6), startDate: today } }] });
+    const nd = findNudges(data(), today, 9, t, 'en', name).find((x) => x.id.startsWith('promise:'))!;
+    expect(nd.title).toBe('Logging promise: starts today');
+    expect(nd.body).toBe('7 days including today. Log each meal when you eat it.');
   });
 });

@@ -211,8 +211,8 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
     const c = loggingCount(d, m, today);
     if (!c || !c.left) continue;
     add({ id: `promise:${m.id}:${c.full}:${c.n}`, kind: c.full < c.n ? 'warning' : 'insight', icon: 'food', priority: 40,
-      title: t('Logging promise: {full} of {n} full days', { full: c.full, n: c.n }),
-      body: c.n === 0 ? t('Log each meal when you eat it.') : c.full < c.n ? t('{left} days left. Log each meal when you eat it.', { left: c.left }) : t('All full so far. {left} days left.', { left: c.left }),
+      title: c.n === 0 ? t('Logging promise: starts today') : t('Logging promise: {full} of {n} full days', { full: c.full, n: c.n }),
+      body: c.n === 0 ? t('{left} days including today. Log each meal when you eat it.', { left: c.left }) : c.full < c.n ? t('{left} days left. Log each meal when you eat it.', { left: c.left }) : t('All full so far. {left} days left.', { left: c.left }),
       action: { label: t('Log food'), run: { type: 'open', overlay: 'foodSearch', props: { date: today } } } });
   }
   // no goal told yet: asked once (✕ for good), when they use the app enough to have one

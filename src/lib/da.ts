@@ -1893,6 +1893,8 @@ export const da: Record<string, string> = {
  "Make me a simple 2-day full-body routine to keep my muscle while I cut.": "Lav et enkelt 2-dages helkropsprogram til mig, så jeg holder på musklerne, mens jeg taber mig.",
  "Logging promise: {full} of {n} full days": "Løfte om at logge: {full} af {n} hele dage",
  "Log each meal when you eat it.": "Log hvert måltid, når du spiser det.",
+ "Logging promise: starts today": "Løfte om at logge: starter i dag",
+ "{left} days including today. Log each meal when you eat it.": "{left} dage med i dag. Log hvert måltid, når du spiser det.",
  "{left} days left. Log each meal when you eat it.": "{left} dage tilbage. Log hvert måltid, når du spiser det.",
  "All full so far. {left} days left.": "Alle hele indtil nu. {left} dage tilbage.",
  "Goal set: {goal}": "Mål sat: {goal}",

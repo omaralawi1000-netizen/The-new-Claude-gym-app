@@ -375,13 +375,17 @@ function paceTable(d: Data, today: string, exName: (id: string) => string): stri
   const row = (wk: number) => `${wk > 0 ? '+' : '−'}${Math.abs(wk)} kg/week ≈ ${fmtK(Math.max(floor, m.kcal + (wk * KCAL_PER_KG) / 7))}`;
   const max = r2(kg * 0.01);
   const loss = [...[0.25, 0.5, 0.75].filter((x) => x < max - 0.05), max].filter((x) => m.kcal - (x * KCAL_PER_KG) / 7 >= floor);
+  // (every 0.05 kg/week, so the pace a date needs has its own calories: judge round 9 saw +0.33 stated and the +0.4 row set)
+  const steps = (lo: number, hi: number) => { const xs: number[] = []; for (let x = lo; x <= hi + 1e-9; x = r2(x + 0.05)) xs.push(r2(x)); return xs; };
+  const fine = [...steps(0.2, Math.min(max, 1)).filter((x) => m.kcal - (x * KCAL_PER_KG) / 7 >= floor).map((x) => -x).reverse(), ...steps(0.15, r2(kg * 0.005))];
+  const fineL = fine.map((x) => `${x > 0 ? '+' : '−'}${Math.abs(x)} ${fmtK(Math.max(floor, m.kcal + (x * KCAL_PER_KG) / 7))}`).join(', ');
   // (where each pace lands by a date, and the main lifts as they are: a plan's concrete numbers, not made up; judge round 4)
   const lands = (wk: number) => `${fmtPace(wk)}: ${[4, 8, 12].map((n) => `${r1(kg + wk * n)} kg by ${addDays(today, n * 7)}`).join(', ')}`;
   const lifts = mainLifts(d, today).map((id) => ({ id, b: best(liftTops(d, id, addDays(today, -55), today)) })).filter((x) => x.b);
   const cap = (wk: number) => fmtK(Math.max(floor, m.kcal + (wk * KCAL_PER_KG) / 7) + 300);
   const habit = habitLine(d, today, [...loss.map((x) => `${cap(-x)} with a ${x} kg/week loss`), `${cap(0.25)} with a 0.25 kg/week gain`, ...(d.settings.goals.kcal ? [`${fmtK(d.settings.goals.kcal + 300)} at the current ${fmtK(d.settings.goals.kcal)} target`] : [])].join(', '));
   const liftL = lifts.length ? ` Main lifts, best set in the last 8 weeks (estimated max): ${lifts.map((x) => `${exName(x.id)} ${r1(x.b!.kg)} × ${x.b!.reps} (${r1(x.b!.e)} kg)`).join(', ')}.` : '';
-  return `For planning a new goal or changing one (calories a day for each pace, from TRUE MAINTENANCE ${fmtK(m.kcal)} at ${r1(kg)} kg): ${[...loss.map((x) => row(-x)), row(0.25), row(0.4)].join(', ')}. Safe: losing up to ${r2(kg * 0.01)} kg/week (1 % of bodyweight), gaining up to ${r2(kg * 0.005)} kg/week; never under ${fmtK(floor)} kcal. Each kilo lost takes about ${Math.ceil(7 / Math.min(max, (m.kcal - floor) * 7 / KCAL_PER_KG))} days at the fastest safe pace (${fmtK(Math.max(floor, m.kcal - (max * KCAL_PER_KG) / 7))} kcal) and 14 at 0.5 kg/week: an ask that is too fast gets both, the fastest safe and the comfortable one, and which you'd pick. Where a pace lands: ${[lands(-0.25), lands(-0.5), lands(0.25)].join('; ')}. A new weight goal is tracked from ${r1(kg)} kg (the scale's line today, not one morning): its note starts from that number. Protein: on a cut 1.8–2.2 g/kg = ${Math.round(kg * 1.8)}–${Math.round(kg * 2.2)} g, on a gain 1.6–2.0 g/kg = ${Math.round(kg * 1.6)}–${Math.round(kg * 2)} g${d.settings.goals.protein && d.settings.goals.protein < Math.round(kg * 1.8) - 2 ? `; their ${d.settings.goals.protein} g target is under the cut range: a cut plan says at least ${Math.round(kg * 1.8)} g and offers to set it (set_setting proteinGoal)` : ''}.${liftL}${habit ? ` ${habit}` : ''}`;
+  return `For planning a new goal or changing one (calories a day for each pace, from TRUE MAINTENANCE ${fmtK(m.kcal)} at ${r1(kg)} kg): ${[...loss.map((x) => row(-x)), row(0.25), row(0.4)].join(', ')}. Safe: losing up to ${r2(kg * 0.01)} kg/week (1 % of bodyweight), gaining up to ${r2(kg * 0.005)} kg/week; never under ${fmtK(floor)} kcal. Each kilo lost takes about ${Math.ceil(7 / Math.min(max, (m.kcal - floor) * 7 / KCAL_PER_KG))} days at the fastest safe pace (${fmtK(Math.max(floor, m.kcal - (max * KCAL_PER_KG) / 7))} kcal) and 14 at 0.5 kg/week: an ask that is too fast gets both, the fastest safe and the comfortable one, with the one you recommend as the default (no question about which). A goal with a date: its pace is the kilos to go ÷ the weeks to the date; set the calories of the row at or just under that pace, and state that row's pace (every 0.05 kg/week, then kcal a day: ${fineL}). Where a pace lands: ${[lands(-0.25), lands(-0.5), lands(0.25)].join('; ')}. A new weight goal is tracked from ${r1(kg)} kg (the scale's line today, not one morning): its note starts from that number. Protein: on a cut 1.8–2.2 g/kg = ${Math.round(kg * 1.8)}–${Math.round(kg * 2.2)} g, on a gain 1.6–2.0 g/kg = ${Math.round(kg * 1.6)}–${Math.round(kg * 2)} g${d.settings.goals.protein && d.settings.goals.protein < Math.round(kg * 1.8) - 2 ? `; their ${d.settings.goals.protein} g target is under the cut range: a cut plan says at least ${Math.round(kg * 1.8)} g and offers to set it (set_setting proteinGoal)` : ''}.${liftL}${habit ? ` ${habit}` : ''}`;
 }
 
 const fmtPace = (x: number) => `${x > 0 ? '+' : ''}${r2(x)} kg/week`;
@@ -471,7 +475,7 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
       if (bigD.length >= 2) {
         const rest = foodDays(d, g.startDate, today).filter((x) => x.kcal < tk + 500).map((x) => x.date);
         const what = rest.length ? habitSlot(d, bigD.map((x) => x.date), rest) : undefined;
-        parts.push(`${st.pace === 'behind' ? 'MUST SAY THIS TURN: ' : ''}Days far over the target since it started: ${bigD.map((x) => `${WEEKDAY[wdOf(x.date)].slice(0, 3)} ${fmtK(x.kcal)}`).join(', ')}${what ? ` (${what.label}: ${fmtK(what.hi)} kcal on them vs ${fmtK(what.lo)} on the other days)` : ''}. If the plan already named this habit, its cap didn't hold: give one new concrete tactic for the habit itself (what changes about that food or that evening), not the same cap again.`);
+        parts.push(`${st.pace === 'behind' ? 'MUST SAY THIS TURN: ' : ''}Days far over the target since it started: ${bigD.map((x) => `${WEEKDAY[wdOf(x.date)].slice(0, 3)} ${fmtK(x.kcal)}`).join(', ')}${what ? ` (${what.label}: ${fmtK(what.hi)} kcal on them vs ${fmtK(what.lo)} on the other days${what.foods.length ? `; biggest on those days: ${what.foods.join(', ')}` : ''})` : ''}. If the plan already named this habit, its cap didn't hold: give one new concrete tactic yourself, about those foods (what changes about that food or that evening, with a number), not the same cap again; never ask them what the tactic should be.`);
         if (st.pace === 'behind') bigBehind = true;
       }
     }
@@ -486,11 +490,11 @@ export function goalLines(d: Data, today: string, exName: (id: string) => string
       // (behind because of a few big days: those days are the fix, not fewer calories on all the others)
       if (down && bigBehind && !rOff.length) {
         hold = true;
-        parts.push(`RECOMMEND: keep the current target${st.atTarget?.eta ? ` (it lands around ${st.atTarget.eta})` : ''} and fix the days far over it with the tactic above; don't offer fewer calories on the other days.${st.atTarget?.eta && g.by && st.atTarget.eta > g.by ? ` Offer to move the date to ${st.atTarget.eta} (remember with memory = ${num(m)}, goal.by ${st.atTarget.eta}), or keep it if those days are fixed from now.` : ''}`);
+        parts.push(`RECOMMEND: keep the current target${st.atTarget?.eta ? ` (it lands around ${st.atTarget.eta})` : ''} and fix the days far over it with the tactic above; don't offer fewer calories on the other days.${st.atTarget?.eta && g.by && st.atTarget.eta > g.by ? ` Offer to move the date to ${st.atTarget.eta} (remember with memory = ${num(m)}, goal.by ${st.atTarget.eta}), or keep it if those days are fixed from now: that offer is the reply's one question.` : ''}`);
       }
       if (down && st.pace === 'behind' && rOff.length) {
         hold = true;
-        parts.push(`RECOMMEND (recovery is off: ${rOff.join(', ')}): keep the current target${st.atTarget?.eta ? ` and accept landing around ${st.atTarget.eta}` : ''}, and fix the days far over it; eating less while sleep or HRV is down costs strength. Don't offer fewer calories now.${st.atTarget?.eta ? ` Offer to move the date to ${st.atTarget.eta} (remember with memory = ${num(m)}, goal.by ${st.atTarget.eta}), so the app follows the same date.` : ''}`);
+        parts.push(`RECOMMEND (recovery is off: ${rOff.join(', ')}): keep the current target${st.atTarget?.eta ? ` and accept landing around ${st.atTarget.eta}` : ''}, and fix the days far over it; eating less while sleep or HRV is down costs strength. Don't offer fewer calories now.${st.atTarget?.eta ? ` Offer to move the date to ${st.atTarget.eta} (remember with memory = ${num(m)}, goal.by ${st.atTarget.eta}), so the app follows the same date: that offer is the reply's one question.` : ''}`);
       }
     }
     if (st.metric === 'weight' && st.daysIn < 14 && st.pace !== 'reached') parts.push('(Under 2 weeks in: day-to-day weigh-ins swing 1–2 kg with water, salt and food; judge the trend, not one morning.)');
@@ -538,7 +542,7 @@ function habitLine(d: Data, today: string, caps?: string): string | undefined {
   const what = high.length && loD.length ? habitSlot(d, hiD, loD) : undefined;
   // (every day of the week that qualifies: a habit on 4 nights is not "the weekend"; judge round 8)
   const named = high.length >= 3 ? `${high.length} days a week (${high.map((h) => WEEKDAY[h.w].slice(0, 3)).join(', ')}) average ${fmtK(avg(high.map((h) => h.k))!)} kcal` : high.map((h) => `${WEEKDAY[h.w]}s average ${fmtK(h.k)} kcal`).join(' and ');
-  const pat = high.length && rest !== undefined ? `${named}, against ${fmtK(rest)} on the other days${what ? `, mostly ${what.label}: ${fmtK(what.hi)} kcal on those days vs ${fmtK(what.lo)} on the others` : ''}${caps ? `; a cap for those days that still holds a plan: its daily target + 300 (${caps})` : g.kcal ? `; a cap for those days that still holds a plan: its daily target + 300 (now ${fmtK(g.kcal + 300)})` : ''}` : `no day of the week clearly over the others (all within 300 kcal of the ${fmtK(all)} average)`;
+  const pat = high.length && rest !== undefined ? `${named}, against ${fmtK(rest)} on the other days${what ? `, mostly ${what.label}: ${fmtK(what.hi)} kcal on those days vs ${fmtK(what.lo)} on the others${what.foods.length ? ` (biggest: ${what.foods.join(', ')})` : ''}` : ''}${caps ? `; a cap for those days that still holds a plan: its daily target + 300 (${caps})` : g.kcal ? `; a cap for those days that still holds a plan: its daily target + 300 (now ${fmtK(g.kcal + 300)})` : ''}${what ? `; HOW to hold that cap (say it next to the cap): ${habitTactic(what)}` : ''}` : `no day of the week clearly over the others (all within 300 kcal of the ${fmtK(all)} average)`;
   return `What most likely breaks a plan (last 4 weeks, ${days.length} finished logged days): ${pat}${hit !== undefined ? `; protein at or above ${g.protein} g on ${hit} of ${days.length} days` : ''}. A plan names this habit with these numbers, never another.`;
 }
 
@@ -549,8 +553,22 @@ function habitSlot(d: Pick<AppData, 'entries'>, hi: string[], lo: string[]) {
   const per = (dates: string[], f: (e: AppData['entries'][number]) => boolean) => { const set = new Set(dates); let k = 0; for (const e of d.entries) if (set.has(e.date) && f(e)) k += e.nutrients.kcal ?? 0; return k / dates.length; };
   const meals = [...new Set(d.entries.filter((e) => hi.includes(e.date)).map((e) => e.mealId))];
   const opts = [{ label: 'food after 21:00', f: late }, ...meals.map((m) => ({ label: `the ${m} meal`, f: (e: AppData['entries'][number]) => e.mealId === m }))]
-    .map((o) => ({ label: o.label, hi: per(hi, o.f), lo: per(lo, o.f) })).sort((a, b) => (b.hi - b.lo) - (a.hi - a.lo));
-  return opts[0] && opts[0].hi - opts[0].lo >= 250 ? opts[0] : undefined;
+    .map((o) => ({ label: o.label, f: o.f, hi: per(hi, o.f), lo: per(lo, o.f) })).sort((a, b) => (b.hi - b.lo) - (a.hi - a.lo));
+  const top = opts[0];
+  if (!top || top.hi - top.lo < 250) return undefined;
+  // (the foods that make it, on the big days: so a tactic is about their real food, not a guess; judge round 9)
+  const set = new Set(hi);
+  const by = new Map<string, number>();
+  for (const e of d.entries) if (set.has(e.date) && top.f(e)) by.set(e.snap.name, (by.get(e.snap.name) ?? 0) + (e.nutrients.kcal ?? 0));
+  const foods = [...by].sort((a, b) => b[1] - a[1]).slice(0, 3).filter(([, k]) => k / hi.length >= 100).map(([n, k]) => `${n} (about ${fmtK(k / hi.length)} kcal a day)`);
+  return { label: top.label, hi: top.hi, lo: top.lo, foods };
+}
+
+/** A plan-time "how" next to the cap for the habit: a concrete change to that food, from its numbers. */
+function habitTactic(what: { label: string; lo: number }) {
+  if (what.label.startsWith('food after')) return 'a planned evening snack of about 300 kcal ready (skyr, fruit, a protein bar), and the kitchen closed after it';
+  if (/snack/i.test(what.label)) return `the day's snacks portioned out ahead at about ${fmtK(what.lo + 300)} kcal, eaten from a plate, not from the bag`;
+  return `${what.label.replace(/^the /, 'that ')} plated once at about ${fmtK(what.lo + 200)} kcal (its usual on the other days plus 200), no second round`;
 }
 
 /** A promise about logging, checked against the log: the finished days since it was set, full or not. */
@@ -558,7 +576,8 @@ export function loggingCount(d: Pick<AppData, 'entries'>, m: MemoryNote, today: 
   const g = m.goal;
   if (!g?.startDate || g.status || !/\b(log|logs|logged|logging|logge|logger|track)\b/i.test(m.text)) return undefined;
   const to = [addDays(today, -1), g.by ?? addDays(today, -1)].sort()[0];
-  if (to < g.startDate) return undefined;
+  // (the day it is set: nothing to count yet, but it runs; the Today card shows it from the start)
+  if (to < g.startDate) return g.by && g.by >= today ? { full: 0, n: 0, left: diffDays(g.by, today) + 1 } : undefined;
   const open = new Set(unfinishedDays(d, today, 28).map((u) => u.date));
   const has = new Set(d.entries.map((e) => e.date));
   let full = 0, n = 0;
@@ -583,7 +602,7 @@ function loggingLine(d: Data, m: MemoryNote, today: string): string | undefined 
   const n = full.length + part.length + none.length;
   const left = g.by && g.by >= today ? diffDays(g.by, today) + 1 : 0;
   const broke = [...part, ...none].map((x) => x.slice(0, 3));
-  return `Logging since it was set (${n} finished day${n === 1 ? '' : 's'}, today not counted): fully logged ${full.length} of ${n}${part.length ? `; not finished: ${part.join(', ')}` : ''}${none.length ? `; nothing logged: ${none.join(', ')}` : ''}${left ? `; today ${has.has(today) ? 'has entries so far' : 'has nothing yet'}` : ''}. Verdict: ${broke.length ? `broken on ${broke.join(' and ')}` : 'kept so far'}${left ? `; ${left} day${left === 1 ? '' : 's'} left including today${broke.length ? ' to finish the rest clean' : ''}` : ''}.`;
+  return `Logging since it was set (${n} finished day${n === 1 ? '' : 's'}, today not counted): fully logged ${full.length} of ${n}${part.length ? `; not finished: ${part.join(', ')}` : ''}${none.length ? `; nothing logged: ${none.join(', ')}` : ''}${left ? `; today ${has.has(today) ? 'has entries so far' : 'has nothing yet'}` : ''}. Verdict (say it in these words): ${broke.length ? `broken on ${broke.join(' and ')}` : 'kept so far'}${left ? `; ${left} day${left === 1 ? '' : 's'} left including today${broke.length ? ' to finish the rest clean' : ''}` : ''}.`;
 }
 
 const hm = (min: number) => { const m = Math.round(min); return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`; };

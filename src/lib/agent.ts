@@ -285,7 +285,8 @@ function validateOne(a: any, out: AgentAction[]) {
       case 'add_exercise': { const exercises = (Array.isArray(a.exercises) ? a.exercises : []).slice(0, 8).map((x: any) => str(x, 60)).filter(Boolean) as string[]; if (exercises.length) out.push({ type: 'add_exercise', exercises, ...(a.start === true ? { start: true } : {}) }); break; }
       case 'remove_exercise': { const exercise = str(a.exercise, 60); if (exercise) out.push({ type: 'remove_exercise', exercise }); break; }
       case 'replace_exercise': { const from = str(a.from, 60), to = str(a.to, 60); if (from && to) out.push({ type: 'replace_exercise', from, to, routine: str(a.routine, 60) ?? null }); break; }
-      case 'create_routine': { const name = str(a.name, 60), items = bits(a.add); if (name && items.length) out.push({ type: 'create_routine', name, items }); break; }
+      // (a routine with no exercises is kept, so its card says it couldn't be built: dropped, the reply said "created"; judge round 10)
+      case 'create_routine': { const name = str(a.name, 60), items = bits(a.add ?? a.items ?? a.exercises); if (name) out.push({ type: 'create_routine', name, items }); break; }
       case 'edit_routine': {
         const routine = str(a.routine, 60); if (!routine) break;
         const rename = str(a.rename, 60) ?? null, add = bits(a.add), change = bits(a.change), remove = (Array.isArray(a.remove) ? a.remove : []).slice(0, 12).map((x: any) => str(x, 60)).filter(Boolean) as string[];
@@ -297,7 +298,7 @@ function validateOne(a: any, out: AgentAction[]) {
       case 'show_chart': { if (CHART_METRICS.includes(a.metric)) out.push({ type: 'show_chart', metric: a.metric, exercise: str(a.exercise, 60) ?? null, weeks: num(a.weeks, 1, 104) ?? null }); break; }
       case 'delete_workout': out.push({ type: 'delete_workout', workout: str(a.workout, 30) ?? null }); break;
       case 'discard_workout': out.push({ type: 'discard_workout' }); break;
-      case 'set_schedule': { const wd = num(a.weekday, 0, 6); if (wd !== undefined) out.push({ type: 'set_schedule', weekday: Math.round(wd), routine: str(a.routine, 60) ?? null }); break; }
+      case 'set_schedule': { const wd = num(a.weekday, 0, 6); if (wd !== undefined) out.push({ type: 'set_schedule', weekday: Math.round(wd), routine: str(a.routine ?? a.workout, 60) ?? null }); break; }
       case 'move_workout': {
         const to = num(a.weekday, 0, 6); if (to === undefined) break;
         const from = num(a.from_weekday, 0, 6);
