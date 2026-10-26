@@ -82,13 +82,17 @@ export function mountSetRing(list: HTMLElement, host: HTMLElement): () => void {
     return { off: gl.off * (1 - p), v: -gl.off * (gl.xs[j] - gl.xs[i]) * 60 };
   }
 
-  function fadeTo(g: Ring, to: number, ms: number) {
+  function fadeTo(g: Ring, to: number, ms: number, easing = EASE_OUT) {
     const from = Number(getComputedStyle(g.el).opacity);
     g.fade?.cancel(); g.fade = null;
+    // a glide under way gives up its own opacity (its dip ends at full strength, and would show the outline again the
+    // moment this fade ends while it still moves): from now on the fade alone says how visible it is
+    const gl = g.glide;
+    if (gl && gl.anim.playState !== 'finished') (gl.anim.effect as KeyframeEffect).setKeyframes([{ transform: `translateY(${gl.off}px)` }, { transform: 'none' }]);
     g.shown = to > HIDE;
     g.el.style.opacity = String(to);
     if (reduced() || Math.abs(from - to) < 0.01) return;
-    g.fade = g.el.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing: EASE_OUT });
+    g.fade = g.el.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing });
   }
 
   /** move a showing ring to a new row of its card: it lands on the new place, and a transform carries it there from
@@ -104,14 +108,17 @@ export function mountSetRing(list: HTMLElement, host: HTMLElement): () => void {
     const off = visual - b.y;
     if (Math.abs(off) < 0.5 || reduced()) return;
     // speed in the new move's own units (its whole distance per second), as the spring takes it
-    const v0 = Math.max(-8, Math.min(20, -now.v / off));
+    // (its speed is held to what a calm glide ever has, then put in the new move's units; a short new move would otherwise
+    // turn any speed into a huge ratio, and a tight cap on the ratio stopped it dead)
+    const v = Math.max(-400, Math.min(400, now.v));
+    const v0 = Math.max(-60, Math.min(60, -v / off));
     const { xs, duration } = springSamples(SMOOTH, v0);
     const easing = `linear(${xs.map((v) => +v.toFixed(4)).join(', ')})`;
     // on a longer move it eases back a little while it travels (the line passes over the rows' numbers, so it reads as
     // gliding past them rather than striking through them) and is whole again as it lands. Not while it is fading in or out
     const dip = Math.abs(off) >= 30 && !(g.fade && g.fade.playState === 'running');
     const kf: Keyframe[] = dip
-      ? [{ transform: `translateY(${off}px)`, opacity: 1 }, { opacity: 0.7, offset: 0.35 }, { transform: 'none', opacity: 1 }]
+      ? [{ transform: `translateY(${off}px)`, opacity: 1 }, { opacity: 0.5, offset: 0.3 }, { opacity: 0.5, offset: 0.6 }, { transform: 'none', opacity: 1 }]
       : [{ transform: `translateY(${off}px)` }, { transform: 'none' }];
     const anim = g.el.animate(kf, { duration, delay, easing, fill: 'backwards' });
     anim.startTime = document.timeline.currentTime; // re-aimed mid-glide: it moves on from this very frame
@@ -167,7 +174,10 @@ export function mountSetRing(list: HTMLElement, host: HTMLElement): () => void {
     }
     // another card (or the first time): the old outline fades where it is, the other one fades in on the new row (a
     // moving one goes sooner, so it doesn't settle on a row that is already done)
-    if (g.shown) fadeTo(g, HIDE, g.glide && g.glide.anim.playState === 'running' ? 260 : 420);
+    if (g.shown) {
+      if (g.glide && g.glide.anim.playState === 'running') fadeTo(g, HIDE, 320, 'cubic-bezier(0.4, 0, 0.6, 1)');
+      else fadeTo(g, HIDE, 420);
+    }
     const n = rings[1 - on]; on = 1 - on;
     n.glide?.anim.cancel(); n.glide = null;
     place(n, m.box);
