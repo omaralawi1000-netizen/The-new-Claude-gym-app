@@ -310,13 +310,28 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // (`listFrom`: an opening turned round, the frame its card's words and play button are really gone, carried in from where
   // they were, `startOpen`; null: the plain course)
   const turnedOpen = useRef(false);
+  // (round 10: a close turned round brings the card's words back a frame sooner (`partV`): an opening out of Today's card now
+  // brings the list three frames later, so it was lower at the turn and was gone a frame before the "1 / 12" came, open-int
+  // f52-55. Not the list a frame later: its title then ran a pixel under the name flying back down, f47-48)
+  const turnedClose = useRef(false);
   const listFrom = useRef<number | null>(null);
+  // (round 10, judge r9 min-int f53-57: five frames of a bare window. An opening turned round now starts the list on the
+  // frame the clock has cleared its title, two frames on from `listFrom` (where it used to start at a tenth, a frame late),
+  // at 15 % (a list at a few % reads as nothing at all); and the card's "1 / 12" and play button hold where they were until
+  // seven frames before that and go in six (`quick`), not 24 eased frames from the turn that left them faint for ten)
+  const quick = useRef<{ words: number; pop: number; s: number } | null>(null);
   const listV = (pp: number) => {
     const t = tOf.current, i = t!(pp);
-    const late = src.current[0]?.dataset.wk === 'pill' ? 3 : 0;
+    const kind = src.current[0]?.dataset.wk, late = kind === 'pill' ? 3 : 0;
     if (leaving.current) return 1 - sm((i - (tDep() - LIST_N + LIST_LAP + late)) / LIST_N);
-    const i0 = turnedOpen.current ? (listFrom.current ?? PART_N.words + 3) + 1 : PART_N.words - LIST_LAP;
-    return sm((i - i0) / LIST_N);
+    if (turnedOpen.current) {
+      if (listFrom.current === null) return sm((i - (PART_N.words + 4)) / LIST_N);
+      const s0 = listFrom.current + 2;
+      return i < s0 - 0.5 ? 0 : 0.15 + 0.85 * sm((i - s0 + 1) / LIST_N);
+    }
+    // (round 10: out of Today's card three frames later, so the big clock rising past it has cleared its first card's top
+    // edge, judge r9 resume f15-17)
+    return sm((i - (PART_N.words - LIST_LAP + (kind === 'hero' ? 3 : 0))) / LIST_N);
   };
   // (and it is either there or not: under 3 % it is nothing, and a move turned round blends into its course over three
   // frames, not CARRY_N: carried 24 frames it hung on a few % for eight, under the card's "1 / 12", judge r8 open-int f53-61)
@@ -352,9 +367,11 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const t = tOf.current;
     if (!t || ls.current !== 'D' || !from.current) return null;
     const n = PART_N[kind], i = t(pp);
+    const qk = quick.current;
+    if (qk && !leaving.current && (kind === 'words' || kind === 'pop')) { const w0 = qk[kind]; return clamp01(w0 + (1 - w0) * sm((i - Math.max(0, qk.s - 7)) / 6)); }
     // (round 9: closing, the play button grows from three frames later than the rest, so it is never seen while the done
     // boxes' copies are still going: one orange speck seemed to jump 150 px into the other, judge r8 open-int f52-53)
-    const v = !leaving.current ? sm(i / n) : kind === 'status' ? 1 - sm((i - tLand()) / n) : 1 - sm((i - tDep() - (kind === 'pop' ? 3 : 0)) / n);
+    const v = !leaving.current ? sm(i / n) : kind === 'status' ? 1 - sm((i - tLand()) / n) : 1 - sm((i - tDep() - (kind === 'pop' ? 3 : kind === 'words' && turnedClose.current ? -1 : 0)) / n);
     return clamp01(cv(`part-${kind}`, v, pp));
   };
   // the list's own bottom edge: how far down the list is uncovered (0 none, 1 all of it, the window's edge clipping it)
@@ -575,6 +592,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
   // the bottom corners: the card's, or for a card running on under the tab bar, the part of its corner above the bar
   const radiusB = useRef('');
   const screenR = () => parseFloat(getComputedStyle(dialogRef.current ?? document.documentElement).getPropertyValue('--wk-r')) || 0;
+  // (round 10) a move under way: the list's own little moments (a new best's tag, the row's light) hold still where they
+  // are until it is over (styles.css [data-wk-move]): the "New best" tag shrank away and "52.5 × 12" came back under it in
+  // the middle of a close, judge r9 minimise f20-22. Written on the window itself, not as React state (a render mid-move).
+  const moveFlag = (on: boolean) => { const d = dialogRef.current; if (d) { if (on) d.setAttribute('data-wk-move', ''); else d.removeAttribute('data-wk-move'); } };
   const setMoving = (on: boolean, r = radius.current, rb = radiusB.current || `${r}px ${r}px`) => {
     const a0 = sheetRef.current, b0 = bclipRef.current;
     if (a0) a0.style.borderRadius = on ? `${r}px ${r}px 0 0` : '';
@@ -650,8 +671,12 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
       if (k && !exact.current) {
         keep(k.mat.animate([{ opacity: getComputedStyle(k.mat).opacity }, { opacity: 0 }], { duration: HAND_MS, easing: 'linear', fill: 'forwards' }));
         keep(k.back.animate([{ opacity: back0 }, { opacity: 0 }], { duration: HAND_MS, easing: 'linear', fill: 'forwards' }));
-        if (top) keep(top.animate([{ opacity: 1 }, { opacity: 1, offset: 0.999 }, { opacity: 0.002 }], { duration: HAND_MS, easing: 'linear', fill: 'forwards' }));
-        if (k.dot) keep(fg?.querySelector('.pulse-dot')?.animate([{ opacity: 0 }, { opacity: 0, offset: 0.999 }, { opacity: 1 }], { duration: HAND_MS, easing: 'linear' }));
+        // (round 10: the two swap on one and the same clock edge, a step each (`steps(1, end)`), so no frame ever shows both
+        // part-clear: ramped over the last 0.1 % of the ten frames, a frame that fell inside it drew both at about half, the
+        // dot dimmed to brown for one frame, judge r9 pill-min f105, pill-swipe f145. Not one frame of both whole either:
+        // their glows are see-through and would double)
+        if (top) keep(top.animate([{ opacity: 1 }, { opacity: 0.002 }], { duration: HAND_MS, easing: 'steps(1, end)', fill: 'forwards' }));
+        if (k.dot) keep(fg?.querySelector('.pulse-dot')?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: HAND_MS, easing: 'steps(1, end)' }));
       } else if (k) k.mat.style.background = 'transparent';
       keep(sk.animate([{ opacity: sk.style.opacity }, { opacity: sk.style.opacity, offset: 0.5 }, { opacity: 0.002 }], { duration: H2, easing: 'linear', fill: 'forwards' }));
       // the rim, a see-through line, would double where the two lie a device pixel apart: the card's own comes up as the copy's goes
@@ -1132,7 +1157,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const id = run.current; frozen.current = true;
     void m.settled().then(() => { if (run.current === id) thaw(); });
   };
-  useEffect(() => { const off = dragY.on('change', (v) => { thaw(); orbM.current!.cancel(); if (v > 0) setMoving(true, screenR()); else if (!closing.current && !leaving.current) setMoving(false); }); return () => { off(); thaw(); orbM.current!.cancel(); }; }, [dragY]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const off = dragY.on('change', (v) => { thaw(); orbM.current!.cancel(); if (v > 0) { setMoving(true, screenR()); moveFlag(true); } else if (!closing.current && !leaving.current) { setMoving(false); if (!p.isAnimating()) moveFlag(false); } }); return () => { off(); thaw(); orbM.current!.cancel(); }; }, [dragY]); // eslint-disable-line react-hooks/exhaustive-deps
   // Closing starts the very moment you let go: the window's own animation is set going first (on the compositor), and only
   // after the next frame has been drawn is the app told the workout is closed — re-rendering the page behind, the tab bar
   // and the resume bar takes a phone a good while, and before, nothing moved until it was done (the pause after a tap).
@@ -1240,8 +1265,8 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     if (now) { opening.current?.stop(); p.set(now.pp); }
     cancelHand();
     const id = ++moveId.current;
-    dialogRef.current?.classList.add('wk-going');
-    leaving.current = true; dragOff.current = 0; relHead.current = relViews.current = 0;
+    dialogRef.current?.classList.add('wk-going'); moveFlag(true);
+    leaving.current = true; quick.current = null; turnedClose.current = !!now; dragOff.current = 0; relHead.current = relViews.current = 0;
     measure(atRest(wkSourceRect(kind)));
     noteMove(`close ${from.current ? kind : 'slide'}${v ? ' swipe' : ''}`);
     // the finger's offset becomes progress, then it carries on at the finger's speed — the window's top stays where the
@@ -1287,7 +1312,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const cc = catching() && mirror.current!.size ? Promise.all([c, mirror.current!.settled()]).then(() => undefined) : c;
     closing.current = new Promise<void>((done) => { cc.then(() => { done(); if (fade) requestAnimationFrame(() => fade?.cancel()); }, () => done()); });
     // landed: the card is itself again (its words already back), and the copy of it goes
-    void closing.current.then(() => { if (moveId.current !== id) return; caught.current = true; cardAt(p.get()); warmStage(false); releaseCard(); dropSkin(); if (hero.current.length) dropHero(); });
+    void closing.current.then(() => { if (moveId.current !== id) return; moveFlag(false); caught.current = true; cardAt(p.get()); warmStage(false); releaseCard(); dropSkin(); if (hero.current.length) dropHero(); });
     return closing.current;
   };
   // a press on Minimise that never became a tap lets the page behind rest again
@@ -1391,9 +1416,10 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const turn = turning() && leaving.current, now = turn ? nowPV() : null, was = now ? snapNow(now.pp) : null, wasHero = turn ? heroNow() : {}, v0 = now ? now.v : 0;
     if (now) p.set(now.pp);
     cancelHand();
-    ++moveId.current;
+    const oid = ++moveId.current;
     closing.current = null;
     clockStop = null;
+    moveFlag(true);
     // un-park it now, before the orb's flight measures where its slot will be (React would only do it after this effect)
     dialogRef.current?.classList.remove('wk-off', 'wk-leaving', 'wk-going');
     // out of the card or bar that was tapped (none: it rises from the bottom edge)
@@ -1406,7 +1432,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     const sp = from.current ? (lw ? { ...lw, restDelta: 0.0005 } : WINDOW_OPEN) : SURFACE;
     turnedOpen.current = !!now;
     setFrames(p0, 1, sp, v0); carryOver(was, p0);
-    listFrom.current = null;
+    listFrom.current = null; quick.current = null;
     if (now && move.current && tOf.current) {
       const m = move.current, t = tOf.current;
       for (const x of m.xs) {
@@ -1414,6 +1440,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
         const pp = m.p0 + m.span * x, w = partV(pp, 'words'), b = partV(pp, 'pop');
         if ((w ?? 1) >= 0.97 && (b ?? 1) >= 0.9) { listFrom.current = t(pp); break; }
       }
+      if (was && listFrom.current !== null) quick.current = { words: was['part-words'] ?? 0, pop: was['part-pop'] ?? 0, s: listFrom.current + 2 };
     }
     thaw(); pv.set(p0); flush(); cardAt(p0);
     launchHero(true, p0, 1, sp, v0, performance.now(), 0, wasHero);
@@ -1423,7 +1450,7 @@ export function ActiveWorkout({ props, open = true, onGone, vanish = false }: { 
     runMirror(p0, 1, sp, v0); syncHero(); if (now) lead1();
     setMoving(true);
     const m = mirror.current!;
-    void Promise.all([o.then(() => undefined), m.settled()]).then(() => { if (opening.current === o && !closing.current) { releaseCard(); dropSkin(); if (dragY.get() <= 0) setMoving(false); } });
+    void Promise.all([o.then(() => undefined), m.settled()]).then(() => { if (moveId.current === oid) moveFlag(false); if (opening.current === o && !closing.current) { releaseCard(); dropSkin(); if (dragY.get() <= 0) setMoving(false); } });
     takeTints();
   };
   // waiting minimised: a tap on the resume bar or button starts the slide at once (ui/workoutOpen.ts)

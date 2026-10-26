@@ -2158,6 +2158,9 @@ textarea.input { padding: 14px 16px; min-height: 90px; resize: none; line-height
    the two at once, r6 tick f5-14) */
 .wk-prev-t.away { animation: prevAway 2600ms var(--ease-out) both; }
 @keyframes prevAway { 0% { opacity: 1; } 4%, 92% { opacity: 0; } 100% { opacity: 1; } }
+/* (round 10) while the window moves (Active.tsx `moveFlag`), they hold still where they are and go on once it is at rest:
+   nothing in the list changes mid-move (judge r9 minimise f20-22: the tag shrank away and the Prev it covers came back) */
+[data-wk-move] .wk-best, [data-wk-move] .wk-prev-t.away, [data-wk-move] .wk-set-sweep, [data-wk-move] .wk-set-wave { animation-play-state: paused; }
 /* an exercise's last set ticked: one slow band of warm light passes over the card, once. Laid over the card (not inside its
    frosted glass) and only the band moves: a full-card glow layer cost frames on the test bench, this one doesn't */
 .wk-card-wrap { position: relative; }

@@ -26,11 +26,17 @@ await p.evaluate(() => { for (const a of document.getAnimations()) { const t = a
 if (process.env.LAND) await p.evaluate((l) => localStorage.setItem('aven.wkLand', l), process.env.LAND);
 const film = async (name, fn, n) => { if (!want.length || want.includes(name)) await s.film(`${tag}-${name}`, fn, n); else { await fn(); await s.advance(n); } };
 const start = p.getByRole('button', { name: /Start workout/ }).first();
+// BEST=1: a close films with a fresh "New best" tag showing on the first set (it is ticked off and on again 90 frames before)
+const best = async () => {
+  if (!process.env.BEST) return;
+  await p.locator('.wk-sheet').getByRole('button', { name: 'Mark set not done' }).first().tap(); await s.advance(30);
+  await p.locator('.wk-sheet').getByRole('button', { name: 'Complete set' }).first().tap(); await s.advance(90);
+};
 await start.scrollIntoViewIfNeeded().catch(() => {}); await s.advance(60);
 await film('open', () => start.tap(), 150);
 await s.advance(200);
 await film('tick', () => p.locator('.wk-sheet').getByRole('button', { name: 'Complete set' }).first().tap(), 150);
-await s.advance(120);
+await s.advance(120); await best();
 await film('minimise', () => p.getByRole('button', { name: 'Minimise workout' }).tap(), 150);
 await s.advance(200);
 await film('resume', () => p.getByLabel('Resume workout').first().tap(), 150);
@@ -39,7 +45,7 @@ await s.advance(200);
 await p.getByRole('button', { name: 'Minimise workout' }).tap(); await s.advance(200);
 await p.getByRole('button', { name: 'Train', exact: true }).first().tap(); await s.advance(240);
 await film('pill-resume', () => p.getByLabel('Resume workout').first().tap(), 150);
-await s.advance(200);
+await s.advance(200); await best();
 await film('pill-min', () => p.getByRole('button', { name: 'Minimise workout' }).tap(), 150);
 // a finger pulling the window down from its header and letting go (SWIPE=1): on the resume bar's tab, then on Today
 const touch = await s.ctx.newCDPSession(p);
@@ -55,11 +61,11 @@ const swipe = async () => {
 };
 if (process.env.SWIPE) {
   await s.advance(200);
-  await p.getByLabel('Resume workout').first().tap(); await s.advance(240);
+  await p.getByLabel('Resume workout').first().tap(); await s.advance(240); await best();
   await film('pill-swipe', swipe, 170);
   await s.advance(200);
   await p.getByRole('button', { name: 'Today', exact: true }).first().tap(); await s.advance(240);
-  await p.getByLabel('Resume workout').first().tap(); await s.advance(240);
+  await p.getByLabel('Resume workout').first().tap(); await s.advance(240); await best();
   await film('swipe-min', swipe, 170);
 }
 // a move turned round half way (round 7): a finger taps the window's minimise arrow 30 frames into an opening, and the card
