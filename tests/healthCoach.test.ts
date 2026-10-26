@@ -41,7 +41,7 @@ describe('overeating on a cut, said with its days', () => {
     expect(o.id).toMatch(/^over:/);
     expect(o.priority).toBe(58);
     expect(o.say!.x).toBe('3 of 7');
-    expect(o.say!.tpl).toBe('On {x} days you went 600+ over your 2,300 target.');
+    expect(o.say!.tpl).toBe('On {x} days you went 600+ kcal over your 2,300 target.');
     expect((o.action!.run as any).prompt).toMatch(/\w+ 3,150, \w+ 3,400, \w+ 2,900\./);
   });
 
@@ -90,7 +90,7 @@ describe("the Coach's line reads Today's ranking", () => {
     const pick = healthNote(list)!;
     expect(pick.id).toMatch(/^protein:/);
     expect(list.find((x) => !x.id.startsWith('goal:') && x.id !== 'goal-ask' && x.kind !== 'app')).toBe(pick);
-    expect(pick.say!.tpl).toBe('Protein averaged {x} over the last 4 days, against 180.');
+    expect(pick.say!.tpl).toBe('Protein averaged {x} over the last 4 days, against 180 g.');
     expect(pick.say!.x).toBe('120 g');
   });
 

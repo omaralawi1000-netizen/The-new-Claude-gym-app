@@ -146,7 +146,7 @@ export function findNudges(d: AppData, today: string, hour: number, t: T, lang: 
       title: t('Protein under target {n} days', { n: days.length }),
       body: t('About {p} g a day against {g} g. Muscle needs it to grow.', { p: Math.round(p), g: g.protein }),
       // (an average of the logged days among the last 4, said as one: it never claims every day was under)
-      say: { tpl: days.length >= 4 ? t('Protein averaged {x} over the last 4 days, against {g}.', { g: g.protein }) : t('Protein averaged {x} over the {n} days you logged of the last 4, against {g}.', { n: days.length, g: g.protein }), x: `${Math.round(p)} g` },
+      say: { tpl: days.length >= 4 ? t('Protein averaged {x} over the last 4 days, against {g}.', { g: `${g.protein} g` }) : t('Protein averaged {x} over the {n} days you logged of the last 4, against {g}.', { n: days.length, g: `${g.protein} g` }), x: `${Math.round(p)} g` },
       action: { label: t('Ideas'), run: { type: 'coach', prompt: t('My protein has averaged {p} g against a {g} g target. Give me easy ways to close the gap with foods I already eat.', { p: Math.round(p), g: g.protein }) } } });
   }
   // usually logs, nothing yet by early afternoon
@@ -309,7 +309,7 @@ export function overNote(d: AppData, today: string, t: T, lang: Lang): Nudge | u
     const list = heavy.map((x) => `${wd(x.date)} ${k((targetOn(d, x.date) ?? tk) + x.over)}`).join(', ');
     // said short, the number on the chip; the days themselves go to the Coach with the tap
     const n = t('{n} of 7', { n: heavy.length });
-    const tpl = one ? t('On {x} days you went {line}+ over your {target} target.', { line: k(heavyLine(one)), target: k(one) }) : t('On {x} days you went far over your target.');
+    const tpl = one ? t('On {x} days you went {line}+ kcal over your {target} target.', { line: k(heavyLine(one)), target: k(one) }) : t('On {x} days you went far over your target.');
     return { ...base, title: t('Far over your target {n} of the last 7 days', { n: heavy.length }), body: list, say: { tpl, x: n }, action: ask(`${tpl.replace('{x}', n)} ${list}.`) };
   }
   // B
@@ -326,7 +326,7 @@ export function overNote(d: AppData, today: string, t: T, lang: Lang): Nudge | u
     const big = bigDays(d, from, today, tk);
     const list = big.map((x) => `${wd(x.date)} ${fmtDate(x.date, lang, { day: 'numeric', month: 'short' })} ${k(x.kcal)}`).join(', ');
     const n = t('{n} days', { n: big.length });
-    const tpl = t('Since {date}, {x} went 500+ over your {target} target.', { date: fmtDate(from, lang, { day: 'numeric', month: 'short' }), target: k(tk) });
+    const tpl = t('Since {date}, {x} went 500+ kcal over your {target} target.', { date: fmtDate(from, lang, { day: 'numeric', month: 'short' }), target: k(tk) });
     return { ...base, title: t('{n} days far over your target since your goal started', { n: big.length }), body: list, say: { tpl, x: n }, action: ask(`${tpl.replace('{x}', n)} ${list}.`) };
   }
   return undefined;

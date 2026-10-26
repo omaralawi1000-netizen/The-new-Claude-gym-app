@@ -76,7 +76,7 @@ export function useNudges(d: AppData): { list: Nudge[]; hide: (id: string, forGo
     const map = exerciseMap(d.exercises);
     return rankNotes(d, today, hour, t, lang, (id) => { const e = map.get(id); return e ? exName(e, lang) : '?'; }, insights).slice(0, 4);
     // eslint-disable-next-line
-  }, [d.sessions, d.entries, d.weights, d.schedule, d.routines, d.active, d.settings, d.exercises, d.memory, d.targets, d.health, today, hour, insights, v, lang]);
+  }, [d.sessions, d.entries, d.weights, d.schedule, d.routines, d.active, d.settings, d.exercises, d.memory, d.targets, d.health, d.activities, today, hour, insights, v, t, lang]);
   return { list, hide: (id, forGood) => { if (forGood && id.startsWith('ai:')) { const n = list.find((x) => x.id === id); if (n) decline(n.title); } hideNudge(id, forGood); bump(); } };
 }
 

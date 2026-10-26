@@ -40,6 +40,8 @@ const COL: Record<K, string> = { ready: '#f6f7fb', sleep: C.sleep, heart: C.hear
 const NAME: Record<K, string> = { ready: 'Ready', sleep: 'Sleep', heart: 'Heart', move: 'Steps', week: 'This week', body: 'Body', training: 'Training' };
 
 /** 432 min → "7 h 12" (the hour sign in Danish is t) */
+/** within this many minutes of the usual night is "about your usual", on the Coach line and the Sleep page alike */
+const USUAL_BAND = 30;
 const hm = (min: number, lang: Lang) => { const m = Math.round(min); const h = Math.floor(m / 60); return h ? `${h} ${lang === 'da' ? 't' : 'h'}${m % 60 ? ` ${String(m % 60).padStart(2, '0')}` : ''}` : `${m} min`; };
 const EO = 'cubic-bezier(.22,.8,.2,1)';
 const reduced = () => { const m = document.documentElement.dataset.motion; return m === 'reduce' || (m !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches); };
@@ -262,12 +264,13 @@ function CoachLine({ v, d, today, t, lang, onTap }: { v: HealthView; d: AppData;
     const map = exerciseMap(d.exercises);
     return healthNote(rankNotes(d, today, hour, t, lang, (id) => { const e = map.get(id); return e ? exName(e, lang) : '?'; }, cachedInsights(today)));
   }, [d, today, hour, t, lang]);
+  const goalWarn = useMemo(() => activeGoals(d, today).filter(tracked).some((m) => { const p = goalState(d, m, today)?.pace; return !!p && WARN.has(p); }), [d, today]);
   const night = v.night;
   // last night: "about your usual" within 30 min of the median of the 30 nights before (lib/recovery.ts usualSleep)
   let p1: ReactNode = null;
   if (night) {
     const d0 = night.usual ? night.asleep - night.usual : undefined;
-    const tpl = d0 === undefined ? t('You slept {x}.') : Math.abs(d0) < 30 ? t('You slept {x}, about your usual.') : t(d0 > 0 ? 'You slept {x}, {d} more than usual.' : 'You slept {x}, {d} less than usual.', { d: hm(Math.abs(d0), lang) });
+    const tpl = d0 === undefined ? t('You slept {x}.') : Math.abs(d0) < USUAL_BAND ? t('You slept {x}, about your usual.') : t(d0 > 0 ? 'You slept {x}, {d} more than usual.' : 'You slept {x}, {d} less than usual.', { d: hm(Math.abs(d0), lang) });
     p1 = <Words tpl={tpl} pill={<Pill k="sleep" onTap={onTap}>{hm(night.asleep, lang)}</Pill>} />;
   }
   let p2: ReactNode = null;
@@ -277,7 +280,7 @@ function CoachLine({ v, d, today, t, lang, onTap }: { v: HealthView; d: AppData;
       ? <Words tpl={note.say.tpl} pill={<span className="hx-pill hx-w" style={{ ['--c' as string]: NOTE_COL(note), cursor: note.action ? undefined : 'default' }} onClick={note.action ? (e) => { e.stopPropagation(); run(); } : undefined}><i /><span>{note.say.x}</span></span>} />
       : <Words tpl={sentenceOf(note.title)} />;
   }
-  if (!p1 && !p2) p1 = <Words tpl={v.hasWatch ? t('Your watch fills this in as it syncs.') : t('Nothing needs your attention right now.')} />;
+  if (!p1 && !p2) p1 = <Words tpl={v.hasWatch ? t('Your watch fills this in as it syncs.') : goalWarn ? t('Here is where your goal stands.') : t('Nothing needs your attention right now.')} />;
   return (
     <>
       <div className="hx-coach hx-ln"><MiniOrb />{t('Coach')}</div>
@@ -290,6 +293,8 @@ function CoachLine({ v, d, today, t, lang, onTap }: { v: HealthView; d: AppData;
 const PACE = (t: TFn): Record<Pace, string> => ({ reached: t('Reached'), ready: t('Ready to test'), 'on pace': t('On pace'), ahead: t('Ahead'), behind: t('Behind'), 'too fast': t('Faster than safe'), 'wrong way': t('Wrong way'), slow: t('Slow'), stalled: t('Stalled'), 'date passed': t('Date passed'), 'too early': t('Too early to tell') });
 
 /** paces that need something from him: the pill gets a coral rim (white words, no wash) so it reads at a glance */
+/** the time left as he'd say it: days under a week, weeks after; nothing on the day or after it */
+const timeLeft = (n: number | undefined, t: TFn) => (n === undefined || n <= 0 ? '' : n === 1 ? t('1 day') : n < 7 ? t('{n} days', { n }) : Math.round(n / 7) === 1 ? t('1 week') : t('{n} weeks', { n: Math.round(n / 7) }));
 const WARN = new Set<Pace>(['behind', 'too fast', 'wrong way', 'stalled', 'date passed']);
 
 /** why a goal can't be judged yet, as the one thing that helps (never "log food" where food can't count) */
@@ -342,9 +347,10 @@ const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; tod
     if (st.pace === 'reached') {
       const h = holdKcal(d, st, today);
       line = h ? (h.first ? t('{a} kcal for a week, then about {b} to hold it.', { a: fmtNum(h.first, lang, 0), b: fmtNum(h.hold, lang, 0) }) : t('About {b} kcal a day to hold it.', { b: fmtNum(h.hold, lang, 0) })) : t('Tell the Coach what is next.');
-    } else if (st.pace === 'too early' && !st.next) line = earlyLine(st, t);
+    } else if (lift && m.exerciseIds?.[0] && !ex) line = earlyLine({ ...st, whyCode: 'noExercise' }, t);
+    else if (st.pace === 'too early' && !st.next) line = earlyLine(st, t);
     else if (st.byFood && st.now !== undefined && st.scaleKg !== undefined) line = t('About {now} by what you eat · scale {scale}', { now: kg(st.now), scale: kg(st.scaleKg) });
-    else if (lift && st.now !== undefined && left !== undefined) line = [t('Best set worth {n}', { n: kg(st.now) }), t('{n} to go', { n: kg(left) }), st.daysLeft !== undefined && st.daysLeft >= 0 ? (Math.max(1, Math.round(st.daysLeft / 7)) === 1 ? t('1 week') : t('{n} weeks', { n: Math.round(st.daysLeft / 7) })) : ''].filter(Boolean).join(' · ');
+    else if (lift && st.now !== undefined && left !== undefined) line = [t('Best set worth {n}', { n: kg(st.now) }), st.now < st.target! - 0.05 ? t('{n} to go', { n: kg(left) }) : '', timeLeft(st.daysLeft, t)].filter(Boolean).join(' · ');
     else if (left !== undefined) {
       // behind: by how much, as the pace it needs against the pace it has (a verdict with its evidence; the date is in the title)
       const wk = (x: number) => `${x < 0 ? '−' : '+'}${fmtNum(Math.abs(kgToDisplay(x, u)), lang, 1)}\u00a0${u}`;
@@ -359,7 +365,7 @@ const GoalCard = memo(function GoalCard({ d, today, t, lang }: { d: AppData; tod
   return (
     <button className="hx-goal press" style={{ ['--c' as string]: col }} onClick={() => ask(t('How am I doing on my goal “{goal}”? Be honest.', { goal: name }))}>
       <div className="hx-ghead"><span className="hx-gt">{title}</span>{st ? <span className={`hx-gpace${WARN.has(st.pace) ? ' hx-gwarn' : ''}`}>{PACE(t)[st.pace]}</span> : <span className="hx-gchev">›</span>}</div>
-      {bar && <div className="hx-gbar" style={{ ['--f' as string]: f }}><span className="hx-gnow">{t('{n} now', { n: fmtNum(kgToDisplay(bar.now, u), lang, 1) })}</span><i /></div>}
+      {bar && <div className="hx-gbar" style={{ ['--f' as string]: f }}><span className="hx-gnow">{(lift ? t('{n} now', { n: fmtNum(kgToDisplay(bar.now, u), lang, 1) }) : t('{n} trend', { n: fmtNum(kgToDisplay(bar.now, u), lang, 1) }))}</span><i /></div>}
       {(line || more > 0) && <div className="hx-gline">{line}{more > 0 && <>{line ? ' · ' : ''}<b>{t('+{n} more', { n: more })}</b></>}</div>}
     </button>
   );
@@ -462,7 +468,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
       <div className="hx-sub">{fmtTime(n.session.start, lang)} → {fmtTime(n.session.end, lang)}</div>
       <div className="hx-bleed hx-hyp" data-share="chart"><Hypnogram night={n.session} w={W} /></div>
       <h3 className="hx-dt hx-rise">{head}</h3>
-      {diff !== undefined && <p className="hx-dsub hx-rise">{Math.abs(diff) < 15 ? t('About your usual {u}.', { u: hm(n.usual!, lang) }) : t(diff > 0 ? '{d} more than your usual {u}.' : '{d} less than your usual {u}.', { d: hm(Math.abs(diff), lang), u: hm(n.usual!, lang) })}</p>}
+      {diff !== undefined && <p className="hx-dsub hx-rise">{Math.abs(diff) < USUAL_BAND ? t('About your usual {u}.', { u: hm(n.usual!, lang) }) : t(diff > 0 ? '{d} more than your usual {u}.' : '{d} less than your usual {u}.', { d: hm(Math.abs(diff), lang), u: hm(n.usual!, lang) })}</p>}
       {sc && <div className="hx-panel hx-rise"><div className="hx-rowc"><div><div className="hx-ptitle" style={{ margin: 0 }}>{t('Sleep score')}</div><div className="hx-n" style={{ fontSize: 40, fontWeight: 300, marginTop: 4 }}>{sc.score}<small>/100 · {t(sc.band)}</small></div>{sc.cap && sc.capMin && <div className="hx-sub" style={{ marginTop: 4, textWrap: 'balance' }}>{t('Under {h} of sleep it stays at most {n}.', { h: hm(sc.capMin, lang), n: sc.cap })}</div>}</div><ScoreRing value={sc.score} color={C.sleep} /></div><div style={{ marginTop: 14 }}><Parts s={sc} t={t} /></div><div className="hx-sub" style={{ marginTop: 10 }}>{t('Length counts for 30%, each of the others 10–15%.')}</div></div>}
       <div className="hx-panel hx-rise"><div className="hx-stages">{st.map(([name, m, c]) => <div key={name} className="hx-strow"><b style={{ color: c }}>{name}</b><div className="hx-sbar"><span className="hx-sb" style={{ ['--sc' as string]: c, width: `${Math.round((m / mx) * 100)}%` }} /></div><span>{hm(m, lang)}</span></div>)}</div></div>
       <div className="hx-panel hx-rise"><div className="hx-ptitle">{n.usual ? t('The last 14 nights · usual {u}', { u: hm(n.usual, lang) }) : t('The last 14 nights')}</div>

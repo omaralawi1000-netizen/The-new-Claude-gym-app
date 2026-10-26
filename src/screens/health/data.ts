@@ -9,6 +9,7 @@ import { minutes, onWatchDetail, watchDetails, type SleepSession, type WatchDeta
 import { asleepMin, dayLoad, mainSleep, midpoint, readyScore, sleepScore, type Score } from '../../lib/scores';
 import { addDays, dayKey, parseKey, startOfWeek } from '../../lib/dates';
 import { trendRate, weightTrend } from '../../lib/stats';
+import { activeGoals, goalState, tracked } from '../../lib/goals';
 import type { ActivityLog, AppData, HealthDay } from '../../lib/types';
 
 export const DETAIL_DAYS = 30;
@@ -94,6 +95,12 @@ export interface HealthView {
   hasWatch: boolean;
   /** the watch's detail has been read from the phone (until then the sentence can still change) */
   loaded: boolean;
+}
+
+/** with a weight goal, Body's rate is the goal card's (lib/goals.ts goalState, the Coach's): one pace on one screen */
+function goalRate(data: AppData, today: string): number | undefined {
+  const m = activeGoals(data, today).filter(tracked).find((x) => x.goal.metric === 'weight');
+  return m ? goalState(data, m, today)?.rate : undefined;
 }
 
 export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | null; today: string; now: number; label: (a: ActivityLog) => string }): HealthView {
@@ -184,7 +191,7 @@ export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | nu
   // ── body
   const w = [...data.weights].sort((x, y) => x.date.localeCompare(y.date));
   const lw = w[w.length - 1];
-  const body: HealthView['body'] = { kg: lw?.kg, date: lw?.date, series: w.filter((x) => x.date >= addDays(today, -30)).map((x) => x.kg), rate: trendRate(weightTrend(w)), fat: [...days].reverse().find((d) => d.bodyFat)?.bodyFat };
+  const body: HealthView['body'] = { kg: lw?.kg, date: lw?.date, series: w.filter((x) => x.date >= addDays(today, -30)).map((x) => x.kg), rate: goalRate(data, today) ?? trendRate(weightTrend(w)), fat: [...days].reverse().find((d) => d.bodyFat)?.bodyFat };
   const comp = [...days].reverse().find((d) => d.leanKg || d.bmr);
   if (comp) Object.assign(body, { lean: comp.leanKg, water: comp.bodyWaterKg, bone: comp.boneKg, bmr: comp.bmr });
 
