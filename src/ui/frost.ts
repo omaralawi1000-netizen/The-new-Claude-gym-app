@@ -46,7 +46,8 @@ function paint(cv: HTMLCanvasElement) {
   if (!src) { prev?.getContext('2d')?.clearRect(0, 0, prev.width, prev.height); cv.dataset.on = ''; return; } // (fades out over the last picture; the card shows its plain glass)
   // a new picture over one on show (the sun moved when food was logged, a copy once more): the old one stays under it and
   // the new one fades in over it, never a jump (judge 26 Oct)
-  if (prev && cv.dataset.on === '1' && !cv.dataset.now) {
+  // (a second picture in the same moment, two copies close together: the one under stays the one that was on show)
+  if (prev && cv.dataset.on === '1' && !cv.dataset.now && !cv.dataset.swap) {
     if (prev.width !== cv.width || prev.height !== cv.height) { prev.width = cv.width; prev.height = cv.height; }
     const pg = prev.getContext('2d');
     if (pg) {
