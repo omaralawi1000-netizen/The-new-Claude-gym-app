@@ -370,7 +370,7 @@ export class Expander {
   private wave(dir: number, duration: number) {
     $$(':scope > .hx-page > .hx-body > *', this.e.dsc).slice(0, 12).forEach((x, i) => {
       x.getAnimations().filter((a) => a.id === 'hx-wave').forEach((a) => a.cancel());
-      const k = dir * Math.min(150, 26 + i * 16), a = this.anim(x, [{ transform: `translateX(${k}px)` }, { transform: 'none' }], { duration, easing: slideCurve(Math.abs(k)).easing });
+      const k = dir * Math.min(84, 14 + i * 10), a = this.anim(x, [{ transform: `translateX(${k}px)` }, { transform: 'none' }], { duration, easing: slideCurve(Math.abs(k)).easing });
       a.id = 'hx-wave';
     });
   }
