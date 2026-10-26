@@ -331,9 +331,13 @@ function tame(o: CanvasRenderingContext2D, w: number, h: number) {
         // the colour as a step away from the page's own (not a hue and an amount): where the page has almost no colour its hue
         // is only noise, and a hue limit let each pixel take a different tint, a jagged band where Time of day's blue turns
         // orange (Omar's phone, 26 Oct). The step grows with the page's own colour, a little more where there is light.
-        const dA = C * Math.cos(H) - px[i * 3 + 1], dB = C * Math.sin(H) - px[i * 3 + 2], dd = Math.hypot(dA, dB);
-        const far = (0.25 - 0.2 * green) * C0 + 0.006 * lift;
-        if (dd > far) { const k = far / dd, A = px[i * 3 + 1] + dA * k, B = px[i * 3 + 2] + dB * k; C = Math.hypot(A, B); H = Math.atan2(B, A); }
+        // Split into more or less of the page's colour (up to a quarter more, hardly less: less read grey) and a turn of it
+        // (less: a turn read rosier than the page, judge 26 Oct)
+        const u = C0 > 1e-4 ? 1 / C0 : 0, ux = px[i * 3 + 1] * u, uy = px[i * 3 + 2] * u;
+        const dA = C * Math.cos(H) - px[i * 3 + 1], dB = C * Math.sin(H) - px[i * 3 + 2];
+        const up = (0.25 - 0.2 * green) * C0 + 0.006 * lift, side = (0.1 - 0.06 * green) * C0 + 0.004 * lift;
+        const dr = Math.min(up, Math.max(-0.05 * C0 - 0.002, dA * ux + dB * uy)), dt = Math.min(side, Math.max(-side, dB * ux - dA * uy));
+        { const A = px[i * 3 + 1] + dr * ux - dt * uy, B = px[i * 3 + 2] + dr * uy + dt * ux; C = Math.hypot(A, B); H = Math.atan2(B, A); }
       }
     }
     out[i * 3] = L; out[i * 3 + 1] = C; out[i * 3 + 2] = H;
