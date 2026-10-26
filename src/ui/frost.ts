@@ -67,7 +67,7 @@ function grainFor(src: HTMLCanvasElement) {
   return v;
 }
 
-// ---- each tab's picture kept on the phone (localStorage, small PNGs), so the next start shows the cards' colours from the
+// ---- each tab's picture kept on the phone (localStorage, small WebPs), so the next start shows the cards' colours from the
 // first frame instead of fading them in once the field is painted. Keyed by everything that shapes it; a stale one is
 // never shown, and the fresh copy replaces it as soon as it is made.
 const KEEP = 'aven.frost';
@@ -77,7 +77,7 @@ const keptFor = (hue: string) => kept.get(keyOf(hue)) ?? kept.get(keyOf('*'));
 function loadKept() {
   let o: Record<string, string>; try { o = JSON.parse(localStorage.getItem(KEEP) ?? '{}'); } catch { return; }
   for (const [k, url] of Object.entries(o)) {
-    if (typeof url !== 'string' || !url.startsWith('data:image/png')) continue;
+    if (typeof url !== 'string' || !/^data:image\/(png|webp)/.test(url)) continue;
     const im = new Image();
     im.onload = () => {
       const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
@@ -92,7 +92,8 @@ const toKeep = new Map<string, string>();
 function keep(hue: string, pic: HTMLCanvasElement) {
   const at = stamp();
   for (const k of toKeep.keys()) if (!k.startsWith(at + '|')) toKeep.delete(k); // (only the colours now in use)
-  try { toKeep.set(keyOf(hue), pic.toDataURL('image/png')); } catch { return; }
+  // (WebP: the finer picture as a PNG took four times the room, next to his workouts in the same storage)
+  try { toKeep.set(keyOf(hue), pic.toDataURL('image/webp', 0.9)); } catch { return; }
   clearTimeout(keepAt); keepAt = window.setTimeout(() => { try { localStorage.setItem(KEEP, JSON.stringify(Object.fromEntries(toKeep))); } catch { /* full: next start fades in as before */ } }, 1500);
 }
 
