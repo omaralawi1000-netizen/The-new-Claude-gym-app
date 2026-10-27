@@ -1,0 +1,134 @@
+ROPETILT f0 r phi 32.43 tilt 0.000 share 0.706
+ROPETILT f0 l phi 32.91 tilt 0.000 share 0.694
+ROPETILT f2 r phi 31.97 tilt 0.000 share 0.692
+ROPETILT f2 l phi 32.46 tilt 0.000 share 0.680
+EZGRIP f2  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 220mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 423mm, above fists 466mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f5 r phi 30.49 tilt 0.000 share 0.638
+ROPETILT f5 l phi 31.01 tilt 0.000 share 0.627
+EZGRIP f5  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 223mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 423mm, above fists 467mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f8 r phi 28.37 tilt 0.000 share 0.523
+ROPETILT f8 l phi 28.90 tilt 0.000 share 0.512
+EZGRIP f8  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 227mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 423mm, above fists 467mm | rope vs body/head: min clearance 5.9mm (stopper.r vs Humero-ulnar head of flexor digitorum superficialis.r), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f11 r phi 26.55 tilt 0.000 share 0.310
+ROPETILT f11 l phi 27.08 tilt 0.000 share 0.304
+EZGRIP f11  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 230mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 421mm, above fists 465mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f14 r phi 26.54 tilt 0.000 share 0.015
+ROPETILT f14 l phi 27.02 tilt 0.000 share 0.015
+EZGRIP f14  r inside 0 minclear 0.5mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.5mm grip-extent t -54.3..45.2 mm | rope to head 229mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 418mm, above fists 462mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f17 r phi 29.17 tilt -0.043 share -0.280
+ROPETILT f17 l phi 29.54 tilt -0.042 share -0.275
+EZGRIP f17  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 225mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 413mm, above fists 456mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f20 r phi 34.10 tilt -0.891 share -0.498
+ROPETILT f20 l phi 34.35 tilt -0.891 share -0.494
+EZGRIP f20  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 221mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 407mm, above fists 448mm | rope vs body/head: min clearance 5.9mm (stopper.r vs Humero-ulnar head of flexor digitorum superficialis.r), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f23 r phi 40.28 tilt -2.636 share -0.636
+ROPETILT f23 l phi 40.43 tilt -2.636 share -0.632
+EZGRIP f23  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 207mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 398mm, above fists 437mm | rope vs body/head: min clearance 5.9mm (stopper.r vs Humero-ulnar head of flexor digitorum superficialis.r), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f26 r phi 46.50 tilt -5.095 share -0.720
+ROPETILT f26 l phi 46.59 tilt -5.095 share -0.718
+EZGRIP f26  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 193mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 386mm, above fists 422mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f29 r phi 51.83 tilt -7.992 share -0.778
+ROPETILT f29 l phi 51.87 tilt -7.992 share -0.777
+EZGRIP f29  r inside 0 minclear 0.5mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.5mm grip-extent t -54.3..45.2 mm | rope to head 177mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 372mm, above fists 406mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f32 r phi 56.09 tilt -11.003 share -0.819
+ROPETILT f32 l phi 56.10 tilt -11.003 share -0.819
+EZGRIP f32  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 163mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 359mm, above fists 390mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f35 r phi 59.17 tilt -13.788 share -0.848
+ROPETILT f35 l phi 59.17 tilt -13.788 share -0.848
+EZGRIP f35  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 151mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 350mm, above fists 379mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f38 r phi 61.12 tilt -16.036 share -0.868
+ROPETILT f38 l phi 61.11 tilt -16.036 share -0.869
+EZGRIP f38  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 143mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 347mm, above fists 374mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f41 r phi 62.02 tilt -17.495 share -0.882
+ROPETILT f41 l phi 62.01 tilt -17.495 share -0.883
+EZGRIP f41  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | rope to head 137mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 344mm, above fists 369mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f44 r phi 62.37 tilt -18.000 share -0.891
+ROPETILT f44 l phi 62.35 tilt -18.000 share -0.892
+EZGRIP f44  r inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | rope to head 133mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 340mm, above fists 365mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f47 r phi 62.56 tilt -18.051 share -0.895
+ROPETILT f47 l phi 62.55 tilt -18.051 share -0.896
+EZGRIP f47  r inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | rope to head 131mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 338mm, above fists 362mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f50 r phi 63.00 tilt -18.185 share -0.895
+ROPETILT f50 l phi 62.98 tilt -18.185 share -0.897
+EZGRIP f50  r inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | rope to head 129mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 337mm, above fists 360mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f53 r phi 63.21 tilt -18.359 share -0.898
+ROPETILT f53 l phi 63.19 tilt -18.359 share -0.900
+EZGRIP f53  r inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | rope to head 127mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 335mm, above fists 358mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f56 r phi 63.24 tilt -18.512 share -0.902
+ROPETILT f56 l phi 63.23 tilt -18.512 share -0.904
+EZGRIP f56  r inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | rope to head 125mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 333mm, above fists 356mm | rope vs body/head: min clearance 5.9mm (stopper.r vs Humero-ulnar head of flexor digitorum superficialis.r), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f59 r phi 63.22 tilt -18.594 share -0.904
+ROPETILT f59 l phi 63.20 tilt -18.594 share -0.906
+EZGRIP f59  r inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | rope to head 125mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 332mm, above fists 355mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f62 r phi 62.87 tilt -18.367 share -0.903
+ROPETILT f62 l phi 62.86 tilt -18.367 share -0.905
+EZGRIP f62  r inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | rope to head 126mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 333mm, above fists 356mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f65 r phi 61.98 tilt -17.175 share -0.899
+ROPETILT f65 l phi 61.95 tilt -17.175 share -0.901
+EZGRIP f65  r inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | rope to head 131mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 337mm, above fists 360mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f68 r phi 60.42 tilt -15.098 share -0.891
+ROPETILT f68 l phi 60.38 tilt -15.098 share -0.893
+EZGRIP f68  r inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | rope to head 138mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 342mm, above fists 366mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f71 r phi 58.23 tilt -12.372 share -0.878
+ROPETILT f71 l phi 58.18 tilt -12.372 share -0.880
+EZGRIP f71  r inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | rope to head 147mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 348mm, above fists 373mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f74 r phi 55.41 tilt -9.300 share -0.857
+ROPETILT f74 l phi 55.33 tilt -9.300 share -0.861
+EZGRIP f74  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.3mm grip-extent t -54.3..45.2 mm | rope to head 158mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 354mm, above fists 381mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f77 r phi 51.95 tilt -6.228 share -0.828
+ROPETILT f77 l phi 51.84 tilt -6.228 share -0.831
+EZGRIP f77  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 171mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 360mm, above fists 389mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f80 r phi 48.04 tilt -3.502 share -0.786
+ROPETILT f80 l phi 47.91 tilt -3.502 share -0.789
+EZGRIP f80  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 184mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 368mm, above fists 401mm | rope vs body/head: min clearance 5.9mm (stopper.r vs Humero-ulnar head of flexor digitorum superficialis.r), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f83 r phi 43.73 tilt -1.425 share -0.726
+ROPETILT f83 l phi 43.57 tilt -1.425 share -0.730
+EZGRIP f83  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 198mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 379mm, above fists 414mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f86 r phi 39.21 tilt -0.233 share -0.642
+ROPETILT f86 l phi 39.04 tilt -0.233 share -0.646
+EZGRIP f86  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 210mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 390mm, above fists 428mm | rope vs body/head: min clearance 5.9mm (stopper.r vs Humero-ulnar head of flexor digitorum superficialis.r), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f89 r phi 34.65 tilt -0.000 share -0.526
+ROPETILT f89 l phi 34.48 tilt -0.000 share -0.529
+EZGRIP f89  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 221mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 401mm, above fists 441mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f92 r phi 30.50 tilt -0.000 share -0.365
+ROPETILT f92 l phi 30.35 tilt -0.000 share -0.367
+EZGRIP f92  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 226mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 409mm, above fists 452mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f95 r phi 27.70 tilt -0.000 share -0.153
+ROPETILT f95 l phi 27.60 tilt -0.000 share -0.154
+EZGRIP f95  r inside 0 minclear 0.5mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.5mm grip-extent t -54.3..45.2 mm | rope to head 229mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 415mm, above fists 459mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f98 r phi 26.51 tilt 0.000 share 0.084
+ROPETILT f98 l phi 26.49 tilt 0.000 share 0.084
+EZGRIP f98  r inside 0 minclear 0.5mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.5mm grip-extent t -54.3..45.2 mm | rope to head 231mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 419mm, above fists 463mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f101 r phi 26.71 tilt 0.000 share 0.294
+ROPETILT f101 l phi 26.77 tilt 0.000 share 0.294
+EZGRIP f101  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 231mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 421mm, above fists 465mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f104 r phi 27.72 tilt 0.000 share 0.448
+ROPETILT f104 l phi 27.86 tilt 0.000 share 0.445
+EZGRIP f104  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 229mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 422mm, above fists 466mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f107 r phi 28.89 tilt 0.000 share 0.544
+ROPETILT f107 l phi 29.10 tilt 0.000 share 0.540
+EZGRIP f107  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 227mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 423mm, above fists 467mm | rope vs body/head: min clearance 5.9mm (stopper.r vs Humero-ulnar head of flexor digitorum superficialis.r), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f110 r phi 29.80 tilt 0.000 share 0.598
+ROPETILT f110 l phi 30.08 tilt 0.000 share 0.592
+EZGRIP f110  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 225mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 423mm, above fists 467mm | rope vs body/head: min clearance 5.9mm (stopper.r vs Humero-ulnar head of flexor digitorum superficialis.r), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f113 r phi 30.32 tilt 0.000 share 0.625
+ROPETILT f113 l phi 30.66 tilt 0.000 share 0.618
+EZGRIP f113  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 224mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 423mm, above fists 467mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f116 r phi 30.76 tilt 0.000 share 0.645
+ROPETILT f116 l phi 31.14 tilt 0.000 share 0.636
+EZGRIP f116  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 223mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 423mm, above fists 467mm | rope vs body/head: min clearance 5.9mm (stopper.r vs Humero-ulnar head of flexor digitorum superficialis.r), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f119 r phi 31.21 tilt 0.000 share 0.664
+ROPETILT f119 l phi 31.64 tilt 0.000 share 0.654
+EZGRIP f119  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 222mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 423mm, above fists 467mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f122 r phi 31.62 tilt 0.000 share 0.680
+ROPETILT f122 l phi 32.08 tilt 0.000 share 0.669
+EZGRIP f122  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 221mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 423mm, above fists 466mm | rope vs body/head: min clearance 5.9mm (stopper.r vs Humero-ulnar head of flexor digitorum superficialis.r), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f125 r phi 32.13 tilt 0.000 share 0.697
+ROPETILT f125 l phi 32.60 tilt 0.000 share 0.685
+EZGRIP f125  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 220mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 423mm, above fists 466mm | rope vs body/head: min clearance 5.9mm (stopper.r vs Humero-ulnar head of flexor digitorum superficialis.r), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+ROPETILT f128 r phi 32.43 tilt 0.000 share 0.706
+ROPETILT f128 l phi 32.91 tilt 0.000 share 0.695
+EZGRIP f128  r inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | l inside 0 minclear 0.4mm grip-extent t -54.3..45.2 mm | rope to head 219mm | ROPESTRAIGHT r 0.00mm, l 0.00mm | ROPEMONO r back 0.0mm, l back 0.0mm | clip above exits 423mm, above fists 466mm | rope vs body/head: min clearance 5.9mm (stopper.l vs Humero-ulnar head of flexor digitorum superficialis.l), crossings 0 | r hand-body gap >30mm | l hand-body gap >30mm
+EZGRIP TOTAL inside 0  worst clearance r 0.3mm l 0.3mm
+ROPEMONO TOTAL violations 0 (strand-frames), worst back 0.0mm
+ROPESTRAIGHT TOTAL violations 0 (strand-frames), worst 0.00mm

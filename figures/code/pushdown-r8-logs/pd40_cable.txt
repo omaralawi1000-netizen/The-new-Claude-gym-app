@@ -1,0 +1,131 @@
+CABLEDIAG f0: cable 110 px (visible 110), inside figure 0 px, min outside clearance 11 px, visible near-outline runs none -> ok
+CABLEDIAG f1: cable 110 px (visible 110), inside figure 0 px, min outside clearance 11 px, visible near-outline runs none -> ok
+CABLEDIAG f2: cable 105 px (visible 105), inside figure 0 px, min outside clearance 10 px, visible near-outline runs none -> ok
+CABLEDIAG f3: cable 104 px (visible 104), inside figure 0 px, min outside clearance 10 px, visible near-outline runs none -> ok
+CABLEDIAG f4: cable 106 px (visible 106), inside figure 0 px, min outside clearance 9 px, visible near-outline runs none -> ok
+CABLEDIAG f5: cable 101 px (visible 101), inside figure 0 px, min outside clearance 8 px, visible near-outline runs none -> ok
+CABLEDIAG f6: cable 110 px (visible 110), inside figure 0 px, min outside clearance 8 px, visible near-outline runs none -> ok
+CABLEDIAG f7: cable 107 px (visible 107), inside figure 0 px, min outside clearance 7 px, visible near-outline runs none -> ok
+CABLEDIAG f8: cable 108 px (visible 108), inside figure 0 px, min outside clearance 6 px, visible near-outline runs none -> ok
+CABLEDIAG f9: cable 125 px (visible 125), inside figure 0 px, min outside clearance 6 px, visible near-outline runs none -> ok
+CABLEDIAG f10: cable 143 px (visible 143), inside figure 0 px, min outside clearance 5 px, visible near-outline runs 5@407,135 -> ok
+CABLEDIAG f11: cable 148 px (visible 148), inside figure 0 px, min outside clearance 5 px, visible near-outline runs 10@407,138 -> ok
+CABLEDIAG f12: cable 147 px (visible 147), inside figure 0 px, min outside clearance 4 px, visible near-outline runs 15@407,142 -> ok
+CABLEDIAG f13: cable 141 px (visible 141), inside figure 0 px, min outside clearance 4 px, visible near-outline runs 20@407,146 -> ok
+CABLEDIAG f14: cable 145 px (visible 145), inside figure 0 px, min outside clearance 4 px, visible near-outline runs 25@407,150 -> TANGENT
+CABLEDIAG f15: cable 146 px (visible 146), inside figure 0 px, min outside clearance 4 px, visible near-outline runs 30@407,154 -> TANGENT
+CABLEDIAG f16: cable 142 px (visible 142), inside figure 0 px, min outside clearance 4 px, visible near-outline runs 31@406,156 -> TANGENT
+CABLEDIAG f17: cable 147 px (visible 147), inside figure 0 px, min outside clearance 3 px, visible near-outline runs 32@406,157 -> TANGENT
+CABLEDIAG f18: cable 144 px (visible 144), inside figure 0 px, min outside clearance 3 px, visible near-outline runs 33@406,159 -> TANGENT
+CABLEDIAG f19: cable 185 px (visible 185), inside figure 0 px, min outside clearance 3 px, visible near-outline runs 46@406,160 -> TANGENT
+CABLEDIAG f20: cable 180 px (visible 180), inside figure 0 px, min outside clearance 2 px, visible near-outline runs 2@405,177 46@405,162 -> TANGENT
+CABLEDIAG f21: cable 184 px (visible 180), inside figure 4 px, min outside clearance 1 px, visible near-outline runs 4@405,179 46@405,163 -> TANGENT
+CABLEDIAG f22: cable 177 px (visible 167), inside figure 10 px, min outside clearance 2 px, visible near-outline runs 4@405,178 45@405,163 -> TANGENT
+CABLEDIAG f23: cable 181 px (visible 166), inside figure 15 px, min outside clearance 1 px, visible near-outline runs 4@404,178 45@404,165 -> TANGENT
+CABLEDIAG f24: cable 184 px (visible 164), inside figure 20 px, min outside clearance 1 px, visible near-outline runs 4@404,178 45@404,166 -> TANGENT
+CABLEDIAG f25: cable 184 px (visible 159), inside figure 25 px, min outside clearance 1 px, visible near-outline runs 3@404,177 45@404,167 -> TANGENT
+CABLEDIAG f26: cable 184 px (visible 155), inside figure 29 px, min outside clearance 1 px, visible near-outline runs 3@403,177 45@403,167 -> TANGENT
+CABLEDIAG f27: cable 220 px (visible 168), inside figure 52 px, min outside clearance 1 px, visible near-outline runs 5@403,178 25@403,168 18@403,137 -> TANGENT
+CABLEDIAG f28: cable 215 px (visible 153), inside figure 62 px, min outside clearance 1 px, visible near-outline runs 4@403,177 23@403,169 15@403,135 -> ok
+CABLEDIAG f29: cable 218 px (visible 148), inside figure 70 px, min outside clearance 1 px, visible near-outline runs 4@402,177 20@402,170 14@403,134 -> ok
+CABLEDIAG f30: cable 221 px (visible 144), inside figure 77 px, min outside clearance 1 px, visible near-outline runs 5@402,177 18@402,171 12@403,132 -> ok
+CABLEDIAG f31: cable 218 px (visible 136), inside figure 82 px, min outside clearance 1 px, visible near-outline runs 5@401,176 15@402,170 12@402,132 -> ok
+CABLEDIAG f32: cable 215 px (visible 127), inside figure 88 px, min outside clearance 1 px, visible near-outline runs 19@401,176 10@402,130 -> ok
+CABLEDIAG f33: cable 220 px (visible 128), inside figure 92 px, min outside clearance 1 px, visible near-outline runs 17@401,176 9@402,130 -> ok
+CABLEDIAG f34: cable 213 px (visible 117), inside figure 96 px, min outside clearance 1 px, visible near-outline runs 15@401,176 8@402,129 -> ok
+CABLEDIAG f35: cable 220 px (visible 121), inside figure 99 px, min outside clearance 1 px, visible near-outline runs 13@400,175 9@402,129 -> ok
+CABLEDIAG f36: cable 215 px (visible 114), inside figure 101 px, min outside clearance 1 px, visible near-outline runs 12@400,175 8@402,128 -> ok
+CABLEDIAG f37: cable 215 px (visible 112), inside figure 103 px, min outside clearance 1 px, visible near-outline runs 11@400,175 8@402,128 -> ok
+CABLEDIAG f38: cable 219 px (visible 114), inside figure 105 px, min outside clearance 1 px, visible near-outline runs 10@400,175 7@402,127 -> ok
+CABLEDIAG f39: cable 214 px (visible 107), inside figure 107 px, min outside clearance 1 px, visible near-outline runs 9@400,175 7@401,127 -> ok
+CABLEDIAG f40: cable 211 px (visible 103), inside figure 108 px, min outside clearance 1 px, visible near-outline runs 8@400,174 7@401,127 -> ok
+CABLEDIAG f41: cable 215 px (visible 100), inside figure 115 px, min outside clearance 1 px, visible near-outline runs 8@399,175 7@401,126 -> ok
+CABLEDIAG f42: cable 229 px (visible 106), inside figure 123 px, min outside clearance 1 px, visible near-outline runs 7@399,174 7@401,126 -> ok
+CABLEDIAG f43: cable 229 px (visible 102), inside figure 127 px, min outside clearance 1 px, visible near-outline runs 9@399,175 7@401,127 -> ok
+CABLEDIAG f44: cable 233 px (visible 100), inside figure 133 px, min outside clearance 1 px, visible near-outline runs 8@399,174 6@401,126 -> ok
+CABLEDIAG f45: cable 241 px (visible 108), inside figure 133 px, min outside clearance 1 px, visible near-outline runs 8@399,174 8@401,126 -> ok
+CABLEDIAG f46: cable 247 px (visible 113), inside figure 134 px, min outside clearance 1 px, visible near-outline runs 7@399,174 8@401,126 -> ok
+CABLEDIAG f47: cable 247 px (visible 111), inside figure 136 px, min outside clearance 1 px, visible near-outline runs 6@399,174 7@401,125 -> ok
+CABLEDIAG f48: cable 248 px (visible 112), inside figure 136 px, min outside clearance 1 px, visible near-outline runs 6@399,174 7@401,125 -> ok
+CABLEDIAG f49: cable 253 px (visible 117), inside figure 136 px, min outside clearance 1 px, visible near-outline runs 6@399,174 7@401,125 -> ok
+CABLEDIAG f50: cable 247 px (visible 111), inside figure 136 px, min outside clearance 1 px, visible near-outline runs 6@399,174 7@401,126 -> ok
+CABLEDIAG f51: cable 250 px (visible 112), inside figure 138 px, min outside clearance 1 px, visible near-outline runs 5@399,173 8@401,125 -> ok
+CABLEDIAG f52: cable 248 px (visible 110), inside figure 138 px, min outside clearance 1 px, visible near-outline runs 5@399,173 8@401,125 -> ok
+CABLEDIAG f53: cable 248 px (visible 110), inside figure 138 px, min outside clearance 1 px, visible near-outline runs 5@399,174 8@401,125 -> ok
+CABLEDIAG f54: cable 257 px (visible 119), inside figure 138 px, min outside clearance 1 px, visible near-outline runs 5@399,174 8@401,125 -> ok
+CABLEDIAG f55: cable 252 px (visible 114), inside figure 138 px, min outside clearance 1 px, visible near-outline runs 5@399,174 8@401,125 -> ok
+CABLEDIAG f56: cable 249 px (visible 110), inside figure 139 px, min outside clearance 1 px, visible near-outline runs 4@399,173 8@401,125 -> ok
+CABLEDIAG f57: cable 249 px (visible 109), inside figure 140 px, min outside clearance 1 px, visible near-outline runs 4@399,173 7@401,125 -> ok
+CABLEDIAG f58: cable 251 px (visible 110), inside figure 141 px, min outside clearance 1 px, visible near-outline runs 4@399,173 6@401,124 -> ok
+CABLEDIAG f59: cable 251 px (visible 110), inside figure 141 px, min outside clearance 1 px, visible near-outline runs 4@399,173 6@401,124 -> ok
+CABLEDIAG f60: cable 257 px (visible 116), inside figure 141 px, min outside clearance 1 px, visible near-outline runs 4@399,173 6@401,124 -> ok
+CABLEDIAG f61: cable 255 px (visible 114), inside figure 141 px, min outside clearance 1 px, visible near-outline runs 4@399,173 6@401,124 -> ok
+CABLEDIAG f62: cable 257 px (visible 117), inside figure 140 px, min outside clearance 1 px, visible near-outline runs 4@399,173 7@401,125 -> ok
+CABLEDIAG f63: cable 255 px (visible 117), inside figure 138 px, min outside clearance 1 px, visible near-outline runs 5@399,174 8@401,125 -> ok
+CABLEDIAG f64: cable 256 px (visible 118), inside figure 138 px, min outside clearance 1 px, visible near-outline runs 5@400,173 8@401,125 -> ok
+CABLEDIAG f65: cable 251 px (visible 114), inside figure 137 px, min outside clearance 1 px, visible near-outline runs 6@400,174 8@402,124 -> ok
+CABLEDIAG f66: cable 235 px (visible 99), inside figure 136 px, min outside clearance 1 px, visible near-outline runs 6@400,173 7@402,125 -> ok
+CABLEDIAG f67: cable 231 px (visible 99), inside figure 132 px, min outside clearance 1 px, visible near-outline runs 6@400,174 6@402,125 -> ok
+CABLEDIAG f68: cable 221 px (visible 100), inside figure 121 px, min outside clearance 1 px, visible near-outline runs 6@400,174 7@402,125 -> ok
+CABLEDIAG f69: cable 219 px (visible 108), inside figure 111 px, min outside clearance 1 px, visible near-outline runs 7@400,174 6@402,125 -> ok
+CABLEDIAG f70: cable 218 px (visible 109), inside figure 109 px, min outside clearance 1 px, visible near-outline runs 8@401,174 7@402,126 -> ok
+CABLEDIAG f71: cable 218 px (visible 110), inside figure 108 px, min outside clearance 1 px, visible near-outline runs 8@401,174 7@402,126 -> ok
+CABLEDIAG f72: cable 220 px (visible 114), inside figure 106 px, min outside clearance 1 px, visible near-outline runs 9@401,174 7@402,126 -> ok
+CABLEDIAG f73: cable 220 px (visible 116), inside figure 104 px, min outside clearance 1 px, visible near-outline runs 10@401,175 8@403,126 -> ok
+CABLEDIAG f74: cable 220 px (visible 118), inside figure 102 px, min outside clearance 1 px, visible near-outline runs 11@402,175 8@403,127 -> ok
+CABLEDIAG f75: cable 214 px (visible 115), inside figure 99 px, min outside clearance 1 px, visible near-outline runs 13@402,175 8@403,127 -> ok
+CABLEDIAG f76: cable 215 px (visible 119), inside figure 96 px, min outside clearance 1 px, visible near-outline runs 14@402,175 9@403,128 -> ok
+CABLEDIAG f77: cable 221 px (visible 129), inside figure 92 px, min outside clearance 1 px, visible near-outline runs 16@403,175 10@403,128 -> ok
+CABLEDIAG f78: cable 217 px (visible 128), inside figure 89 px, min outside clearance 1 px, visible near-outline runs 18@403,176 9@403,128 -> ok
+CABLEDIAG f79: cable 222 px (visible 138), inside figure 84 px, min outside clearance 1 px, visible near-outline runs 5@403,175 14@403,170 10@404,129 -> ok
+CABLEDIAG f80: cable 222 px (visible 144), inside figure 78 px, min outside clearance 1 px, visible near-outline runs 5@404,176 17@404,170 11@404,130 -> ok
+CABLEDIAG f81: cable 217 px (visible 143), inside figure 74 px, min outside clearance 1 px, visible near-outline runs 5@404,176 17@404,170 12@404,130 -> ok
+CABLEDIAG f82: cable 222 px (visible 155), inside figure 67 px, min outside clearance 1 px, visible near-outline runs 4@404,177 20@404,169 13@404,132 -> ok
+CABLEDIAG f83: cable 177 px (visible 129), inside figure 48 px, min outside clearance 1 px, visible near-outline runs 4@405,177 18@405,169 12@405,133 -> ok
+CABLEDIAG f84: cable 184 px (visible 143), inside figure 41 px, min outside clearance 1 px, visible near-outline runs 3@405,176 20@405,168 13@405,134 -> ok
+CABLEDIAG f85: cable 180 px (visible 148), inside figure 32 px, min outside clearance 1 px, visible near-outline runs 3@405,176 23@405,167 16@405,137 -> ok
+CABLEDIAG f86: cable 178 px (visible 161), inside figure 17 px, min outside clearance 1 px, visible near-outline runs 4@406,177 50@406,167 -> TANGENT
+CABLEDIAG f87: cable 181 px (visible 168), inside figure 13 px, min outside clearance 1 px, visible near-outline runs 4@406,177 50@406,166 -> TANGENT
+CABLEDIAG f88: cable 185 px (visible 178), inside figure 7 px, min outside clearance 1 px, visible near-outline runs 4@406,178 51@406,165 -> TANGENT
+CABLEDIAG f89: cable 181 px (visible 179), inside figure 2 px, min outside clearance 1 px, visible near-outline runs 4@407,178 51@406,164 -> TANGENT
+CABLEDIAG f90: cable 178 px (visible 178), inside figure 0 px, min outside clearance 2 px, visible near-outline runs 1@407,176 51@407,163 -> TANGENT
+CABLEDIAG f91: cable 182 px (visible 182), inside figure 0 px, min outside clearance 2 px, visible near-outline runs 51@407,162 -> TANGENT
+CABLEDIAG f92: cable 147 px (visible 147), inside figure 0 px, min outside clearance 2 px, visible near-outline runs 39@407,162 -> TANGENT
+CABLEDIAG f93: cable 147 px (visible 147), inside figure 0 px, min outside clearance 2 px, visible near-outline runs 39@407,161 -> TANGENT
+CABLEDIAG f94: cable 141 px (visible 141), inside figure 0 px, min outside clearance 3 px, visible near-outline runs 39@408,160 -> TANGENT
+CABLEDIAG f95: cable 148 px (visible 148), inside figure 0 px, min outside clearance 3 px, visible near-outline runs 35@408,156 -> TANGENT
+CABLEDIAG f96: cable 144 px (visible 144), inside figure 0 px, min outside clearance 3 px, visible near-outline runs 32@408,153 -> TANGENT
+CABLEDIAG f97: cable 143 px (visible 143), inside figure 0 px, min outside clearance 3 px, visible near-outline runs 29@408,149 -> TANGENT
+CABLEDIAG f98: cable 148 px (visible 148), inside figure 0 px, min outside clearance 3 px, visible near-outline runs 25@408,146 -> TANGENT
+CABLEDIAG f99: cable 147 px (visible 147), inside figure 0 px, min outside clearance 3 px, visible near-outline runs 22@408,143 -> ok
+CABLEDIAG f100: cable 148 px (visible 148), inside figure 0 px, min outside clearance 4 px, visible near-outline runs 19@408,141 -> ok
+CABLEDIAG f101: cable 147 px (visible 147), inside figure 0 px, min outside clearance 4 px, visible near-outline runs 15@408,138 -> ok
+CABLEDIAG f102: cable 146 px (visible 146), inside figure 0 px, min outside clearance 4 px, visible near-outline runs 11@408,136 -> ok
+CABLEDIAG f103: cable 144 px (visible 144), inside figure 0 px, min outside clearance 4 px, visible near-outline runs 8@408,134 -> ok
+CABLEDIAG f104: cable 132 px (visible 132), inside figure 0 px, min outside clearance 5 px, visible near-outline runs 4@408,132 -> ok
+CABLEDIAG f105: cable 109 px (visible 109), inside figure 0 px, min outside clearance 5 px, visible near-outline runs 2@408,131 -> ok
+CABLEDIAG f106: cable 108 px (visible 108), inside figure 0 px, min outside clearance 5 px, visible near-outline runs 1@408,130 -> ok
+CABLEDIAG f107: cable 104 px (visible 104), inside figure 0 px, min outside clearance 6 px, visible near-outline runs none -> ok
+CABLEDIAG f108: cable 101 px (visible 101), inside figure 0 px, min outside clearance 6 px, visible near-outline runs none -> ok
+CABLEDIAG f109: cable 110 px (visible 110), inside figure 0 px, min outside clearance 7 px, visible near-outline runs none -> ok
+CABLEDIAG f110: cable 110 px (visible 110), inside figure 0 px, min outside clearance 7 px, visible near-outline runs none -> ok
+CABLEDIAG f111: cable 102 px (visible 102), inside figure 0 px, min outside clearance 7 px, visible near-outline runs none -> ok
+CABLEDIAG f112: cable 110 px (visible 110), inside figure 0 px, min outside clearance 7 px, visible near-outline runs none -> ok
+CABLEDIAG f113: cable 104 px (visible 104), inside figure 0 px, min outside clearance 8 px, visible near-outline runs none -> ok
+CABLEDIAG f114: cable 106 px (visible 106), inside figure 0 px, min outside clearance 8 px, visible near-outline runs none -> ok
+CABLEDIAG f115: cable 106 px (visible 106), inside figure 0 px, min outside clearance 8 px, visible near-outline runs none -> ok
+CABLEDIAG f116: cable 110 px (visible 110), inside figure 0 px, min outside clearance 8 px, visible near-outline runs none -> ok
+CABLEDIAG f117: cable 105 px (visible 105), inside figure 0 px, min outside clearance 8 px, visible near-outline runs none -> ok
+CABLEDIAG f118: cable 110 px (visible 110), inside figure 0 px, min outside clearance 9 px, visible near-outline runs none -> ok
+CABLEDIAG f119: cable 107 px (visible 107), inside figure 0 px, min outside clearance 9 px, visible near-outline runs none -> ok
+CABLEDIAG f120: cable 110 px (visible 110), inside figure 0 px, min outside clearance 9 px, visible near-outline runs none -> ok
+CABLEDIAG f121: cable 102 px (visible 102), inside figure 0 px, min outside clearance 9 px, visible near-outline runs none -> ok
+CABLEDIAG f122: cable 110 px (visible 110), inside figure 0 px, min outside clearance 10 px, visible near-outline runs none -> ok
+CABLEDIAG f123: cable 110 px (visible 110), inside figure 0 px, min outside clearance 10 px, visible near-outline runs none -> ok
+CABLEDIAG f124: cable 109 px (visible 109), inside figure 0 px, min outside clearance 10 px, visible near-outline runs none -> ok
+CABLEDIAG f125: cable 110 px (visible 110), inside figure 0 px, min outside clearance 10 px, visible near-outline runs none -> ok
+CABLEDIAG f126: cable 105 px (visible 105), inside figure 0 px, min outside clearance 10 px, visible near-outline runs none -> ok
+CABLEDIAG f127: cable 108 px (visible 108), inside figure 0 px, min outside clearance 11 px, visible near-outline runs none -> ok
+CABLEDIAG f128: cable 103 px (visible 103), inside figure 0 px, min outside clearance 11 px, visible near-outline runs none -> ok
+CABLEDIAG f129: cable 110 px (visible 110), inside figure 0 px, min outside clearance 11 px, visible near-outline runs none -> ok
+CABLEDIAG TOTAL tangent runs 27, longest near-outline run 51 px at f88

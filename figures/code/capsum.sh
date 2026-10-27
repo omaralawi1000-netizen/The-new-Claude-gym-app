@@ -1,0 +1,1 @@
+sort -k2.2n capd/all_$1.txt | sed -E 's/CAPDIAG (f[0-9]+) near r: cap ([0-9]+) px, ([0-9]+) over background, margin ([-+0-9.]+) px.*-> (.*)/\1 \3 \4 \5/' | awk '{printf "%s %s/%s %s; ", $1,$2,$3,($4=="inside"?"in":($4=="TANGENT"?"T":$4))}'; echo
