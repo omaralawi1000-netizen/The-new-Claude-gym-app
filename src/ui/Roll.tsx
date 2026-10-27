@@ -35,11 +35,13 @@ export function Roll({ text, className, style, delay = 0 }: { text: string; clas
       // the phone, once a second while the rest counted down
       inner.animate([{ transform: `translateY(${0.62 * d}em)`, opacity: 0 }, { transform: 'none', opacity: 1 }], { ...opts, fill: 'both' });
       if (old === undefined || old === ' ') continue;
-      const ghost = document.createElement('span');
-      ghost.className = 'roll-ghost'; ghost.textContent = old; ghost.setAttribute('aria-hidden', 'true');
-      cell.appendChild(ghost);
-      const a = ghost.animate([{ transform: 'none', opacity: 1 }, { transform: `translateY(${-0.62 * d}em)`, opacity: 0 }], { ...opts, fill: 'forwards' });
-      a.onfinish = a.oncancel = () => ghost.remove();
+      // the old digit's ghost stays in its cell, gone to nothing, and the next roll reuses it: removing it when it finished
+      // let go of its layer, and the words beside the number went missing for a frame (the week line on Today)
+      let ghost = cell.querySelector(':scope > .roll-ghost') as HTMLSpanElement | null;
+      if (!ghost) { ghost = document.createElement('span'); ghost.className = 'roll-ghost'; ghost.setAttribute('aria-hidden', 'true'); cell.appendChild(ghost); }
+      ghost.textContent = old;
+      ghost.getAnimations().forEach((x) => x.cancel());
+      ghost.animate([{ transform: 'none', opacity: 1 }, { transform: `translateY(${-0.62 * d}em)`, opacity: 0 }], { ...opts, fill: 'forwards' });
     }
   }, [text]);
   // keyed from the right, so a cell keeps its place value as the number grows or shrinks

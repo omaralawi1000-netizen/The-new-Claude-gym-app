@@ -69,11 +69,12 @@ function DayDot({ look, before, fresh, delay = 0 }: { look: DayLook; before: Day
     const sp = springCurve(BOUNCY);
     endWhenHidden([
       // small and already solid (a see-through disc over the empty circle read brown); the empty one goes once it is covered
-      disc.current.animate([{ transform: 'scale(0.35)', offset: 0 }], { duration: sp.duration, easing: sp.easing, delay, fill: 'both' }),
-      disc.current.animate([{ opacity: 0, offset: 0 }], { duration: 60, easing: 'linear', delay, fill: 'both' }),
+      disc.current.animate([{ transform: 'scale(0.3)', offset: 0 }], { duration: sp.duration, easing: sp.easing, delay, fill: 'both' }),
+      disc.current.animate([{ opacity: 0, offset: 0 }], { duration: 34, easing: 'linear', delay, fill: 'both' }),
       tick.current.animate([{ transform: 'scale(0.5)', opacity: 0, offset: 0 }], { duration: sp.duration, easing: sp.easing, delay: delay + 80, fill: 'both' }),
-      pre.current.animate([{ opacity: 1, offset: 0 }], { duration: 160, easing: 'cubic-bezier(0.4, 0, 0.6, 1)', delay: delay + 120, fill: 'both' }),
-      ring.current.animate([{ transform: 'none', opacity: 0.6, offset: 0 }, { opacity: 0.25, offset: 0.35 }], { duration: 650, delay: delay + 140, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'both' }),
+      pre.current.animate([{ opacity: 1, offset: 0 }], { duration: 140, easing: 'cubic-bezier(0.4, 0, 0.6, 1)', delay: delay + 40, fill: 'both' }),
+      // the ripple comes out from under the swelling disc
+      ring.current.animate([{ transform: 'none', opacity: 0.85, offset: 0 }, { opacity: 0.3, offset: 0.3 }], { duration: 600, delay: delay + 200, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'both' }),
     ]);
   }, [fresh]);
   const dot: React.CSSProperties = { width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700 };
@@ -85,7 +86,7 @@ function DayDot({ look, before, fresh, delay = 0 }: { look: DayLook; before: Day
   return (
     <span style={{ ...dot, position: 'relative' }}>
       <span ref={pre} style={{ ...fill, background: before.bg, color: before.color, boxShadow: of(before.shadow), opacity: 0.002 }}>{before.content}</span>
-      <i ref={ring} aria-hidden style={{ ...fill, boxShadow: 'inset 0 0 0 1.5px color-mix(in oklab, var(--of, var(--ac)) 75%, white)', transform: 'scale(1.6)', opacity: 0.002 }} />
+      <i ref={ring} aria-hidden style={{ ...fill, boxShadow: 'inset 0 0 0 1.5px color-mix(in oklab, var(--of, var(--ac)) 60%, white)', transform: 'scale(1.5)', opacity: 0.002 }} />
       <span ref={disc} style={{ ...fill, background: of(look.bg), color: look.color, boxShadow: of(look.shadow) }}><span ref={tick} style={{ display: 'grid' }}>{look.content}</span></span>
     </span>
   );
@@ -98,15 +99,17 @@ function DayDot({ look, before, fresh, delay = 0 }: { look: DayLook; before: Day
  */
 const LEAD = 220;
 function Link({ a, b, grow }: { a: number; b: number; grow: boolean }) {
-  const ref = useRef<HTMLElement>(null);
+  const ref = useRef<SVGSVGElement>(null);
   useLayoutEffect(() => {
     if (!grow || reducedMotion() || !ref.current) return;
     const c = springCurve(apple(Math.min(0.55 + 0.1 * (b - a - 1), 0.85)));
     endWhenHidden([ref.current.animate([{ transform: 'translateX(-100%)', offset: 0 }], { duration: c.duration, easing: c.easing, fill: 'both' })]);
   }, [grow]); // eslint-disable-line react-hooks/exhaustive-deps
+  // drawn in SVG in a box level with the circles: a 3 px box of its own is snapped to whole screen pixels, up to two of them
+  // off the circles' centres (SVG is drawn exactly where it is)
   return (
-    <i aria-hidden style={{ position: 'absolute', zIndex: 0, top: 'var(--link-y, 31.5px)', height: 3, borderRadius: 3, overflow: 'hidden', left: `calc((100% - 24px) / 7 * ${a + 0.5} + ${a * 4 + 17}px)`, width: `calc((100% - 24px) / 7 * ${b - a} + ${(b - a) * 4 - 34}px)` }}>
-      <i ref={ref} style={{ display: 'block', height: '100%', borderRadius: 3, background: 'var(--of, var(--ac))' }} />
+    <i aria-hidden style={{ position: 'absolute', zIndex: 0, top: 'var(--dot-y, 30px)', height: 36, overflow: 'hidden', left: `calc((100% - 24px) / 7 * ${a + 0.5} + ${a * 4 + 17}px)`, width: `calc((100% - 24px) / 7 * ${b - a} + ${(b - a) * 4 - 34}px)` }}>
+      <svg ref={ref} width="100%" height="36" style={{ display: 'block' }}><rect x="0" y="16.5" width="100%" height="3" rx="1.5" style={{ fill: 'var(--of, var(--ac))' }} /></svg>
     </i>
   );
 }
@@ -230,7 +233,7 @@ export function TodayScreen() {
       if ((w.p && w.d < today) || w.d > today) last = -1;
     });
   }
-  // the line runs through the circles' middles: measured, as the day letters above them set where that is
+  // the line runs through the circles' middles: their top measured, as the day letters above them set where that is
   useLayoutEffect(() => {
     const sec = stripRef.current;
     const btn = sec?.querySelector('button'), dot = btn?.children[1] as HTMLElement | undefined;
@@ -239,7 +242,7 @@ export function TodayScreen() {
     // pixels, as Today may still be arriving, scaled, when it is measured)
     const put = () => {
       const r = dot.getBoundingClientRect(), q = sec.getBoundingClientRect(), k = q.width / (sec.offsetWidth || q.width || 1);
-      sec.style.setProperty('--link-y', `${(r.top - q.top + r.height / 2) / k - 1.5}px`);
+      sec.style.setProperty('--dot-y', `${(r.top - q.top) / k}px`);
     };
     put();
     const ro = new ResizeObserver(put); ro.observe(btn);
