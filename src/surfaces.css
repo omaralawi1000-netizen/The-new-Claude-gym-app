@@ -43,7 +43,8 @@ html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme=
   background: rgba(8, 8, 12, 0.12) !important; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.22), 0 12px 28px -16px rgba(0, 0, 0, 0.55) !important;
 }
 html:root[data-look='a']:not([data-theme='light']) :is(.screen .plinth:not(.plinth .plinth), .screen .pin):not(#_):not(#_):not(#_):not(#_) {
-  background: rgba(8, 8, 10, 0.20) !important; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.25), 0 12px 28px -16px rgba(0, 0, 0, 0.6) !important;
+  /* (a soft sheen from above, on the card itself: a lift all over read as a slab, none as a hole: judge 26 Oct) */
+  background: linear-gradient(180deg, rgba(255, 255, 255, var(--frost-sheen, 0.035)), rgba(255, 255, 255, 0) 45%), rgba(8, 8, 10, 0.16) !important; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.25), 0 12px 28px -16px rgba(0, 0, 0, 0.6) !important;
 }
 html:root:is([data-look='a'], [data-look='b'], [data-look='c']):not([data-theme='light']) .screen .plinth:not(.plinth .plinth):not(#_):not(#_):not(#_):not(#_)::after {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05) 40%, rgba(255, 255, 255, 0.03)) !important; opacity: 1 !important;
