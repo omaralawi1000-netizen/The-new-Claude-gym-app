@@ -69,7 +69,7 @@ Wrapper: `run5.py scene.blend script.py -- args`.
 | Rope hammer curl | Clip 3 APPROVED by Omar (judge 9.2), locked, **not in the app yet** | Ship it when Omar says. A fist-tilt fix (0.40 vs rule 0.15 deg/f2) is optional: a new clip 4 with a keyed `rope_tilt` channel, never edit `approved/` |
 | Rope pushdown | body-motion version (clip12-body) judged 8.6, body motion 9.0 and Omar said the amount is "fine". Open: white fleck f39-41, f70-80; far-elbow fan f16-22 / f90-96; cable graze at chest f48-64 (judge saw 2-4 px) | Small pixel fix (`fixfleck.py`) or accept; then Batch A |
 | Bar pushdown (Batch A) | v1 frames rendered, judge 8.4: cable grazed chest f30-64 | `HIGH_Y` is already 0.75 in the motion (0 tangent runs in the test). Re-render to a new folder, gate, judge |
-| Cable curl (Batch A) | full render was ~64/130 done; the 64 frames **are saved** (f000-f063) | `RESUME=1` into the restored `clip_cc1`, then gate with `150,40,520,440` |
+| Cable curl (Batch A) | full render was 64 of 120 frames done; the 64 frames **are saved** (f000-f063) | `RESUME=1` into the restored `clip_cc1`, then gate with `150,40,520,440` |
 | Straight-arm pulldown | one still (f062) saved; motion tested natural, cable clear | render + gate + judge |
 | Single-arm pushdown | motion exists, framing looked good, grip not closely checked | check grip closeups, then render + gate + judge |
 
