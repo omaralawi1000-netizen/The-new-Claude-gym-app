@@ -48,6 +48,11 @@ Wrapper: `run5.py scene.blend script.py -- args`.
   without a traceback (check every `.ok` marker and the frame count yourself); it has no summary line for straight-barbell
   contact (`GRIP f..` records), so it says "no GRIPDIAG result" on barbell/curl clips. The runner scripts in `batchA/` take
   `AP=<working folder>` and `FIGMARK=<marker folder>` (defaults `/root/fig/ap`, `/root/fig`).
+  More gaps reported by the same review, **not verified or fixed** (check each before relying on the gate):
+  `holefill3.py` wraps masks at a fixed 130 frames (the 120-frame `curl_cable` clip would ask for a missing `fg_f129.npy`);
+  `render8.py` imports `pose` before the motion's `ENV` is applied, so `MOTION=hammer`/`pushdown` without `PROP` exported may
+  use the barbell elbow hinge; the gate's diagnostic renders omit the camera argument (`ref` instead of `clipref`), which
+  could give pocket masks from a different viewpoint. Export `PROP` yourself and pass the camera until these are fixed.
 - Encode: `ffmpeg -framerate 30 -i dir/f%03d.png -c:v libx264 -crf 20 -pix_fmt yuv420p -movflags +faststart x.mp4` (and libvpx-vp9 for webm).
 - Show Omar: `python3 tools/clip-page.py` is in the Claude project folder (`/mnt/project-files/tools/`); if you don't have it, any
   page with Real/Half/Quarter speed works. He watches inside Claude, never downloads.
