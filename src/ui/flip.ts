@@ -9,6 +9,8 @@ export function flip(root: Element | null, change: () => void, ms = 420, lead?: 
   const reduce = document.documentElement.dataset.motion === 'reduce'
     || (document.documentElement.dataset.motion !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
   if (!root || reduce) { change(); return; }
+  // (the workout's set outline, setRing.ts, waits out the move: these slides run on transforms nothing else reports)
+  root.dispatchEvent(new CustomEvent('flipstart', { detail: ms }));
   const before = new Map<string, number>();
   root.querySelectorAll<HTMLElement>('[data-flip]').forEach((el) => before.set(el.dataset.flip!, el.getBoundingClientRect().top));
   change();

@@ -29,7 +29,19 @@ const scen = [
   ['coach open', async () => { await p.evaluate(() => { const l = []; for (let i = 0; i < 30; i++) l.push({ id: 's' + i, role: i % 2 ? 'model' : 'user', text: 'A message long enough to wrap onto two lines in the Coach, so the chat scrolls. '.repeat(i % 2 ? 3 : 1), at: Date.now() - 3600000 }); localStorage.setItem('aven.coach', JSON.stringify(l)); }); await p.getByRole('button', { name: 'Coach', exact: true }).first().click(); }],
   ['coach scroll', () => p.locator('.coach-body').evaluate((el) => el.scrollBy({ top: -400 }))],
   ['coach close', () => p.keyboard.press('Escape')],
+  // the live workout (set highlight, alive plan step 1): start, tick, a tick that finishes a card (the highlight crosses to
+  // the next card), + Set, delete a set, minimise and resume
+  ['wk open', async () => { await tab('Today')(); await wait(p, 900); await p.getByRole('button', { name: /Start workout/ }).first().click(); }],
+  ['wk tick', () => wkTick()],
+  ['wk tick 2', () => wkTick()],
+  ['wk tick-cross', async () => { const left = await p.evaluate(() => { const r = document.querySelector('.wk-list .wk-set.current'); return r ? r.closest('section').querySelectorAll('.wk-set:not(.done)').length : 0; }); for (let i = 0; i < left; i++) { await wkTick(); await wait(p, 900); } }],
+  ['wk add-set', () => p.locator('.wk-list .wk-set.current').first().locator('xpath=ancestor::section[1]').locator('.wk-add-set').click()],
+  ['wk delete-set', async () => { await p.locator('.wk-list .wk-set.current .wk-set-n').first().click(); await wait(p, 500); await p.locator('.wk-list').getByRole('button', { name: 'Delete' }).first().click(); }],
+  ['wk minimise', () => p.getByRole('button', { name: 'Minimise workout' }).click()],
+  ['wk resume', () => p.locator('button[aria-label="Resume workout"]').first().click()],
+  ['wk tick after resume', () => wkTick()],
 ].filter(([n]) => !only.length || only.some((o) => n.includes(o)));
+function wkTick() { return p.locator('.wk-list .wk-set.current').first().getByRole('button', { name: 'Complete set' }).click(); }
 let total = 0;
 for (const [name, act] of scen) {
   await wait(p, 300);
@@ -43,6 +55,8 @@ for (const [name, act] of scen) {
   const seen = new Map();
   for (const l of startLayers) if (l.backendNodeId) seen.set(l.layerId, { l, t: 0 });
   const endIds = new Set(cur.map((l) => l.layerId));
+  // layers with no element of their own (rows Chrome merged onto a layer show up that way): only counted, not traced
+  let nodeless = 0; { let pv = new Set(startLayers.filter((l) => !l.backendNodeId && l.drawsContent).map((l) => l.layerId)); for (const ev of events) { const now = new Set(ev.layers.filter((l) => !l.backendNodeId && l.drawsContent).map((l) => l.layerId)); for (const id of pv) if (!now.has(id) && !endIds.has(id)) nodeless++; pv = now; } }
   const drops = [];
   let prev = new Set(startLayers.map((l) => l.layerId));
   for (const ev of events) {
@@ -63,7 +77,7 @@ for (const [name, act] of scen) {
     if (ok) shown.push(`${d.gone}ms ${nm}`);
   }
   total += shown.length;
-  console.log(`${name}: ${shown.length} on-screen layer drops after the animation${shown.length ? '\n    ' + shown.slice(0, 12).join('\n    ') + (shown.length > 12 ? `\n    … +${shown.length - 12}` : '') : ''}  (layers now ${cur.length})`);
+  console.log(`${name}: ${shown.length} on-screen layer drops after the animation${nodeless ? ` (+${nodeless} without an element)` : ''}${shown.length ? '\n    ' + shown.slice(0, 12).join('\n    ') + (shown.length > 12 ? `\n    … +${shown.length - 12}` : '') : ''}  (layers now ${cur.length})`);
 }
 console.log('TOTAL', total);
 await b.close();
