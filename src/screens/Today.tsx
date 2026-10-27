@@ -24,7 +24,7 @@ import { Roll } from '../ui/Roll';
 import { openFoodPhoto } from '../lib/photoOpen';
 import { CoachPin } from '../ui/CoachPin';
 import { useEdgeFade } from '../ui/edgeFade';
-import { BOUNCY, springCurve } from '../ui/motion';
+import { BOUNCY, GENTLE, springCurve } from '../ui/motion';
 import { useFillWhenSeen, useWeekFill, weekFillStarted } from './weekFill';
 
 /** a sideways row of chips that fades only on the side with more to scroll to */
@@ -41,6 +41,12 @@ function dayLook(done: boolean, wr: boolean, r: Routine | undefined, isToday: bo
     shadow: done || wr ? '0 0 18px -2px var(--ac)' : isToday ? 'inset 0 0 0 1.5px var(--ac), 0 0 18px -6px var(--ac)' : r ? 'inset 0 0 0 1px var(--line)' : undefined,
     content: done ? <Icon name="check" size={17} sw={2.6} /> : wr ? <Icon name="wrestle" size={17} /> : r ? r.name.slice(0, 1).toUpperCase() : pw ? <Icon name="wrestle" size={16} style={{ opacity: 0.75 }} /> : <i aria-hidden style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--tx3)', opacity: 0.6 }} />,
   };
+}
+/** the app put away mid-fill: it is simply done when you come back */
+function endWhenHidden(anims: Animation[]) {
+  const go = () => { if (document.hidden) anims.forEach((a) => a.finish()); };
+  document.addEventListener('visibilitychange', go);
+  Promise.all(anims.map((a) => a.finished)).catch(() => {}).finally(() => document.removeEventListener('visibilitychange', go));
 }
 const reducedMotion = () => document.documentElement.dataset.motion === 'reduce'
   || (document.documentElement.dataset.motion !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -61,11 +67,13 @@ function DayDot({ look, before, fresh }: { look: DayLook; before: DayLook; fresh
     if (!pre.current || !disc.current || !tick.current || !ring.current) return;
     // (one keyframe at the start: each goes from there to its resting look, the style below)
     const sp = springCurve(BOUNCY);
-    disc.current.animate([{ transform: 'scale(0.6)', offset: 0 }], { duration: sp.duration, easing: sp.easing, fill: 'both' });
-    disc.current.animate([{ opacity: 0, offset: 0 }], { duration: 200, easing: 'cubic-bezier(0.3, 0, 0.4, 1)', fill: 'both' });
-    tick.current.animate([{ transform: 'scale(0.5)', opacity: 0, offset: 0 }], { duration: sp.duration, easing: sp.easing, delay: 80, fill: 'both' });
-    pre.current.animate([{ opacity: 1, offset: 0 }], { duration: 280, easing: 'cubic-bezier(0.4, 0, 0.6, 1)', fill: 'both' });
-    ring.current.animate([{ transform: 'none', opacity: 0.7, offset: 0 }], { duration: 900, delay: 140, easing: 'cubic-bezier(0.2, 0.6, 0.35, 1)', fill: 'both' });
+    endWhenHidden([
+      disc.current.animate([{ transform: 'scale(0.6)', offset: 0 }], { duration: sp.duration, easing: sp.easing, fill: 'both' }),
+      disc.current.animate([{ opacity: 0, offset: 0 }], { duration: 200, easing: 'cubic-bezier(0.3, 0, 0.4, 1)', fill: 'both' }),
+      tick.current.animate([{ transform: 'scale(0.5)', opacity: 0, offset: 0 }], { duration: sp.duration, easing: sp.easing, delay: 80, fill: 'both' }),
+      pre.current.animate([{ opacity: 1, offset: 0 }], { duration: 280, easing: 'cubic-bezier(0.4, 0, 0.6, 1)', fill: 'both' }),
+      ring.current.animate([{ transform: 'none', opacity: 0.7, offset: 0 }], { duration: 900, delay: 140, easing: 'cubic-bezier(0.2, 0.6, 0.35, 1)', fill: 'both' }),
+    ]);
   }, [fresh]);
   const dot: React.CSSProperties = { width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700 };
   if (!held.current) return <span style={{ ...dot, background: look.bg, color: look.color, boxShadow: look.shadow }}>{look.content}</span>;
@@ -89,16 +97,23 @@ function DayDot({ look, before, fresh }: { look: DayLook; before: DayLook; fresh
 function Link({ a, b, grow }: { a: number; b: number; grow: boolean }) {
   const ref = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
-    if (grow && !reducedMotion()) ref.current?.animate([{ transform: 'scaleX(0)', offset: 0 }], { duration: 620, delay: 60, easing: 'cubic-bezier(0.3, 0, 0.2, 1)', fill: 'both' });
+    // (its slow last stretch is under today's circle)
+    const c = springCurve(GENTLE);
+    if (grow && !reducedMotion() && ref.current) endWhenHidden([ref.current.animate([{ transform: 'scaleX(0)', offset: 0 }], { duration: c.duration, delay: 60, easing: c.easing, fill: 'both' })]);
   }, [grow]);
   return <i ref={ref} aria-hidden style={{ position: 'absolute', zIndex: 0, top: 'var(--link-y, 31.5px)', height: 3, borderRadius: 3, background: 'var(--of, var(--ac))', transformOrigin: 'left', left: `calc((100% - 24px) / 7 * ${a + 0.5} + ${a * 4}px)`, width: `calc((100% - 24px) / 7 * ${b - a} + ${(b - a) * 4}px)` }} />;
 }
 
 /** the week's count, its number rolling as today's circle fills (it lands with the circle) */
 function CountLine({ text }: { text: string }) {
+  // with no weekly target the first workout brings the words themselves: they fade in instead
+  const ref = useRef<HTMLSpanElement>(null), was = useRef(text);
+  useLayoutEffect(() => {
+    if (!was.current && text && ref.current && !reducedMotion()) ref.current.animate([{ opacity: 0, offset: 0 }], { duration: 420, delay: 140, easing: 'cubic-bezier(0.3, 0, 0.4, 1)', fill: 'both' });
+    was.current = text;
+  }, [text]);
   const m = /\d+/.exec(text);
-  if (!m) return <>{text}</>;
-  return <>{text.slice(0, m.index)}<Roll text={m[0]} delay={140} />{text.slice(m.index + m[0].length)}</>;
+  return <span ref={ref}>{m ? <>{text.slice(0, m.index)}<Roll text={m[0]} delay={140} />{text.slice(m.index + m[0].length)}</> : text}</span>;
 }
 
 export function estMinutes(r: Routine): number {
