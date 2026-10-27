@@ -103,6 +103,9 @@ export function mountSetRing(list: HTMLElement, host: HTMLElement): () => void {
     const gl = g.glide;
     // already on its way (quick ticks): it never stops; only what is left of its first wait still holds it
     if (gl && gl.anim.playState !== 'finished') delay = Math.max(0, gl.delay - Number(gl.anim.currentTime ?? 0));
+    // and as visible as it is now (re-aimed mid-dip it must not flash back to full strength)
+    const fading = !!g.fade && g.fade.playState === 'running';
+    const op = gl && gl.anim.playState === 'running' && !fading ? Math.min(1, Number(getComputedStyle(g.el).opacity)) : 1;
     g.glide?.anim.cancel(); g.glide = null;
     place(g, b);
     const off = visual - b.y;
@@ -112,14 +115,15 @@ export function mountSetRing(list: HTMLElement, host: HTMLElement): () => void {
     // turn any speed into a huge ratio, and a tight cap on the ratio stopped it dead)
     const v = Math.max(-400, Math.min(400, now.v));
     const v0 = Math.max(-60, Math.min(60, -v / off));
-    const { xs, duration } = springSamples(SMOOTH, v0);
+    const { xs, duration } = springSamples(SMOOTH, v0, true); // (run until still: no last sub-pixel snap as it lands)
     const easing = `linear(${xs.map((v) => +v.toFixed(4)).join(', ')})`;
     // on a longer move it eases back a little while it travels (the line passes over the rows' numbers, so it reads as
     // gliding past them rather than striking through them) and is whole again as it lands. Not while it is fading in or out
-    const dip = Math.abs(off) >= 30 && !(g.fade && g.fade.playState === 'running');
-    const kf: Keyframe[] = dip
-      ? [{ transform: `translateY(${off}px)`, opacity: 1 }, { opacity: 0.5, offset: 0.3 }, { opacity: 0.5, offset: 0.6 }, { transform: 'none', opacity: 1 }]
-      : [{ transform: `translateY(${off}px)` }, { transform: 'none' }];
+    const from = `translateY(${off}px)`;
+    const kf: Keyframe[] = fading ? [{ transform: from }, { transform: 'none' }]
+      : Math.abs(off) >= 30 ? [{ transform: from, opacity: op }, { opacity: Math.min(op, 0.5), offset: 0.3 }, { opacity: 0.5, offset: 0.6 }, { transform: 'none', opacity: 1 }]
+      : op < 0.995 ? [{ transform: from, opacity: op }, { transform: 'none', opacity: 1 }]
+      : [{ transform: from }, { transform: 'none' }];
     const anim = g.el.animate(kf, { duration, delay, easing, fill: 'backwards' });
     anim.startTime = document.timeline.currentTime; // re-aimed mid-glide: it moves on from this very frame
     g.glide = { anim, off, xs, delay, dur: duration };
