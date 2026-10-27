@@ -235,8 +235,12 @@ export function TodayScreen() {
     const sec = stripRef.current;
     const btn = sec?.querySelector('button'), dot = btn?.children[1] as HTMLElement | undefined;
     if (!sec || !btn || !dot) return;
-    // (to the fraction of a pixel: a rounded one put the line visibly below the rest days' dots)
-    const put = () => { const r = dot.getBoundingClientRect(), q = sec.getBoundingClientRect(); sec.style.setProperty('--link-y', `${r.top - q.top + r.height / 2 - 1.5}px`); };
+    // (to the fraction of a pixel: a rounded one put the line visibly below the rest days' dots; and in the strip's own
+    // pixels, as Today may still be arriving, scaled, when it is measured)
+    const put = () => {
+      const r = dot.getBoundingClientRect(), q = sec.getBoundingClientRect(), k = q.width / (sec.offsetWidth || q.width || 1);
+      sec.style.setProperty('--link-y', `${(r.top - q.top + r.height / 2) / k - 1.5}px`);
+    };
     put();
     const ro = new ResizeObserver(put); ro.observe(btn);
     return () => ro.disconnect();
