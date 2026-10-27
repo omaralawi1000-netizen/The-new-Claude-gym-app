@@ -257,7 +257,9 @@ export class Expander {
     if (card) { src.classList.add('hx-src'); st.anims.push(this.clipFly(win, at, { duration: D })); }
     // a row of home fades as the growing page comes over it (gone at two fifths) (the page is see-through glass), then waits under it
     st.home = this.cover(src, win, at, () => 2.5, { duration: D }, undefined, paths);
-    st.anims.push(this.anim(this.e.shade, [{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 1, offset: 0.75 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
+    // the page's darker light is the whole screen's, not the window's: it comes over everything at once, in step with the
+    // window's glass, so no dark box moves over home and the background ends exactly as the page's (mat only adds its glow)
+    st.anims.push(this.anim(this.e.shade, card ? [{ opacity: 0 }, { opacity: 1, offset: 0.35 }, { opacity: 1 }] : [{ opacity: 0 }, { opacity: 1 }], { duration: card ? D : 90, easing: 'linear' }));
     // each block of the page shows as soon as it is inside the card (never cut by an edge) and the card's own words have left
     const fade = reduced() ? 1 : card ? Math.min(60, D * 0.1) : 40, gone = card ? fade / D : 0;
     const paired = new Set(st.fl.map((o) => o.b));
@@ -383,7 +385,9 @@ export class Expander {
     out.push(...st.home);
     if (card) out.push(this.clipFly((e) => mixE(g0, g1, e), at, { duration: D, delay }));
     this.e.shade.getAnimations().filter(mine).forEach((a) => a.cancel());
-    out.push(this.anim(this.e.shade, [{ opacity: shO }, { opacity: 0, offset: 0.4 }, { opacity: 0 }], { duration: D, delay, easing: 'linear' }));
+    // the screen's light comes back all at once, as the page's glass clears (never a dark box shrinking over home)
+    const sk = dg ? [0, pAt(0.6)] : mk; // let go after a swipe: the light starts coming back at once
+    out.push(this.anim(this.e.shade, [{ opacity: shO }, { opacity: shO, offset: sk[0] }, { opacity: 0, offset: sk[1] }, { opacity: 0 }], { duration: D, delay, easing: 'linear' }));
     // the rim comes back as the window turns into the card again
     this.rimParts().forEach((x, i) => x.style.transform = rimFrom[i] === 'none' ? '' : rimFrom[i]);
     this.rimMove(out, g0, g1, D, E, card ? [rimO, 0.45] : null, delay, true);
@@ -432,6 +436,7 @@ export class Expander {
       const sm = this.sm();
       L.forEach((l, i) => { const t = lt[i]; if (t !== 'none' && t !== 'matrix(1, 0, 0, 1, 0, 0)') this.anim(l, [{ transform: t }, { transform: 'none' }], { duration: sm.duration, easing: sm.easing }); });
       this.anim(this.e.rim, [{ opacity: 0 }, { opacity: 0 }], { duration: 1 });
+      this.anim(this.e.shade, [{ opacity: 1 }, { opacity: 1 }], { duration: 1 });
     }).catch(() => {});
   }
 
@@ -506,6 +511,7 @@ export class Expander {
   private slideOpen(st: State) {
     const { L, mat, scr } = this.e, W = this.e.root.clientWidth + 48;
     st.slide = true;
+    this.e.det.classList.add('slide'); // the slide keeps the page's light on the page itself
     this.e.det.classList.remove('moving'); // square the whole time: a shape change at the end would pop
     L.forEach((l) => { l.style.transform = ''; });
     st.anims.push(this.anim(mat, [{ opacity: 1 }, { opacity: 1 }], { duration: 1 }));
@@ -550,7 +556,7 @@ export class Expander {
     this.st?.src.classList.remove('hx-src');
     [rim, drag, ...this.rimParts()].forEach((x) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.transform = ''; });
     this.st?.dim.forEach((x) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.opacity = ''; });
-    det.classList.remove('live', 'moving');
+    det.classList.remove('live', 'moving', 'slide');
     // home back as it was; a style write after the cancel makes Chrome recompute it (it can keep a cancelled 0 otherwise)
     $$('*', this.e.scr).forEach((x) => { const c = x.getAnimations().filter((a) => a.id === 'hx-cover'); if (!c.length) return; c.forEach((a) => a.cancel()); x.style.opacity = '1'; x.style.opacity = ''; });
     dsc.getAnimations().filter(mine).forEach((a) => a.cancel()); dsc.style.transform = '';
