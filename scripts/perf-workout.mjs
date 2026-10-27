@@ -58,5 +58,8 @@ await measure('reopen', () => p.getByLabel('Resume workout').first().tap(), 2000
 await measure('focus-enter', () => p.getByRole('button', { name: 'Focus view' }).tap(), 1800);
 await measure('focus-tick', () => p.locator('.wk-page.cur').getByRole('button', { name: 'Complete set' }).first().tap(), 1600);
 await measure('focus-leave', () => p.getByRole('button', { name: 'List view' }).tap(), 1600);
+// finishing (alive plan step 2): the summary, then Done; today's circle fills in the week strip once it is in view
+await measure('finish', async () => { await p.getByRole('button', { name: 'Finish', exact: true }).tap(); await wait(p, 700); await p.getByRole('button', { name: /Finish and save/ }).tap(); }, 2400);
+await measure('today-after-finish', async () => { await p.getByRole('button', { name: 'Done', exact: true }).tap(); await wait(p, 600); await p.locator('.tc-week').first().evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' })); }, 2600);
 console.log(`CPU ×${rate}`); rows.forEach((r) => console.log(r));
 await b.close();

@@ -40,6 +40,9 @@ const scen = [
   ['wk minimise', () => p.getByRole('button', { name: 'Minimise workout' }).click()],
   ['wk resume', () => p.locator('button[aria-label="Resume workout"]').first().click()],
   ['wk tick after resume', () => wkTick()],
+  // finishing it (alive plan step 2): the summary, then Done; today's circle in the week strip fills once it is seen
+  ['wk finish', async () => { await p.getByRole('button', { name: 'Finish', exact: true }).click(); await wait(p, 700); await p.getByRole('button', { name: /Finish and save/ }).click(); }],
+  ['today after finish', async () => { await p.getByRole('button', { name: 'Done', exact: true }).click(); await wait(p, 900); await p.locator('.tc-week').first().evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' })); }],
 ].filter(([n]) => !only.length || only.some((o) => n.includes(o)));
 function wkTick() { return p.locator('.wk-list .wk-set.current').first().getByRole('button', { name: 'Complete set' }).click(); }
 let total = 0;

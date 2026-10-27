@@ -3325,3 +3325,23 @@ Omar, 26 Oct 19:36: go for step 1; 27 Oct 06:27 after Beta: "Put in live". Four 
   `flipstart`), never while Focus view hides the list. Flicker-layers and 4× CPU timings match the live app.
 - Tests used: `scripts/flicker-layers.mjs` (wk steps), `scripts/perf-workout.mjs` (add-set step); real-speed clips were recorded
   by slowing every page animation through CDP and resampling by animation time.
+
+## The week strip comes alive (alive plan step 2, 27 Oct 2026, v0.1.184)
+After a workout, the first time Today's week strip is seen, today's circle fills and the week count rolls up one. Omar
+picked line option C (27 Oct): trained days (gym or wrestling done) are joined by a line that runs on through rest days and
+breaks at a missed planned workout.
+- When it plays (`src/screens/weekFill.ts`): only when the finished workout's summary opens for a day that had nothing in it
+  before (no other workout, no wrestling). While the summary covers Today the strip is drawn as it was before the workout,
+  so nothing fills twice. It plays once the strip is 90 % on screen, nothing is over Today and the strip has stood still
+  (not moving, no ancestor fading) for about 0.18 s; ~0.85 s after Done in practice. Kept in memory only. Do not poll
+  `document.getAnimations()` for this: it left the count's digit undrawn for a few frames in films.
+- Order (`DayDot`, `Link`, `CountLine` in `Today.tsx`): the newest line segment slides out of the day before (rim to rim,
+  an SVG rect so it sits level with the circles; plain boxes snap to device pixels) on `apple(0.55 + 0.1 per extra day,
+  max 0.85)`. The letter fades first (100 ms, ending as the disc starts); today's disc starts +220 ms (or +60 ms with no
+  line), solid from its first frame, scale 0.3 -> 1 on BOUNCY; the empty ring stays lit until the disc covers it and fades
+  unseen under it (+260 ms, 100 ms); the check follows +80 ms; the count rolls +140 ms after the disc (`Roll` gained a
+  `delay`, and keeps its ghost digits instead of removing them, which dropped a layer and blinked the words beside it).
+- Flicker rule: every layer is held where it ends (hidden ones at opacity 0.002); nested layers ask for the dark look's one
+  orange themselves (`var(--of, var(--ac))`), since look.css only reaches a circle's direct child spans.
+- Interruptions: switching tab mid-fill shows the plain filled circle; putting the app away finishes it at once; reduced
+  motion shows the end state. Fresh judges 7 -> 8 -> 8.5 -> 9.
