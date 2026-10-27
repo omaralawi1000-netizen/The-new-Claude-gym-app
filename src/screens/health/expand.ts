@@ -150,7 +150,7 @@ export class Expander {
   }
   /** each home unit shows only the part of it the page is not covering (the page is see-through only once it clears), so the
    *  card's edge uncovers words instead of blinking them; sampled from the same spring as the window */
-  private cover(src: HTMLElement, win: (e: number) => Edges, at: (p: number) => number, m: (p: number) => number, o: { duration: number; delay?: number }, paths?: [Box, Box][], leave?: [Box, Box][], g: (p: number) => number = () => 1) {
+  private cover(src: HTMLElement, win: (e: number) => Edges, at: (p: number) => number, m: (p: number) => number, o: { duration: number; delay?: number }, paths?: [Box, Box][], leave?: [Box, Box][], g: (p: number) => number = () => 1, shown?: (r: Box) => boolean) {
     // opening: a line a flying copy will cross is gone before the copy gets there (the first 80 ms)
     const lane = (r: Box) => !!leave?.some(([a, b]) => { const l = Math.min(a.x, b.x), rr = Math.max(a.x + a.w, b.x + b.w), t = Math.min(a.y, b.y), bb = Math.max(a.y + a.h, b.y + b.h); return r.x < rr && r.x + r.w > l && r.y < bb && r.y + r.h > t; });
     const k = 80 / o.duration;
@@ -161,7 +161,7 @@ export class Expander {
       const r = this.box(x), gone = lane(r) || (sentGone && !!x.closest('.hx-sent'));
       // closing: a row a landing copy passes over waits, unseen, until it has passed (one animation per element: Chrome can
       // leave a row stuck at 0 when several opacity animations on it are cancelled together)
-      const c = paths ? clearAfter(r, paths, at) : 0, c0 = Math.min(0.38, c), held = (p: number) => (c <= 0 ? 1 : ss((p - c0) / 0.2));
+      const c = paths && !(shown?.(r)) ? clearAfter(r, paths, at) : 0, c0 = Math.min(0.38, c), held = (p: number) => (c <= 0 ? 1 : ss((p - c0) / 0.2));
       // only the part on screen counts: a line below the screen's edge is under the page too, and stays hidden until home is back
       const h = this.e.root.clientHeight, t = Math.max(0, r.y), bt = Math.min(h, r.y + r.h), off = bt - t < 1, u: Edges = [r.x, t, r.x + r.w, bt];
       const kf = Array.from({ length: N + 1 }, (_, i) => { const p = i / N; return { offset: p, opacity: off ? (paths && p === 1 ? 1 : 0) : +(ss(1 - cover(u, win(at(p))) * m(p)) * held(p) * g(p) * (gone ? 1 - ss(p / k) : 1)).toFixed(4) }; });
@@ -248,7 +248,9 @@ export class Expander {
     // (measured above with the page at rest; now it starts shifted)
     st.anims.push(this.anim(dsc, [{ transform: `translate(${ox}px,${oy}px)` }, { transform: 'none' }], { duration: D, easing: E }));
     st.dim = this.dimOf(src);
-    st.dim.forEach((x) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 1 : 40, easing: 'linear' }); });
+    // a card's own words hand over to the page's as it grows (the page's come in from a twentieth of the way); a pill's step aside at once
+    const fade = reduced() ? 1 : card ? Math.min(90, D * 0.12) : 40;
+    st.dim.forEach((x) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: fade, easing: 'linear' }); });
     this.playPage(Math.round(D * 0.08));
     // landed: the page's own number and chart take over from the copies
     Promise.all(st.anims.slice(0, st.fl.length + L.length).map((a) => a.finished)).then(() => {
@@ -334,9 +336,9 @@ export class Expander {
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
     st.dim.forEach((x, i) => {
       // the card's words come back as the card clears off it, in time to be there when the window lands (a pill: its number lands inside it)
-      const p = x === st.src ? 0.2 : card ? 0.24 : 0.42;
+      const p = x === st.src ? 0.1 : card ? 0.1 : 0.42;
       x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.opacity = '0';
-      out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: p }, { opacity: 1, offset: p + 0.18 }, { opacity: 1 }], { duration: D, delay, easing: 'linear' }));
+      out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: p }, { opacity: 1, offset: p + (card ? 0.2 : 0.18) }, { opacity: 1 }], { duration: D, delay, easing: 'linear' }));
     });
     L.forEach((l, i) => out.unshift(this.anim(l, [{ transform: fromL[i] }, { transform: wf[i] }], { duration: D, delay, easing: E })));
     // the swipe's own move (down and a little smaller) eases out on the same spring as the window
@@ -354,7 +356,9 @@ export class Expander {
     };
     const ownRow = st.src.closest('.hx-row,.hx-card') ?? st.src;
     ownRow.getAnimations().filter((a) => a.id === 'hx-cover').forEach((a) => a.cancel());
-    st.home = this.cover(st.src, (e) => toScreen(mixE(g0, g1, e), e), at, mo, { duration: D, delay }, paths);
+    // after a swipe, a row already showing beside the page stays (the copies fly inside the page, never over it)
+    const shown = dm ? (r: Box) => cover([r.x, r.y, r.x + r.w, r.y + r.h], toScreen(g0, 0)) < 0.99 : undefined;
+    st.home = this.cover(st.src, (e) => toScreen(mixE(g0, g1, e), e), at, mo, { duration: D, delay }, paths, undefined, undefined, shown);
     out.push(...st.home);
     this.e.shade.getAnimations().filter(mine).forEach((a) => a.cancel());
     out.push(this.anim(this.e.shade, [{ opacity: shO }, { opacity: 0, offset: 0.4 }, { opacity: 0 }], { duration: D, delay, easing: 'linear' }));
@@ -453,7 +457,7 @@ export class Expander {
   swipeSpring(vy: number) {
     const st = this.st, d = st?.drag; if (!st || !d) return {};
     const k = Math.max(0, Math.min(1, vy / 2.5));
-    const sp = spr(0.88 - 0.26 * k, 10 + 6 * k);
+    const sp = spr(0.88 - 0.16 * k, 10 + 6 * k);
     // the window's top edge goes from under the finger to the card's top: hand it the finger's speed
     const travel = this.edges(st.src)[1] - d.dy;
     const v0 = travel > 40 && vy > 0 ? Math.min(6, (vy * 1000) / travel) : 0;
