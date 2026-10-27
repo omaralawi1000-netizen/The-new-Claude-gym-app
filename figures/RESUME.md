@@ -22,7 +22,7 @@ it doesn't ship.**
 
 ## Big files (not in git)
 Listed in [`ASSETS.md`](ASSETS.md): scene, approved hammer clip, pushdown body clip, Batch A partial frames, pushdown keys.
-Where they live and how to restore them is in [`ASSETS.md`](ASSETS.md). Download steps and checksums are there (`gh release download figures-assets-oct27 -R omaralawi1000-netizen/The-new-Claude-gym-app`). Without the scene file you cannot render.
+Where they live and how to restore them is in [`ASSETS.md`](ASSETS.md). They are not public: get them from Omar / the project folder (see ASSETS.md). Without the scene file you cannot render.
 
 ## Set up (about 10 min)
 ```

@@ -1,15 +1,10 @@
 # Figure assets (big files, not in git)
 
-Five zip files, made 27 Oct 2026, checksums below. Omar OKed publishing them (27 Oct 17:41). Planned home: the release
-tag `figures-assets-oct27` of this repo. **If that release does not exist yet, the upload has not been done** (a Claude
-session could not create it; Omar or a session with release rights must). Copies are also in the Claude project folder
-`/mnt/project-files/figures-assets/`. Restore each one with `unzip` inside your working folder `ap/`.
-
-**Credit and licence:** the figure scene is derived from Z-Anatomy (<https://www.z-anatomy.com>), licensed CC BY-SA 4.0,
-so these files are shared under the same licence. Keep the credit (it is also shown in the app's Settings).
-
-**Download:** `gh release download figures-assets-oct27 -R omaralawi1000-netizen/The-new-Claude-gym-app` (or the release page
-in a browser), then check `sha256sum` against the list below.
+Five zip files, made 27 Oct 2026, checksums below. **They are deliberately NOT published** (public repo; the scene is
+derived from Z-Anatomy, CC BY-SA 4.0, and Omar chose to keep it out of the public repo, 27 Oct). They live in the Claude
+project folder `/mnt/project-files/figures-assets/`. If you don't have that folder, ask Omar for `figures-scene12-blend.zip`
+(required for any render) and the others. Keep the Z-Anatomy credit (<https://www.z-anatomy.com>, also shown in Settings) if
+you ever share them. Restore each one with `unzip` inside your working folder `ap/` and check `sha256sum`.
 
 | File | Size | What | Unzip to |
 |---|---|---|---|
