@@ -7,6 +7,286 @@ A new product — unrelated to Setline (which was not touched).
 - English and Danish (`src/lib/da.ts`), metric-first with lb/mi/in available, locale-aware dates, decimals and day boundary.
 - Installable PWA (manifest + service worker). Updates never replace a running workout (see *Updates*).
 
+## Start here: the full handover (27 Oct 2026)
+
+This part is for any new Claude session, on Aven or on a brand-new app, so it knows what was done before without asking
+Omar again. Read this part first. Everything below it ("Run it" onwards) is the older reference and then the dated history of
+every change, oldest near the top and newest at the bottom. Some old history sections are out of date (for example
+"What is implemented / not built" still says there are no figures and no reminders when the app is closed; both exist now).
+When this part and an old section disagree, this part wins.
+
+**Read next, depending on the job** (this README links to them instead of copying them):
+- [`CLAUDE.md`](CLAUDE.md): the short rules every session follows, the ship flow and the Beta flow.
+- [`docs/style-guide.md`](docs/style-guide.md): Omar's one written style (glass, colour, motion, speed, how to preview and judge, rejected looks). Read it before any visual or motion work.
+- [`docs/polish-plan.md`](docs/polish-plan.md): the old numbered to-do list ("do section N"). Paused since 15 Oct.
+- [`docs/living-coach-plan.md`](docs/living-coach-plan.md): the living Coach plan with its progress table.
+- [`docs/coach-plan.md`](docs/coach-plan.md) and [`docs/coach-brain-plan.md`](docs/coach-brain-plan.md): Coach 2.0 and the Coach brain work (done, kept for the why).
+- Outside the repo, in the Claude project's shared folder `/mnt/project-files/` (only visible from inside Omar's
+  "The memory of aven" project): `inspiration/design-spec.md` (the living design spec and taste picks),
+  `inspiration/alive-plan.md`, `inspiration/tabbar-handover.md`, `anatomy-proof/handover-sonnet.md` (figures),
+  `aven-android/HANDOVER.md` (Android app), `tools/README.md` (preview videos), `living-coach/` (Coach plan, test harnesses),
+  `health/` (Health mocks, judge verdicts). A new project won't see that folder; copy what you need first.
+
+### 1. What Aven is
+
+- Omar's own gym, food and wrestling app. He lives in Aarhus, Denmark, lifts, wrestles, and judges everything on his phone:
+  a Samsung Galaxy S26 Ultra (Android 17, Chrome 154, 120 Hz screen, device pixel ratio 3.75).
+- He uses it as the "Aven" Android app, which is a thin wrapper (a Trusted Web Activity) around the website. A second
+  installable copy, "Aven Beta", is where risky changes are tried first (see section 6).
+- English and Danish. Metric. Prices and foods are Danish by default.
+- Omar is not a programmer. Claude leads design, animation and code; Omar decides taste and says go.
+- Live: <https://omaralawi1000-netizen.github.io/The-new-Claude-gym-app/>. Beta: the same address plus `/beta/`.
+  Repo default branch (and the one that deploys): `ccr-d1172cc7-1e03wh` (everyone calls it "main").
+- Version on 27 Oct 2026: **v0.1.184**.
+
+### 2. Stack and where things live
+
+- React 19 + TypeScript + Vite, installable PWA (`vite-plugin-pwa`), state in zustand (`src/state/store.ts`), animation with
+  the `motion` library plus hand-written WAAPI/CSS. Tests with vitest (`tests/`), browser checks with Playwright (`scripts/`).
+- Data stays on the phone: `localStorage` key `aven.v1` (workouts, food, settings), `aven.keys` (the API keys he types into
+  Settings), IndexedDB for photos and the watch data (`aven-watch`). Optional Google Drive backup (`src/lib/drive.ts`).
+  Beta puts `beta:` in front of every key and database name (`src/lib/beta.ts`), so it can never touch the real data.
+- A tiny optional lookup server (`server/index.mjs`) for Open Food Facts + USDA. The live site is static and falls back to
+  calling Open Food Facts directly.
+- Android app: `android/` (package `app.aven.android`). Java in `android/app/src/main/java/app/aven/android/`:
+  `AvenLauncher` (opens the site, calm launch), `Rest*` (rest countdown on the lock screen, alarm, buttons in the
+  notification), `Health*` (reads Health Connect every 30 min: sleep, heart, steps, workouts; writes weight and food).
+  Built and published by `.github/workflows/android.yml`; APK at the `android-latest` pre-release.
+  **Signing keys live only in `/mnt/project-files/aven-android/`. Never put them in git, chat, logs or memory.**
+- Deploy: `.github/workflows/pages.yml` ("Deploy web app") builds main to GitHub Pages and rebuilds Beta from the branch
+  remembered in the `beta` branch.
+
+**Code map (where each feature lives)**
+
+| Area | Main files |
+|---|---|
+| Tabs and app shell | `src/App.tsx`, `src/ui/TabBar.tsx` (tabs: Today, Train, Food, Health; Health's id is still `progress`) |
+| Today | `src/screens/Today.tsx`, `TodayCards.tsx`, `weekFill.ts` (week strip that fills after a workout) |
+| Train, workouts | `src/screens/Train.tsx`, `src/screens/workout/` (`Active.tsx` live workout, `Focus.tsx` one exercise per page, `rest.ts`, `Summary.tsx`, `finishMoment.ts`, `Figure.tsx`/`Clip.tsx` exercise figures) |
+| Food | `src/screens/Food.tsx`, `src/screens/food/` (search, scanner, photo food, meals, water), `src/lib/nutrition.ts`, `src/data/foods*.ts` (bundled + Danish foods) |
+| Health | `src/screens/Health.tsx`, `src/screens/health/` (`expand.ts` = the grow animation), `src/lib/healthSync.ts`, `src/lib/watchDetail.ts` |
+| Coach (chat) | `src/screens/Coach.tsx`, `CoachMemory.tsx`, `src/lib/agent*.ts`, `brain.ts`, `coachContext.ts`, `goals.ts`, `answerCheck.ts`, `nudges.ts`, `weekReview.ts` |
+| Orb (voice) | `src/screens/Voice.tsx`, `VoiceAi.tsx`, `src/ui/Sphere.tsx` + `sphere.worker.ts`, `src/lib/speech.ts`, `groq.ts`, `tts.ts` |
+| AI clients | `src/lib/gemini.ts`, `openai.ts`, `groq.ts`, `keys.ts` |
+| Glass, glow, motion | `src/styles.css`, `look.css`, `surfaces.css`, `src/ui/frost.ts`, `glow*.ts`, `motion.ts` (springs), `press.ts`, `flip.ts`, `fly.ts` |
+| Settings, onboarding | `src/screens/Settings.tsx`, `Onboarding.tsx`, `DriveBackup.tsx` |
+| Danish | `src/lib/da.ts` (check with `node scripts/i18n-keys.mjs --missing`) |
+
+### 3. AI setup
+
+- No paid services are built in. Omar types his own keys in Settings → Voice & AI; they stay on the phone (`aven.keys`),
+  never in code, commits, logs or backups.
+- **Coach brain (26 Oct, v0.1.181): Gemini 4 Argon first, Gemini Flash as fallback** (`COACH_MODEL` in `src/lib/gemini.ts`).
+  A timeout hands over to the next model. Argon takes 6–20 s per answer. Omar must have Settings → Voice & AI → Brain →
+  Gemini selected. The orb uses Flash.
+- OpenAI (`gpt-6.1-sol`, `gpt-6-luna` in `src/lib/openai.ts`) is still supported, but **Omar has no OpenAI credit
+  (26 Oct): don't plan on GPT.** Gemini Pro was tested and scored worse than Flash; Omar said no Pro.
+- Groq does speech-to-text (`whisper-large-v3` / turbo). Groq's free tier is too small for the full Coach prompt.
+- In a cloud Claude session, Gemini and Groq calls go through a proxy that adds the keys, so you can test real answers
+  without any key in the repo. OpenAI can't be reached from the cloud.
+
+### 4. Current state per area (27 Oct 2026)
+
+This is a snapshot. Check `git log` and open pull requests before trusting it.
+
+- **Coach (chat).** Living Coach steps 1 (honest voice, v0.1.179) and 2 (goals you tell it, v0.1.180) are live, then a
+  polish round and the switch to Argon (v0.1.181). Judges: the live Coach went from about 5 to 7–7.5 out of 10. Remaining
+  weakness is mostly the model's wording. Steps 3–6 (phone link test, morning looks, full background coach, Sunday review)
+  are not started; each needs Omar's own go. Background thinking is now planned on free Gemini, not OpenAI. Details and
+  progress table: `docs/living-coach-plan.md`.
+- **Coach pilot (decided 27 Oct).** First real goal: go from his mini cut (ends 29 Oct) to at least 2 weeks at
+  maintenance without fat regain or strength loss (old maintenance 2,750–2,800 kcal). Pilot runs **30 Oct – 12 Nov,
+  review 13 Nov.** Signals: weekly average of morning weigh-ins, main lifts, logged kcal and protein. Deliverable: one real
+  agreement made in Aven, one follow-up that is saved, one follow-up that arrives on Android with the app closed (if that
+  isn't ready by 30 Oct, start with in-app follow-ups). Omar wants a gap report and a plan before any code, each with its
+  own go. Master prompt: `/mnt/project-files/living-coach/master-prompt-combined.md`.
+- **Broad Coach test.** Omar said: don't start it, remind him when it's a good moment (few threads busy, usage fine, Coach
+  used for real for a day or two). Covers everyday questions with his real data, judged against a 10/10 answer.
+- **Coach screen redesign.** Round 1 (letters A–I) was rejected as not unique enough. Round 2 page has J Glassblower
+  (Claude's pick), K Dot Matter, L Comet Scribe, judged 7.6–7.8. Waiting on his letter; the build then goes to the design lead.
+- **Health tab.** The "grow" version (a card grows into its page) is live (v0.1.183). A new bento layout (wide, tall and
+  square cards; sections Recovery, Training, Body) with swipe-down-to-close is built on branch
+  `claude/project-thread-4o8cd5`, not live. Omar watched round 7 videos: "very good", only the background during the
+  move needed fixing; that fix is done (self-checked, not judged). He said no Beta, polish first. Health colours (lilac
+  sleep, red heart, orange steps, yellow cardio on near-black) are approved: don't change them.
+- **Alive plan** (small moments that make the app feel alive; plan in `/mnt/project-files/inspiration/alive-plan.md`).
+  Order: 0 banding fix (on Beta since 26 Oct), 1 the outline glides between sets (live v0.1.182), 2 week strip fills
+  after a workout (live v0.1.184, Omar: "live is fine"), 3 the Coach's Apply ticks land one by one (done on
+  `claude/v-ticks` @ 1263317, fresh judges 8.5 → 9.0, video https://claude.ai/artifact/BBFkSgT1FnJbUpztQVTGiQ, ship card
+  sent, Claude's pick: ship without Beta; not shipped), 4 tab icon impulse, 5 new set slides in, 6 frost on Today
+  controls, 7 finished sets pile up. Each step needs its own go. Design lead's handover with the exact ship steps for
+  step 3: `/mnt/project-files/inspiration/handover-design-lead-oct27.md` (files in `inspiration/v-ticks/`).
+- **Exercise figures.** Real rendered 3D clips (Blender, Z-Anatomy model). Live: barbell curl (v0.1.154, the quality
+  reference) and EZ-bar curl (v0.1.153). Hammer curl (rope) approved by Omar but not shipped (a small tilt fix still
+  waits on his word). Rope pushdown is in polish (judge 8.6; the body motion Omar approved is the template for all later
+  moves). Batch A (cable twins), stopped 27 Oct: bar pushdown judged 8.4, its chest-graze fix needs a re-render; cable
+  curl about half rendered; straight-arm pulldown and single-arm pushdown exist as stills only. A render takes ~50 min
+  and a gate check ~1.5 h per clip. Runs in a Sonnet thread. Read
+  `/mnt/project-files/anatomy-proof/batch1/batchA/HANDOVER.md` (next steps in order), then
+  `anatomy-proof/handover-sonnet.md` (setup) and `anatomy-proof/figure-rules.md` (rules).
+- **Android app + notifications.** Rest countdown on the lock screen and in the status bar, a backup alarm, buttons in
+  the notification, calm launch, Health Connect sync. Website changes need no new APK; only Java changes do.
+- **Orb.** The Gemini Live orb is owned by Omar's other Claude Code session (branch `claude/live-orb`, on Beta). Omar
+  will redesign the orb separately: skip orb ideas elsewhere. The orb never changes shape.
+- **Workout pop-up ("App Store motion", the workout card growing into a page).** Dropped for now (26 Oct: "still bad,
+  maybe we will get back"). Code kept on `claude/a-r4`; notes in `design-spec.md` §0.
+- **Tab bar "liquid glass, a little more pop"**: owned by the design lead, notes in `tabbar-handover.md`. Not built.
+- **Omar's other Claude Code session** works on Coach memory, the watch and the Gemini Live orb. It has deployed to Beta
+  and main without warning before. Before any deploy or version bump, check `refs/heads/beta` and main's version.
+
+### 5. How the project is run
+
+- A "coordinator" Claude talks to Omar in the project chat and starts one thread per task. Threads build; the coordinator
+  keeps memory and gives Omar one verdict. One task per thread saves his usage.
+- One **design lead** thread owns all new design and motion app-wide (so styles don't split). Health has its own thread.
+- Models: Opus for taste, motion, the Coach, hard bugs and polish. Sonnet for ordinary work and figures. Never Haiku.
+- Use skills when they fit: systematic debugging for stubborn bugs and stutters, writing plans before big builds,
+  verification before saying done, brainstorming for new features. Skip process skills for pure visual polish.
+
+### 6. Preview, judge, Beta, ship (the flow)
+
+1. **Build in small steps** on a branch. Save a `backup/<name>` branch before anything risky.
+2. **Look at it yourself** with Playwright at phone width, DPR 3.75, on his real dark theme (`AVEN_GPU=1` to draw blur in
+   headless). Shoot from a production build (`npm run build` + `npx vite preview`); the dev server's StrictMode hides
+   some things.
+3. **Harsh judge.** A separate worker judges stills and films against his taste, his 19 inspiration clips
+   (`/mnt/project-files/inspiration-oct18/clips/`) and the best iOS apps. **Judges never build fixes**; they may say the
+   exact fix, the builder does it, and a fresh judge checks. Aim for a fresh-judged 9 before showing Omar.
+4. **Show Omar a before/after video he can watch inside Claude** (an Artifact page made with
+   `/mnt/project-files/tools/clip-page.py`, Real/Half/Quarter speed). Never a file to download. Say which clip it was
+   measured against.
+5. **Beta only when his real phone must judge it**: smoothness, flicker or black frames, banding, how blur and glass look,
+   touch feel, GPU or layer changes. Say in one line "I think you should test this on Beta first". Beta shows one branch at
+   a time and the coordinator hands out the slot. Steps are in `CLAUDE.md` → "Ship to Beta".
+6. **Ship after his yes**: bump `package.json` (check main's version right before; others ship in parallel), `npm run verify`,
+   PR into `ccr-d1172cc7-1e03wh`, merge, wait for "Deploy web app" to be green. Then tell him exactly what to check on the
+   phone and to fully reload.
+7. **If he says "worse"**: go straight back to the last version he approved, with no other changes. Fix separately.
+
+### 7. Omar's taste
+
+**He likes**
+- Apple-level detail. Premium and alive, calm by default, lively where it fits. 120 fps, seamless, interruptible motion.
+- Real motion, not cross-fades: a frame that grows into a page on one spring, text that never stretches, titles and icons
+  that slide to their exact new place, close = exact reverse ("App Store motion").
+- Frosted see-through glass on every floating thing (rest bar, sheets, bars, buttons), never a solid block.
+- **v0.1.130 clear, untinted glass cards: "what I've been looking for".** Pop-ups: no tint, and not too see-through.
+- Colour and warmth showing through the glass. Data colours per metric (the Health colours).
+- Today's full-width section slide. Fast lettered option menus (6–10 good options, Claude's pick marked).
+- Animation ends exactly like the settled screen (no snap at the end), corner radii glide too.
+
+**He rejected (don't bring back)**
+- Grey or graphite surfaces, even "warm neutral" ones: they read dead. Blue-grey or navy tints, flat orange wash,
+  brown/bronze/gold, flat grey. Navy "lit glass" cards. Accent-tinted glass (Golden hour reads brown).
+- Opaque charcoal cards ("Clean look with depth", v0.1.102: "ruined").
+- Cross-fade or melting pop-up opens. A darker opaque ground under a moving page (reads as a dead slab).
+- New colours or palettes: no more, don't suggest them.
+- The full list with reasons: `docs/style-guide.md` §8.
+
+**Dropped ideas**
+- Collapsing/large titles (and a top bar under the status bar: impossible in the Android wrapper), tilt/parallax on rings,
+  rings that pop or overflow, centred-ball orbs, a readiness check-in, fixed warm sheet mixes, swipe to tick a set
+  (tapping is the only way to tick), Lottie animations (cartoonish and too costly per frame).
+- The live-blur "AMOLED" surface option C (reverted 20 Oct on his ask; kept on `claude/surfaces`).
+
+**Ideas for later (need his yes):** big hero numbers, matched icons, a plate calculator, a wrestling weight-class goal.
+
+### 8. Working rules with Omar
+
+- **GO rule:** never start, steer or ship anything until he clearly says go for that exact thing. "Yes, but…", a yes with a
+  question, or a yes to a different point is not a go. Answer, then ask "Should I start it?".
+- **Ask first:** when he's only talking or asking, answer only, then ask "Should I do it?".
+- **"You pick":** when he hands you the pick, choose and go on, unless he clearly liked another option before.
+- **High bar:** he wants 9+/10. Fix known flaws before showing. Self-checked is not judged: say which one it is.
+- **Honesty:** look at results yourself and give your own honest verdict. Never claim "passed", "saved" or "deployed"
+  unless it happened. Check memory before suggesting something he already rejected.
+- **Rules are guides, not vetoes** (26 Oct). Live blur, animated blur, glows and livelier motion may be tried: build,
+  measure on Beta, he judges. Still firm: no flicker or black frames, no layout jumps, his colour taste, the GO rule.
+- **Talk plainly:** short messages, no code words, he reads on his phone and dictates by voice ("chords" = cards,
+  "doc" = dock, "herb" = orb, "Ruben" = ribbon, "to be" = to B). If he's frustrated: don't argue, restore, one next step.
+- **Notify:** when something finishes (live, Beta, preview, blocked), tell him in one short line.
+- **No new gesture without his yes.** No font changes without showing him. No destructive data migrations without asking.
+- **Usage runs out fast** with many threads and judges. Near the limit: hold everything and pick up after the reset.
+- He works late: nudge rest kindly.
+
+### 9. Known bugs and loose ends
+
+- **Double-tap Apply undoes**: on a Coach action card, the invisible Undo is tappable at once, so a quick second tap on
+  Apply undoes it (`.ac-in-late` has no `pointer-events: none`). Also in the live app; should be its own small step.
+  Related nits: the Apply button fades through brown, and the settled check is pale tan.
+- Left alone on purpose after the 20 Oct bug hunt (needs a speed pass): a stutter when a tab first mounts and when a
+  sheet opens (React render + a forced layout in the glow code), the keyboard slide stutter, set-tick shadows.
+- The live workout timer once disagreed with the saved duration (~18 min vs 1 h 47); a leftover food sheet appeared behind
+  the Library tab once (both in `docs/polish-plan.md`).
+- Light "Classic" background grain is about half of what it was; a faint ripple in the dark tint zone. Cause unknown.
+- Living Coach: a stalled lift's change is sometimes asked instead of saved; the first plan reply can carry two asks.
+- Exercise figures: small white flecks and a far-elbow wedge on the rope pushdown (pixel fixes, in progress).
+- Polish plan item 1 (tab-switch flicker) is fixed in code (v0.1.51) but was never ticked off by Omar on the phone.
+
+### 10. Open decisions (waiting on Omar, as of 27 Oct)
+
+- Coach pilot: does he want the gap report and plan next?
+- Coach screen redesign: which letter (J, K or L)?
+- Alive plan step 3 (ticks ripple): ship it?
+- Health bento: show the polished videos, then his call on Beta.
+- Rope pushdown: small pixel fix or accept, then Batch A.
+- Living Coach step 3 (phone link test): needs its own go, after he has used the Coach for real.
+
+### 11. Technical lessons learned on Aven
+
+- **Flicker at the end of an animation** (one missing frame): Chrome on Android drops a layer when its animation ends and
+  redraws a frame late. Keep the layer: entrance animations use fill `both` with no end keyframe, script-moved containers
+  keep `will-change`, never toggle `border-radius`/`overflow` on moving containers, never add or drop layers at animation
+  end or on tab switch. Hidden layers rest at opacity 0.002, not 0. Proxy check: `scripts/flicker-layers.mjs`.
+- **Banding** in soft glows: dither the gradients (recipe in `docs/style-guide.md` §1 "No banding").
+- **Blur cost:** real backdrop blur on scrolling cards is about half the frame rate on his phone; the cards use a cheap
+  canvas copy of the background (`src/ui/frost.ts`). A CSS `mask` on a parent makes it a backdrop root, so children's
+  `backdrop-filter` can't see the background behind it.
+- Surfaces must follow the colour actually behind them, not the palette (a Golden hour palette on a blue sky gave brown sheets).
+- A WAAPI animation with one keyframe treats it as the END; use `offset: 0` for a from-only animation.
+- Don't poll `document.getAnimations()` in a short loop: it left text undrawn for a few frames.
+- A CSS transition on a small element gets its own GPU layer and drops it at the end (the flicker rule again): use held
+  animations (fill `both`) instead.
+- The most faithful motion films are frame-stepped (pause every animation, set `currentTime` in 33.3 ms steps); slowed
+  real-time captures let JS and CSS drift apart. Film in Golden hour (`AVEN_PALETTE=golden`), his real look.
+- Fading a solid orange disc reads brown halfway; shrink it to a point instead. Grow an orange button from the middle,
+  never fade it from 0.
+- Chrome may not pass inherited `visibility`/`pointer-events` to layers held by `fill: both` animations: hide overlays with
+  opacity + transform on the overlay itself, cancel old animations before reopening.
+- Headless films: step time at 1000/30 ms per frame; half speed by duplicating frames; swiftshader GPU films are slow
+  (~6 s/frame), so film motion without GPU and take blur stills with GPU.
+- GitHub Actions can show a Pages run as "queued/waiting" long after it deployed: check the job log. A new deploy cancels
+  the one in flight, so check running Pages jobs right before merging.
+- Lab scores (9/10 in headless) did not predict how it feels on the phone: put a rough version on Beta early for feel.
+- AI Coach: the model rarely fills structured fields reliably; the app must read and check what it says
+  (`answerCheck.ts`, `goals.ts`). Forcing JSON field order made Gemini drop text: never retry that.
+- Figures pipeline: never fill the end of a closing gap fully (dim it); diff clip frames against the judged stills; never
+  `pkill -f` with a pattern that's in your own command line. More in `/mnt/project-files/anatomy-proof/`.
+
+### 12. Reusable lessons for building a new app
+
+What worked with Omar, to start the next app on the right foot:
+
+1. **Write the taste down on day one** (a style guide like `docs/style-guide.md`) and keep one living design doc. Add
+   every pick and every rejection with the date and the reason.
+2. **One entry README plus a short `CLAUDE.md`** of rules, kept updated after every change, so a new session never starts blind.
+3. **Small steps, a backup branch before anything risky, and an instant "go back to the last approved version".**
+   Big redesigns in one go are what broke Aven before.
+4. **A test copy of the app (like Aven Beta)** with its own name, icon and storage, set up early. Many things only show
+   on the real phone.
+5. **Preview everything as a video inside Claude** before shipping, with a before/after switch and slow-motion.
+6. **Independent harsh judges** that never build, and a fresh judge after every fix. Say "judged" vs "self-checked".
+7. **The GO rule and plain language** from the start. Ask "Should I start it?" and wait.
+8. **Performance budget from the start:** 120 fps target, transform/opacity first, pause what's off screen, measure on
+   the real device. Fix flicker at its cause (layers), never by removing the look.
+9. **Keys and secrets never in the repo.** Users type their own keys; cloud sessions use proxy-injected keys.
+10. **Local-first data with an export/backup**, no destructive migrations, Undo on every save.
+11. **One owner per area** (one design lead for all look and motion) so styles don't fork between threads.
+12. **Keep his usage low:** one task per thread, verify only what you touched, and stop polishing when the next round
+    won't change his decision.
+13. Bilingual from the start (a key checker like `scripts/i18n-keys.mjs`), and a PWA wrapped as an Android app (TWA)
+    when native features (lock-screen timers, health data) are needed.
+
 ## Run it
 
 ```bash
