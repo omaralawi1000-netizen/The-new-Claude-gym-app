@@ -96,6 +96,21 @@ export class Expander {
     const r = reduced();
     return el.animate(kf, { fill: 'both', duration: r ? 1 : o.duration, delay: r ? 0 : o.delay ?? 0, easing: o.easing ?? this.sm().easing });
   }
+  /** where a block's words and drawings actually are (a full-width block holding one short line counts only that line), so it
+   *  shows as soon as its ink is inside the growing card instead of waiting for the card to reach the screen's width */
+  private inkBox(el: Element) {
+    const b = this.box(el), p = this.e.root.getBoundingClientRect(), rg = document.createRange(), rs: DOMRect[] = [];
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    for (let n: Node | null = w.currentNode; n; n = w.nextNode()) {
+      if (n.nodeType === 3) { if (!n.textContent?.trim()) continue; rg.selectNodeContents(n); rs.push(...rg.getClientRects()); }
+      else if (n instanceof SVGSVGElement || n instanceof HTMLImageElement || n instanceof HTMLCanvasElement) rs.push(n.getBoundingClientRect());
+    }
+    const v = rs.filter((r) => r.width > 0 && r.height > 0);
+    if (!v.length) return b;
+    // (a row that scrolls sideways counts only up to its own edge)
+    const l = Math.max(b.x, Math.min(...v.map((r) => r.left)) - p.left), r = Math.min(b.x + b.w, Math.max(...v.map((r) => r.right)) - p.left);
+    return { ...b, x: l, w: r - l };
+  }
   private box(el: Element) { const a = el.getBoundingClientRect(), p = this.e.root.getBoundingClientRect(); return { x: a.left - p.left, y: a.top - p.top, w: a.width, h: a.height }; }
   private size() { return { W: this.e.root.clientWidth, H: this.e.root.clientHeight }; }
   /** a section's box as window edges (clamped to the screen) */
@@ -238,7 +253,7 @@ export class Expander {
     // each block of the page shows as soon as it is inside the card (never cut by an edge), from a fifth of the way on
     const paired = new Set(st.fl.map((o) => o.b));
     for (const x of this.pageBlocks(paired)) {
-      const r = this.box(x);
+      const r = this.inkBox(x);
       const kf = Array.from({ length: N + 1 }, (_, i) => { const p = i / N, e = at(p), w = win(e), y = r.y + oy * (1 - e), xx = r.x + ox * (1 - e);
         // a block taller than the screen counts only down to the screen's edge (else it never fits and stays hidden)
         const bot = Math.min(y + r.h, H - 12);
@@ -336,7 +351,7 @@ export class Expander {
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
     st.dim.forEach((x, i) => {
       // the card's words come back as the card clears off it, in time to be there when the window lands (a pill: its number lands inside it)
-      const p = x === st.src ? 0.1 : card ? 0.1 : 0.42;
+      const p = x === st.src ? 0.1 : card ? (swiped ? 0.3 : 0.1) : 0.42;
       x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.opacity = '0';
       out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: p }, { opacity: 1, offset: p + (card ? 0.2 : 0.18) }, { opacity: 1 }], { duration: D, delay, easing: 'linear' }));
     });
@@ -345,7 +360,8 @@ export class Expander {
     if (dragFrom !== 'none') out.push(this.anim(drag, [{ transform: dragFrom }, { transform: 'none' }], { duration: D, delay, easing: E }));
     // the page's material clears onto the card's own glass film (always under it), so the last frame is the card
     const m0 = Number(matO), mo = (p: number) => m0 * (1 - ss((p - 0.06) / 0.34));
-    out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: 0.06 }, { opacity: 0, offset: 0.4 }, { opacity: 0 }], { duration: D, delay, easing: 'linear' }));
+    const mk = dg ? [0.3, 0.7] : [0.06, 0.4]; // after a swipe the page stays a page until it is nearly the card
+    out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: mk[0] }, { opacity: 0, offset: mk[1] }, { opacity: 0 }], { duration: D, delay, easing: 'linear' }));
     // where the window is now (its layers' moves, and the swipe's), and where it lands: the card
     const g0 = this.edgesNow(fromL), { W } = this.size();
     const dm = dg ? { dy: dg.dy, s: dg.s } : null;
@@ -356,9 +372,10 @@ export class Expander {
     };
     const ownRow = st.src.closest('.hx-row,.hx-card') ?? st.src;
     ownRow.getAnimations().filter((a) => a.id === 'hx-cover').forEach((a) => a.cancel());
-    // after a swipe, a row already showing beside the page stays (the copies fly inside the page, never over it)
+    // after a swipe, a row already showing beside the page stays, and the rest come back as the page's edge passes them (the
+    // copies fly inside the page, never over a row; a row the page still overlaps by a quarter stays hidden, so nothing shows through its glass)
     const shown = dm ? (r: Box) => cover([r.x, r.y, r.x + r.w, r.y + r.h], toScreen(g0, 0)) < 0.99 : undefined;
-    st.home = this.cover(st.src, (e) => toScreen(mixE(g0, g1, e), e), at, mo, { duration: D, delay }, paths, undefined, undefined, shown);
+    st.home = this.cover(st.src, (e) => toScreen(mixE(g0, g1, e), e), at, dm ? () => 4 : mo, { duration: D, delay }, dm ? undefined : paths, undefined, undefined, shown);
     out.push(...st.home);
     this.e.shade.getAnimations().filter(mine).forEach((a) => a.cancel());
     out.push(this.anim(this.e.shade, [{ opacity: shO }, { opacity: 0, offset: 0.4 }, { opacity: 0 }], { duration: D, delay, easing: 'linear' }));
@@ -368,9 +385,9 @@ export class Expander {
     // the page's blocks stay inside the card while it shrinks and leave before it reaches the card (an edge never cuts one)
     const [ox, oy] = this.ride(st.src), win = (e: number): Edges => mixE(g0, g1, e), h = this.size().H;
     page.forEach(({ e: x, o }) => {
-      const r = this.box(x), o0 = Number(o);
+      const r = this.inkBox(x), o0 = Number(o);
       const kf = Array.from({ length: N + 1 }, (_, i) => { const p = i / N, e = at(p), w = win(e), y = r.y + cy + (oy - cy) * e, xx = r.x + cx + (ox - cx) * e;
-        return { offset: p, opacity: +(o0 * ss((w[3] - Math.min(y + r.h, h - 12)) / 12) * ss((y - w[1]) / 12) * ss((w[2] - (xx + r.w)) / 12 + 1) * ss((xx - w[0]) / 12 + 1) * (1 - ss(p / 0.2))).toFixed(4) }; });
+        return { offset: p, opacity: +(o0 * ss((w[3] - Math.min(y + r.h, h - 12)) / 12) * ss((y - w[1]) / 12) * ss((w[2] - (xx + r.w)) / 12 + 1) * ss((xx - w[0]) / 12 + 1) * (1 - ss(p / (dg ? 0.1 : 0.2)))).toFixed(4) }; });
       this.anim(x, kf, { duration: D, delay, easing: 'linear' });
     });
     out.push(this.anim(dsc, [{ transform: `translate(${cx}px,${cy}px)` }, { transform: `translate(${ox}px,${oy}px)` }], { duration: D, delay, easing: E }));
@@ -431,7 +448,7 @@ export class Expander {
     d.s = 1 - (Math.min(Math.max(0, d.dy), H) / H) * 0.22;
     this.e.drag.style.transform = `translateY(${d.dy}px) scale(${d.s})`;
     const win: Edges = [(W / 2) * (1 - d.s), d.dy, (W / 2) * (1 + d.s), d.dy + H * d.s];
-    for (const { x, r } of d.home) x.style.opacity = String(+ss(1 - cover([r.x, r.y, r.x + r.w, r.y + r.h], win)).toFixed(3));
+    for (const { x, r } of d.home) x.style.opacity = String(+ss(1 - cover([r.x, r.y, r.x + r.w, r.y + r.h], win) * 4).toFixed(3));
   }
   /** let go at `vy` px/ms (down positive): close into the card past a pull or a flick, else spring back. Returns whether it closes. */
   dragEnd(vy: number): boolean {
@@ -446,7 +463,7 @@ export class Expander {
     const a = this.anim(this.e.drag, [{ transform: from }, { transform: 'none' }], { duration: D, easing: E });
     for (const { x, r } of d.home) {
       const kf = Array.from({ length: N + 1 }, (_, i) => { const e = at(i / N), dy = d.dy * (1 - e), s = d.s + (1 - d.s) * e;
-        return { offset: i / N, opacity: +ss(1 - cover([r.x, r.y, r.x + r.w, r.y + r.h], [(W / 2) * (1 - s), dy, (W / 2) * (1 + s), dy + H * s])).toFixed(3) }; });
+        return { offset: i / N, opacity: +ss(1 - cover([r.x, r.y, r.x + r.w, r.y + r.h], [(W / 2) * (1 - s), dy, (W / 2) * (1 + s), dy + H * s]) * 4).toFixed(3) }; });
       x.style.opacity = '';
       const h = this.anim(x, kf, { duration: D, easing: 'linear' }); h.id = 'hx-cover';
     }
