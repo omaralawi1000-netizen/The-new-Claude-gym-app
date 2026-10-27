@@ -73,8 +73,8 @@ function DayDot({ look, before, fresh, delay = 0 }: { look: DayLook; before: Day
       disc.current.animate([{ opacity: 0, offset: 0 }], { duration: 34, easing: 'linear', delay, fill: 'both' }),
       tick.current.animate([{ transform: 'scale(0.5)', opacity: 0, offset: 0 }], { duration: sp.duration, easing: sp.easing, delay: delay + 80, fill: 'both' }),
       pre.current.animate([{ opacity: 1, offset: 0 }], { duration: 140, easing: 'cubic-bezier(0.4, 0, 0.6, 1)', delay: delay + 40, fill: 'both' }),
-      // the ripple comes out from under the swelling disc
-      ring.current.animate([{ transform: 'none', opacity: 0.85, offset: 0 }, { opacity: 0.3, offset: 0.3 }], { duration: 600, delay: delay + 200, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'both' }),
+      // the ripple comes out from under the swelling disc (not drawn while it waits: 'forwards', or it sat lit round the disc)
+      ring.current.animate([{ transform: 'none', opacity: 0.85, offset: 0 }, { opacity: 0.3, offset: 0.3 }], { duration: 600, delay: delay + 200, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'forwards' }),
     ]);
   }, [fresh]);
   const dot: React.CSSProperties = { width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700 };
