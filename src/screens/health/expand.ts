@@ -39,6 +39,8 @@ const reduced = () => {
 };
 /** Beta trial: the page slides in from the side, home slides out the other way (like Today's sections), no number flight */
 const slide = () => document.documentElement.dataset.hxMotion === 'slide';
+/** our own animations only: a CSS animation (the screen's scroll-driven top fade) cancelled stays gone until its style changes */
+const mine = (a: Animation) => !(a instanceof CSSAnimation) && !(a instanceof CSSTransition);
 const $$ = (s: string, r: ParentNode) => [...r.querySelectorAll<HTMLElement>(s)];
 const curT = (el: Element) => { const s = getComputedStyle(el).transform; return s === 'none' ? 'none' : s; };
 const SHARE = ['num', 'unit', 'chart'];
@@ -196,7 +198,7 @@ export class Expander {
   open(k: string, src: HTMLElement) {
     if (this.st) return;
     const { det, fly, dsc, L, mat, edge } = this.e;
-    [det, fly, ...$$('*', det)].forEach((x) => x.getAnimations().forEach((a) => a.cancel()));
+    [det, fly, ...$$('*', det)].forEach((x) => x.getAnimations().filter(mine).forEach((a) => a.cancel()));
     fly.replaceChildren();
     dsc.scrollTop = 0;
     det.classList.add('live', 'moving');
@@ -246,7 +248,7 @@ export class Expander {
     // (measured above with the page at rest; now it starts shifted)
     st.anims.push(this.anim(dsc, [{ transform: `translate(${ox}px,${oy}px)` }, { transform: 'none' }], { duration: D, easing: E }));
     st.dim = this.dimOf(src);
-    st.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 1 : 40, easing: 'linear' }); });
+    st.dim.forEach((x) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 1 : 40, easing: 'linear' }); });
     this.playPage(Math.round(D * 0.08));
     // landed: the page's own number and chart take over from the copies
     Promise.all(st.anims.slice(0, st.fl.length + L.length).map((a) => a.finished)).then(() => {
@@ -303,7 +305,7 @@ export class Expander {
     // a page let go mid-swipe: it carries on from under the finger (the drag's move eases out on the same spring)
     const dg = st.drag ?? null; st.drag = null;
     const dragFrom = drag.style.transform || 'none';
-    drag.getAnimations().forEach((a) => a.cancel()); drag.style.transform = '';
+    drag.getAnimations().filter(mine).forEach((a) => a.cancel()); drag.style.transform = '';
     const fromL = L.map(curT), matO = getComputedStyle(mat).opacity, edgeO = getComputedStyle(edge).opacity, shO = getComputedStyle(this.e.shade).opacity, rimO = Number(getComputedStyle(this.e.rim).opacity);
     const rimFrom = this.rimParts().map(curT);
     // flying copies: keep the ones still in flight (from where they are now), else lift the page's own copies
@@ -313,11 +315,11 @@ export class Expander {
     const page = this.pageBlocks(new Set(fl.map((o) => o.b))).map((x) => { const cs = getComputedStyle(x); return { e: x, o: cs.opacity, t: cs.transform }; });
     // the page rides back with the card so its number lands on the card's (from wherever it is now)
     const cm = new DOMMatrix(curT(dsc) === 'none' ? undefined : curT(dsc)), cx = cm.e, cy = cm.f;
-    dsc.getAnimations().forEach((a) => a.cancel()); dsc.style.transform = '';
+    dsc.getAnimations().filter(mine).forEach((a) => a.cancel()); dsc.style.transform = '';
     st.anims.forEach((a) => a.cancel());
-    fl.forEach((o) => o.b.getAnimations().forEach((a) => a.cancel()));
+    fl.forEach((o) => o.b.getAnimations().filter(mine).forEach((a) => a.cancel()));
     fl.forEach((o) => { o.c.style.transform = o.from ?? 'none'; });
-    page.forEach(({ e: x, t }) => { x.getAnimations().forEach((a) => a.cancel()); x.style.transform = t === 'none' ? '' : t; });
+    page.forEach(({ e: x, t }) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.transform = t === 'none' ? '' : t; });
     (st.out ?? []).forEach((a) => a.cancel());
     const g1 = this.edges(st.src), wf = this.framesOf(g1);
     const out: Animation[] = [];
@@ -331,8 +333,9 @@ export class Expander {
     const card = st.src.classList.contains('hx-card');
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
     st.dim.forEach((x, i) => {
-      const p = x === st.src ? 0.2 : 0.42; // the card's words come back as the card clears off it (a pill: its number lands inside it)
-      x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = '0';
+      // the card's words come back as the card clears off it, in time to be there when the window lands (a pill: its number lands inside it)
+      const p = x === st.src ? 0.2 : card ? 0.24 : 0.42;
+      x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.opacity = '0';
       out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: p }, { opacity: 1, offset: p + 0.18 }, { opacity: 1 }], { duration: D, delay, easing: 'linear' }));
     });
     L.forEach((l, i) => out.unshift(this.anim(l, [{ transform: fromL[i] }, { transform: wf[i] }], { duration: D, delay, easing: E })));
@@ -353,7 +356,7 @@ export class Expander {
     ownRow.getAnimations().filter((a) => a.id === 'hx-cover').forEach((a) => a.cancel());
     st.home = this.cover(st.src, (e) => toScreen(mixE(g0, g1, e), e), at, mo, { duration: D, delay }, paths);
     out.push(...st.home);
-    this.e.shade.getAnimations().forEach((a) => a.cancel());
+    this.e.shade.getAnimations().filter(mine).forEach((a) => a.cancel());
     out.push(this.anim(this.e.shade, [{ opacity: shO }, { opacity: 0, offset: 0.4 }, { opacity: 0 }], { duration: D, delay, easing: 'linear' }));
     // the rim comes back as the window turns into the card again
     this.rimParts().forEach((x, i) => x.style.transform = rimFrom[i] === 'none' ? '' : rimFrom[i]);
@@ -393,7 +396,7 @@ export class Expander {
       // tapped again mid-close: back on the page
       fl.forEach(({ c, b, tint }) => { b.style.opacity = ''; c.remove(); tint?.remove(); });
       st.fl = []; st.out = null;
-      this.e.scr.getAnimations().forEach((a) => a.cancel()); this.anim(this.e.scr, [{ opacity: 0 }, { opacity: 0 }], { duration: 1 });
+      this.e.scr.getAnimations().filter(mine).forEach((a) => a.cancel()); this.anim(this.e.scr, [{ opacity: 0 }, { opacity: 0 }], { duration: 1 });
       const lt = L.map(curT);
       out.forEach((a) => a.cancel());
       st.home = this.homeUnits(st.src).map((x) => { const a = this.anim(x, [{ opacity: 0 }, { opacity: 0 }], { duration: 1 }); a.id = 'hx-cover'; return a; });
@@ -463,7 +466,7 @@ export class Expander {
     st.closing = false; st.next = null;
     st.out.forEach((a) => a.reverse());
     if (st.slide) return;
-    (st.page ?? []).forEach(({ e: x }) => { const cs = getComputedStyle(x), o = cs.opacity, t = cs.transform; x.getAnimations().forEach((a) => a.cancel()); x.style.transform = ''; this.anim(x, [{ opacity: o, transform: t }, { opacity: 1, transform: 'none' }], { duration: 200, delay: 60, easing: 'linear' }); });
+    (st.page ?? []).forEach(({ e: x }) => { const cs = getComputedStyle(x), o = cs.opacity, t = cs.transform; x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.transform = ''; this.anim(x, [{ opacity: o, transform: t }, { opacity: 1, transform: 'none' }], { duration: 200, delay: 60, easing: 'linear' }); });
   }
 
   /** a tap on a section or pill: open, turn round, or queue it to open once this one has closed */
@@ -505,7 +508,7 @@ export class Expander {
     const { L, scr } = this.e, W = this.e.root.clientWidth + 48;
     const o = slideCurve(W);
     const from = [curT(L[0]), curT(scr)];
-    L[0].getAnimations().forEach((a) => a.cancel()); scr.getAnimations().forEach((a) => a.cancel());
+    L[0].getAnimations().filter(mine).forEach((a) => a.cancel()); scr.getAnimations().filter(mine).forEach((a) => a.cancel());
     const out = [this.anim(L[0], [{ transform: from[0] }, { transform: `translateX(${W}px)` }], o), this.anim(scr, [{ transform: from[1] }, { transform: 'none' }], o)];
     st.out = out;
     out[0].finished.then(() => {
@@ -519,15 +522,15 @@ export class Expander {
     const { det, fly, L, mat, dsc, root, rim, drag } = this.e;
     fly.replaceChildren();
     this.st?.src.classList.remove('hx-src');
-    [rim, drag, ...this.rimParts()].forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.transform = ''; });
-    this.st?.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = ''; });
+    [rim, drag, ...this.rimParts()].forEach((x) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.transform = ''; });
+    this.st?.dim.forEach((x) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.opacity = ''; });
     det.classList.remove('live', 'moving');
     // home back as it was; a style write after the cancel makes Chrome recompute it (it can keep a cancelled 0 otherwise)
     $$('*', this.e.scr).forEach((x) => { const c = x.getAnimations().filter((a) => a.id === 'hx-cover'); if (!c.length) return; c.forEach((a) => a.cancel()); x.style.opacity = '1'; x.style.opacity = ''; });
-    dsc.getAnimations().forEach((a) => a.cancel()); dsc.style.transform = '';
-    [...L, mat, this.e.scr, this.e.shade].forEach((x) => x.getAnimations().forEach((a) => a.cancel()));
+    dsc.getAnimations().filter(mine).forEach((a) => a.cancel()); dsc.style.transform = '';
+    [...L, mat, this.e.scr, this.e.shade].forEach((x) => x.getAnimations().filter(mine).forEach((a) => a.cancel()));
     $$('[data-share]', root).forEach((x) => { x.style.opacity = ''; });
-    $$('*', dsc).forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.transform = ''; x.style.opacity = ''; });
+    $$('*', dsc).forEach((x) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.transform = ''; x.style.opacity = ''; });
     this.st = null;
   }
 
@@ -536,7 +539,7 @@ export class Expander {
     const st = this.st; if (!st || st.closing) return null;
     st.fl.forEach(({ c, b }) => { b.style.opacity = ''; c.remove(); }); st.fl = [];
     $$('[data-share]', st.src).forEach((x) => { x.style.opacity = ''; });
-    st.dim.forEach((x) => { x.getAnimations().forEach((a) => a.cancel()); x.style.opacity = ''; });
+    st.dim.forEach((x) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.opacity = ''; });
     // home, hidden under the page: bring the new section into view so close lands on screen
     // (only as far as needed: a section already on screen keeps home where it was)
     const top = newSrc.offsetTop - scroller.scrollTop, room = scroller.clientHeight - 120;
