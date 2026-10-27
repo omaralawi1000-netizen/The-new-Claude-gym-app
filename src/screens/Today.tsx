@@ -53,18 +53,19 @@ const reducedMotion = () => document.documentElement.dataset.motion === 'reduce'
 
 /**
  * A day's circle in the week strip. The first time the strip is seen after a workout, today's fills: the full circle swells
- * out of the middle on the bouncy spring with its check a beat behind, the empty ring and letter fade from under it, and
- * one soft ring goes out and away. Everything is held where it ends (the plain circle's look), so nothing is dropped
- * when it settles; opening Today later draws the plain circle.
+ * out of the middle on the bouncy spring with its check a beat behind, the letter gone just before, and the empty ring
+ * stays lit until the disc has covered it to the rim. `delay` is when the disc starts; the letter needs that long to go.
+ * Everything is held where it ends (the plain circle's look), so nothing is dropped when it settles; opening Today later
+ * draws the plain circle.
  */
 function DayDot({ look, before, fresh, delay = 0 }: { look: DayLook; before: DayLook; fresh: boolean; delay?: number }) {
   const held = useRef(false);
   if (fresh && !reducedMotion()) held.current = true;
-  const pre = useRef<HTMLSpanElement>(null), disc = useRef<HTMLSpanElement>(null), tick = useRef<HTMLSpanElement>(null), ring = useRef<HTMLElement>(null);
+  const pre = useRef<HTMLSpanElement>(null), letter = useRef<HTMLSpanElement>(null), disc = useRef<HTMLSpanElement>(null), tick = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
     if (!fresh) return;
     weekFillStarted();
-    if (!pre.current || !disc.current || !tick.current || !ring.current) return;
+    if (!pre.current || !letter.current || !disc.current || !tick.current) return;
     // (one keyframe at the start: each goes from there to its resting look, the style below)
     const sp = springCurve(BOUNCY);
     endWhenHidden([
@@ -72,21 +73,20 @@ function DayDot({ look, before, fresh, delay = 0 }: { look: DayLook; before: Day
       disc.current.animate([{ transform: 'scale(0.3)', offset: 0 }], { duration: sp.duration, easing: sp.easing, delay, fill: 'both' }),
       disc.current.animate([{ opacity: 0, offset: 0 }], { duration: 34, easing: 'linear', delay, fill: 'both' }),
       tick.current.animate([{ transform: 'scale(0.5)', opacity: 0, offset: 0 }], { duration: sp.duration, easing: sp.easing, delay: delay + 80, fill: 'both' }),
-      pre.current.animate([{ opacity: 1, offset: 0 }], { duration: 140, easing: 'cubic-bezier(0.4, 0, 0.6, 1)', delay: delay + 40, fill: 'both' }),
-      // the ripple comes out from under the swelling disc (not drawn while it waits: 'forwards', or it sat lit round the disc)
-      ring.current.animate([{ transform: 'none', opacity: 0.85, offset: 0 }, { opacity: 0.3, offset: 0.3 }], { duration: 600, delay: delay + 200, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'forwards' }),
+      letter.current.animate([{ opacity: 1, offset: 0 }], { duration: Math.min(100, delay), easing: 'cubic-bezier(0.4, 0, 1, 1)', delay: Math.max(0, delay - 100), fill: 'both' }),
+      // the ring stays lit until the disc reaches its outer edge (about +270 ms), then goes unseen under it
+      pre.current.animate([{ opacity: 1, offset: 0 }], { duration: 100, easing: 'linear', delay: delay + 260, fill: 'both' }),
     ]);
   }, [fresh]);
   const dot: React.CSSProperties = { width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700 };
   if (!held.current) return <span style={{ ...dot, background: look.bg, color: look.color, boxShadow: look.shadow }}>{look.content}</span>;
-  // resting looks: the empty one and the ring gone (kept at a breath above zero, so they keep their layer), the full one there.
+  // resting looks: the empty one and its letter gone (kept at a breath above zero, so they keep their layer), the full one there.
   // The dark look's one orange (look.css) is matched on a day's own circle only, so these layers ask for it themselves
   const fill: React.CSSProperties = { ...dot, position: 'absolute', inset: 0 };
   const of = (v?: string) => v?.replaceAll('var(--ac)', 'var(--of, var(--ac))');
   return (
     <span style={{ ...dot, position: 'relative' }}>
-      <span ref={pre} style={{ ...fill, background: before.bg, color: before.color, boxShadow: of(before.shadow), opacity: 0.002 }}>{before.content}</span>
-      <i ref={ring} aria-hidden style={{ ...fill, boxShadow: 'inset 0 0 0 1.5px color-mix(in oklab, var(--of, var(--ac)) 60%, white)', transform: 'scale(1.5)', opacity: 0.002 }} />
+      <span ref={pre} style={{ ...fill, background: before.bg, color: before.color, boxShadow: of(before.shadow), opacity: 0.002 }}><span ref={letter} style={{ opacity: 0.002 }}>{before.content}</span></span>
       <span ref={disc} style={{ ...fill, background: of(look.bg), color: look.color, boxShadow: of(look.shadow) }}><span ref={tick} style={{ display: 'grid' }}>{look.content}</span></span>
     </span>
   );
@@ -226,6 +226,7 @@ export function TodayScreen() {
   // the trained days joined by a line (Omar's pick, 27 Oct): it runs on across rest days and breaks at a missed workout
   const links: [number, number][] = [];
   const lead = () => (links.some(([, b]) => week[b].d === freshDate) ? LEAD : 0); // the line reaches today first
+  const fillAt = () => lead() || 60; // (or the letter goes first)
   {
     let last = -1;
     week.forEach((w, i) => {
@@ -436,7 +437,7 @@ export function TodayScreen() {
             <button key={w.d} className="press" onClick={() => setTab('train')} style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }} aria-label={`${fmtDate(w.d, lang)}${r ? `: ${r.name}` : ''}${w.done ? `, ${t('done')}` : ''}`}>
               <span className="micro" style={{ color: isToday ? 'var(--ac-text)' : undefined }}>{fmtWeekdayShort(weekdayOf(w.d), lang, true)}</span>
               {/* filled = done (the glyph says what: a check for the gym, the wrestler for the mat); a rest day is just a quiet dot */}
-              <DayDot look={dayLook(w.done, w.wr, r, isToday, w.pw)} before={dayLook(false, false, r, isToday, w.pw)} fresh={w.d === freshDate} delay={w.d === freshDate ? lead() : 0} />
+              <DayDot look={dayLook(w.done, w.wr, r, isToday, w.pw)} before={dayLook(false, false, r, isToday, w.pw)} fresh={w.d === freshDate} delay={w.d === freshDate ? fillAt() : 0} />
               {/* under it: a missed workout (red), or wrestling planned beside the gym (accent) */}
               <i style={{ width: 4, height: 4, borderRadius: 4, background: r && past && !w.done ? 'var(--bad)' : w.pw && !w.wr && r ? 'var(--ac)' : 'transparent' }} />
             </button>
@@ -444,7 +445,7 @@ export function TodayScreen() {
         })}
       </section>
             {(weekLine.count || weekLine.rest || wf.pending) && <div className="xs t2 num" style={{ textAlign: 'center' }}>
-              <CountLine text={weekLine.count} delay={freshDate ? lead() : 0} />{weekLine.count && weekLine.rest ? ' · ' : ''}{weekLine.rest || (weekLine.count ? '' : '\u00a0')}
+              <CountLine text={weekLine.count} delay={freshDate ? fillAt() : 0} />{weekLine.count && weekLine.rest ? ' · ' : ''}{weekLine.rest || (weekLine.count ? '' : '\u00a0')}
             </div>}
           </div>
         );
