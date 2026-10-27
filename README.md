@@ -3492,3 +3492,17 @@ Cards rise as everywhere else (the dust drawing is kept behind `DRAW_CARDS`, off
 and settles on the Horizon's rim as a star, one per thing done in the visit (Undo takes it away), with one tiny tick when it
 lands. Haptics on the orb screen: a tick on tapping the orb, a tick when a drag passes the point of closing or going to
 the Coach (and back), nothing on release, no heartbeat on arrival (`arrive` removed from the vocabulary).
+
+### The current-set outline glides (alive plan step 1, 27 Oct 2026, v0.1.182)
+Omar, 26 Oct 19:36: go for step 1; 27 Oct 06:27 after Beta: "Put in live". Four fresh judges: 8.0 → 7.5 → 8.6 → 9.1.
+- **What it does** (`src/screens/workout/setRing.ts`): after a tick, the set's outline leaves 100 ms later (the check pops first)
+  and glides to the next set of the same card on the SMOOTH spring. Quick ticks, unticks and + Set re-aim it with its position,
+  speed and current strength. Longer moves dim it to half between 30 % and 60 % of the way, so it passes over the rows' text
+  instead of striking through it. Moving to another card it fades as before. The faint fill, number colour and check ring
+  still fade, 160–180 ms later so they arrive with it. Focus view keeps the row's own outline.
+- **Layers** (flicker rule): two outlines live in the list above every card (`.wk-rings`, z-index 4, so nothing is pushed onto a
+  layer by them) and keep their layers while the list is open; the spare one waits at 0.002 opacity.
+- **Cost**: it looks only when something moved (resize, rows added or removed, a carrying animation ending, Move up/down via
+  `flipstart`), never while Focus view hides the list. Flicker-layers and 4× CPU timings match the live app.
+- Tests used: `scripts/flicker-layers.mjs` (wk steps), `scripts/perf-workout.mjs` (add-set step); real-speed clips were recorded
+  by slowing every page animation through CDP and resampling by animation time.
