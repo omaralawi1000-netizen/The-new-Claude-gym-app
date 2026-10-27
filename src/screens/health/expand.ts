@@ -266,7 +266,7 @@ export class Expander {
       const kf = Array.from({ length: N + 1 }, (_, i) => { const p = i / N, e = at(p), w = win(e), y = r.y + oy * (1 - e), xx = r.x + ox * (1 - e);
         // a block taller than the screen counts only down to the screen's edge (else it never fits and stays hidden)
         const bot = Math.min(y + r.h, H - 12);
-        return { offset: p, opacity: i === N ? 1 : +(ss((w[3] - bot) / 12) * ss((y - w[1]) / 12) * ss((w[2] - (xx + r.w)) / 12 + 1) * ss((xx - w[0]) / 12 + 1) * ss((e - 0.04) / 0.3) * ss((p - gone) / 0.1)).toFixed(4) }; });
+        return { offset: p, opacity: i === N ? 1 : +(ss((w[3] - bot) / 12) * ss((y - w[1]) / 12) * ss((w[2] - (xx + r.w)) / 12 + 1) * ss((xx - w[0]) / 12 + 1) * ss((e - (card ? 0.2 : 0.04)) / 0.25) * ss((p - gone) / 0.1)).toFixed(4) }; });
       st.anims.push(this.anim(x, kf, { duration: D, easing: 'linear' }));
     }
     // (measured above with the page at rest; now it starts shifted)
@@ -351,10 +351,10 @@ export class Expander {
     const at = curve(E);
     const card = st.src.classList.contains('hx-card');
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
-    let wordsAt = 0; while (wordsAt < 0.9 && at(wordsAt) < (swiped ? 0.78 : 0.45)) wordsAt += 0.01;
+    let wordsAt = 0; while (wordsAt < 0.9 && at(wordsAt) < 0.85) wordsAt += 0.01;
     st.dim.forEach((x, i) => {
       // the card's words come back as the card clears off it, in time to be there when the window lands (a pill: its number lands inside it)
-      // (a card's: as the window nears the card, at 45 % of the way (78 % after a flick, which starts fast), over 120 ms)
+      // (a card's: once the flying number and chart are nearly home, at 85 % of the way, over 120 ms; its label and caption fly)
       const p = x === st.src ? 0.1 : card ? wordsAt : 0.42;
       x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.opacity = '0';
       out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: p }, { opacity: 1, offset: Math.min(1, p + (card ? 120 / D : 0.18)) }, { opacity: 1 }], { duration: D, delay, easing: 'linear' }));
@@ -392,7 +392,7 @@ export class Expander {
     page.forEach(({ e: x, o }) => {
       const r = this.inkBox(x), o0 = Number(o);
       const kf = Array.from({ length: N + 1 }, (_, i) => { const p = i / N, e = at(p), w = win(e), y = r.y + cy + (oy - cy) * e, xx = r.x + cx + (ox - cx) * e;
-        return { offset: p, opacity: +(o0 * ss((w[3] - Math.min(y + r.h, h - 12)) / 12) * ss((y - w[1]) / 12) * ss((w[2] - (xx + r.w)) / 12 + 1) * ss((xx - w[0]) / 12 + 1) * (1 - ss(p / (card ? Math.min(0.1, 90 / D) : 0.2)))).toFixed(4) }; });
+        return { offset: p, opacity: +(o0 * ss((w[3] - Math.min(y + r.h, h - 12)) / 12) * ss((y - w[1]) / 12) * ss((w[2] - (xx + r.w)) / 12 + 1) * ss((xx - w[0]) / 12 + 1) * (1 - ss(p / (card ? Math.min(0.1, (dg ? 60 : 90) / D) : 0.2)))).toFixed(4) }; });
       this.anim(x, kf, { duration: D, delay, easing: 'linear' });
     });
     out.push(this.anim(dsc, [{ transform: `translate(${cx}px,${cy}px)` }, { transform: `translate(${ox}px,${oy}px)` }], { duration: D, delay, easing: E }));
@@ -479,7 +479,7 @@ export class Expander {
   swipeSpring(vy: number) {
     const st = this.st, d = st?.drag; if (!st || !d) return {};
     const k = Math.max(0, Math.min(1, vy / 2.5));
-    const sp = spr(0.88 - 0.16 * k, 10 + 6 * k);
+    const sp = spr(0.88 - 0.08 * k, 10 + 6 * k);
     // the window's top edge goes from under the finger to the card's top: hand it the finger's speed
     const travel = this.edges(st.src)[1] - d.dy;
     const v0 = travel > 40 && vy > 0 ? Math.min(6, (vy * 1000) / travel) : 0;

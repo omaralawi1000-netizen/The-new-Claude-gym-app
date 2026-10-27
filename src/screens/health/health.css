@@ -225,3 +225,6 @@
 :root[data-theme='light'] .hx-gexp { background: rgba(0, 0, 0, .55); }
 /* a shared label or caption is as wide as its words, so it flies at its own size (not stretched to the box it sits in) */
 .hx-lab[data-share], .hx-sub[data-share="cap"] { width: fit-content; max-width: 100%; }
+/* home's blocks fade while a page grows over them: they stay their own layers for good, so the end of a close never drops
+   a layer (which redraws their text a hair off, a one-frame shimmer across the whole screen) */
+.hx-screen :is(.hx-top, .hx-date, .hx-coach, .hx-goal, .hx-rib, .hx-chap, .hx-row, .hx-card) { will-change: opacity; }
