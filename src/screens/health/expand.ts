@@ -81,6 +81,8 @@ const clearAfter = (r: Box, paths: [Box, Box][], at: (p: number) => number, win?
 
 /** samples of a move for keyframes: progress 0..1 at N even steps of time */
 const N = 24;
+/** a home row is gone once the page covers this share of it, inverted (1.15: at 87 %); OCC: how much of the ground the moving window lays over home */
+const COVER = 1.15, OCC = 0.9;
 const ss = (x: number) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
 /** how much of a box [l, t, r, b] a window covers (0–1, by area) */
 const cover = (u: Edges, w: Edges) => (Math.max(0, Math.min(u[2], w[2]) - Math.max(u[0], w[0])) / Math.max(1, u[2] - u[0])) * (Math.max(0, Math.min(u[3], w[3]) - Math.max(u[1], w[1])) / Math.max(1, u[3] - u[1]));
@@ -93,6 +95,14 @@ export class Expander {
   private win() { return springCurve(SURFACE, 0, true); }
   private sm() { return springCurve(SMOOTH); }
   /** the flying copies stay inside the window (a big chart never hangs out of a card that is already small) */
+  /** under the page's glass: the screen's own ground, so home under the window is hidden while it moves (outside it stays);
+   *  at rest it is gone (the first frame is the card, the last the page: home under it is hidden by then anyway) */
+  private get occ() { return this.e.det.querySelector<HTMLElement>('.hx-occ')!; }
+  private occMove(f: (e: number) => number, at: (p: number) => number, o: { duration: number; delay?: number }) {
+    const kf = Array.from({ length: N + 1 }, (_, i) => ({ offset: i / N, opacity: +f(at(i / N)).toFixed(4) }));
+    const occ = this.occ; occ.getAnimations().filter(mine).forEach((a) => a.cancel()); occ.style.opacity = '';
+    return this.anim(occ, kf, { ...o, easing: 'linear' });
+  }
   private clipFly(win: (e: number) => Edges, at: (p: number) => number, o: { duration: number; delay?: number }) {
     const { W, H } = this.size();
     const kf = Array.from({ length: N + 1 }, (_, i) => { const w = win(at(i / N)); return { offset: i / N, clipPath: `inset(${(w[1] - 1).toFixed(1)}px ${(W - w[2] - 1).toFixed(1)}px ${(H - w[3] - 1).toFixed(1)}px ${(w[0] - 1).toFixed(1)}px round 22px)` }; });
@@ -255,8 +265,10 @@ export class Expander {
     // rides with the card's top-left corner to its place (the flying number moves with it), so the card is never empty
     const [ox, oy] = this.ride(src);
     if (card) { src.classList.add('hx-src'); st.anims.push(this.clipFly(win, at, { duration: D })); }
-    // a row of home fades as the growing page comes over it (gone at two fifths) (the page is see-through glass), then waits under it
-    st.home = this.cover(src, win, at, () => 2.5, { duration: D }, undefined, paths);
+    // a row of home stays until the growing page has nearly covered it (the ground under the window hides what it covers), then waits under it
+    // (a card's copies fly inside the window, clipped to it: no row needs to leave their way)
+    st.home = this.cover(src, win, at, () => COVER, { duration: D }, undefined, card ? undefined : paths);
+    st.anims.push(this.occMove((e) => OCC * ss(e / 0.04) * (1 - ss((e - 0.78) / 0.22)), at, { duration: D }));
     st.anims.push(this.anim(this.e.shade, [{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 1, offset: 0.75 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
     // each block of the page shows as soon as it is inside the card (never cut by an edge) and the card's own words have left
     const fade = reduced() ? 1 : card ? Math.min(60, D * 0.1) : 40, gone = card ? fade / D : 0;
@@ -331,7 +343,7 @@ export class Expander {
     const dg = st.drag ?? null; st.drag = null;
     const dragFrom = drag.style.transform || 'none';
     drag.getAnimations().filter(mine).forEach((a) => a.cancel()); drag.style.transform = '';
-    const fromL = L.map(curT), matO = getComputedStyle(mat).opacity, edgeO = getComputedStyle(edge).opacity, shO = getComputedStyle(this.e.shade).opacity, rimO = Number(getComputedStyle(this.e.rim).opacity);
+    const occO = Number(getComputedStyle(this.occ).opacity), fromL = L.map(curT), matO = getComputedStyle(mat).opacity, edgeO = getComputedStyle(edge).opacity, shO = getComputedStyle(this.e.shade).opacity, rimO = Number(getComputedStyle(this.e.rim).opacity);
     const rimFrom = this.rimParts().map(curT);
     // flying copies: keep the ones still in flight (from where they are now), else lift the page's own copies
     let fl: Flight[] = st.fl.map((o) => ({ ...o, from: curT(o.c) }));
@@ -379,7 +391,8 @@ export class Expander {
     // after a swipe, a row already showing beside the page stays, and the rest come back as the page's edge passes them (the
     // copies fly inside the page, never over a row; a row the page overlaps by two fifths is hidden, so nothing shows through its glass)
     const shown = dm ? (r: Box) => cover([r.x, r.y, r.x + r.w, r.y + r.h], toScreen(g0, 0)) < 0.99 : undefined;
-    st.home = this.cover(st.src, (e) => toScreen(mixE(g0, g1, e), e), at, () => 2.5, { duration: D, delay }, undefined, undefined, undefined, shown);
+    st.home = this.cover(st.src, (e) => toScreen(mixE(g0, g1, e), e), at, () => COVER, { duration: D, delay }, undefined, undefined, undefined, shown);
+    out.push(this.occMove((e) => (occO + (OCC - occO) * ss(e / 0.04)) * (1 - ss((e - 0.88) / 0.12)), at, { duration: D, delay }));
     out.push(...st.home);
     if (card) out.push(this.clipFly((e) => mixE(g0, g1, e), at, { duration: D, delay }));
     this.e.shade.getAnimations().filter(mine).forEach((a) => a.cancel());
@@ -453,7 +466,8 @@ export class Expander {
     d.s = 1 - (Math.min(Math.max(0, d.dy), H) / H) * 0.22;
     this.e.drag.style.transform = `translateY(${d.dy}px) scale(${d.s})`;
     const win: Edges = [(W / 2) * (1 - d.s), d.dy, (W / 2) * (1 + d.s), d.dy + H * d.s];
-    for (const { x, r } of d.home) x.style.opacity = String(+ss(1 - cover([r.x, r.y, r.x + r.w, r.y + r.h], win) * 2.5).toFixed(3));
+    for (const { x, r } of d.home) x.style.opacity = String(+ss(1 - cover([r.x, r.y, r.x + r.w, r.y + r.h], win) * COVER).toFixed(3));
+    this.occ.style.opacity = String(+(OCC * ss(Math.max(0, d.dy) / 60)).toFixed(3));
   }
   /** let go at `vy` px/ms (down positive): close into the card past a pull or a flick, else spring back. Returns whether it closes. */
   dragEnd(vy: number): boolean {
@@ -468,10 +482,11 @@ export class Expander {
     const a = this.anim(this.e.drag, [{ transform: from }, { transform: 'none' }], { duration: D, easing: E });
     for (const { x, r } of d.home) {
       const kf = Array.from({ length: N + 1 }, (_, i) => { const e = at(i / N), dy = d.dy * (1 - e), s = d.s + (1 - d.s) * e;
-        return { offset: i / N, opacity: +ss(1 - cover([r.x, r.y, r.x + r.w, r.y + r.h], [(W / 2) * (1 - s), dy, (W / 2) * (1 + s), dy + H * s]) * 2.5).toFixed(3) }; });
+        return { offset: i / N, opacity: +ss(1 - cover([r.x, r.y, r.x + r.w, r.y + r.h], [(W / 2) * (1 - s), dy, (W / 2) * (1 + s), dy + H * s]) * COVER).toFixed(3) }; });
       x.style.opacity = '';
       const h = this.anim(x, kf, { duration: D, easing: 'linear' }); h.id = 'hx-cover';
     }
+    const o0 = Number(this.occ.style.opacity || 0); this.occMove((e) => o0 * (1 - e), at, { duration: D });
     a.finished.then(() => { if (this.st === st && !st.closing && !st.drag) this.e.det.classList.remove('moving'); }).catch(() => {});
     return false;
   }
@@ -554,7 +569,8 @@ export class Expander {
     // home back as it was; a style write after the cancel makes Chrome recompute it (it can keep a cancelled 0 otherwise)
     $$('*', this.e.scr).forEach((x) => { const c = x.getAnimations().filter((a) => a.id === 'hx-cover'); if (!c.length) return; c.forEach((a) => a.cancel()); x.style.opacity = '1'; x.style.opacity = ''; });
     dsc.getAnimations().filter(mine).forEach((a) => a.cancel()); dsc.style.transform = '';
-    [...L, mat, this.e.scr, this.e.shade, fly].forEach((x) => x.getAnimations().filter(mine).forEach((a) => a.cancel()));
+    [...L, mat, this.e.scr, this.e.shade, fly, this.occ].forEach((x) => x.getAnimations().filter(mine).forEach((a) => a.cancel()));
+    this.occ.style.opacity = '';
     $$('[data-share]', root).forEach((x) => { x.style.opacity = ''; });
     $$('*', dsc).forEach((x) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.transform = ''; x.style.opacity = ''; });
     this.st = null;

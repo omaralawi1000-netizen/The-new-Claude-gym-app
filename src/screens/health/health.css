@@ -141,6 +141,8 @@
 /* everything a page is (window, rim, flying copies) moves as one when a finger pulls it down (shrinking from its top middle) */
 .hx-drag { position: absolute; inset: 0; z-index: 5; pointer-events: none; will-change: transform; transform-origin: 50% 0; }
 .hx-drag > .hx-detail { pointer-events: auto; }
+/* the screen's own ground under the moving window (expand.ts occMove): what the window covers of home is hidden; none at rest */
+.hx-occ { position: absolute; inset: 0; background: var(--bg); opacity: 0; }
 /* the card's glass film, always under the page: the window's first and last frames are the card itself */
 .hx-cmat { position: absolute; inset: 0; background: rgba(255, 255, 255, .035); }
 /* the window's rim while it is a card: corners that move and edges that stretch along their length (expand.ts rimOf) */

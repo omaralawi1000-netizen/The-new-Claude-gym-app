@@ -179,6 +179,7 @@ export function HealthScreen() {
       <div ref={drag} className="hx-drag">
       <div ref={det} className="hx-detail" style={{ ['--c' as string]: openK ? COL[openK] : C.sleep }} onClick={passTap}>
         <div ref={L1} className="hx-L hx-rnd hx-c1"><div ref={L2} className="hx-L hx-rnd hx-c2"><div ref={L3} className="hx-L hx-rnd hx-c3"><div ref={L4} className="hx-L hx-rnd hx-c4"><div ref={L5} className="hx-L">
+          <div className="hx-occ" />
           <div className="hx-cmat" />
           <div ref={mat} className="hx-mat" />
           <div ref={dsc} className="hx-dsc">
