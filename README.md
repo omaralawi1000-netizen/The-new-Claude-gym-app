@@ -3482,3 +3482,13 @@ possible… the same design all over the place… the dust should shape the card
   the card just appears (4 s at most).
 - **One look everywhere** (`ui/sphereRender.ts`): the small orb (dock, Coach) is now drawn as the same dust (currents,
   streams of light, twinkle, brighter when small). The 400 beads remain only for the launch logo, then crossfade to dust.
+
+## One conversation, quiet haptics, your day as stars (27 Oct, Beta trial)
+
+Omar on Beta: the orb jumped between big and the Horizon on every turn, the text vanished each time he spoke ("a new
+conversation every time"), the dust drawing the card never fit, and the haptics felt random, worst the long heartbeat when
+the orb landed. So: the orb is big only until the first thing is said, then the Horizon stays and the conversation scrolls.
+Cards rise as everywhere else (the dust drawing is kept behind `DRAW_CARDS`, off). Instead, a spark leaves each new card
+and settles on the Horizon's rim as a star, one per thing done in the visit (Undo takes it away), with one tiny tick when it
+lands. Haptics on the orb screen: a tick on tapping the orb, a tick when a drag passes the point of closing or going to
+the Coach (and back), nothing on release, no heartbeat on arrival (`arrive` removed from the vocabulary).

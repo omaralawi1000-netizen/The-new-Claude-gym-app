@@ -593,7 +593,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
       if (d.wantsUndo) {
         const ok = (t1: Turn1, r: AgentResult) => !!r.undo && !t1.undone.includes(r.id) && (!r.pending || t1.confirmed.includes(r.id));
         const last = [...turnsRef.current].reverse().find((x) => x.results.some((r) => ok(x, r)));
-        if (last) { const r = [...last.results].reverse().find((x) => ok(last, x))!; r.undo!(); markInThread(last.threadId, r.id, 'undone'); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, r.id] } : x))); }
+        if (last) { const r = [...last.results].reverse().find((x) => ok(last, x))!; r.undo!(); unstar(r.id); markInThread(last.threadId, r.id, 'undone'); setTurns((all) => all.map((x) => (x.id === last.id ? { ...x, undone: [...x.undone, r.id] } : x))); }
         if (!d.actions.length && !reply) reply = t('Undone.');
       }
       const st = useStore.getState();
@@ -701,7 +701,7 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
   // tapping while the microphone is still starting cancels that start cleanly (teardown also invalidates the pending start, so
   // it can never come back later as a false "microphone in use")
   const tapSphere = () => {
-    if (liveUi) { haptic('select'); if (speaking) liveRef.current?.hush(); else if (!liveRef.current) void goLive(); return; } // (talking live, it's never a stop)
+    if (liveUi) { if (speaking) { haptic('select'); liveRef.current?.hush(); } else if (!liveRef.current) { haptic('select'); void goLive(); } return; } // (talking live, it's never a stop)
     if (phase === 'requesting' || liveRef.current) { teardown(); go('idle'); return; } orbTap(0.6); if (listening) finish(); else if (!thinking) { haptic('listen'); listen(); } };
   // talking live, from the first frame (also while it connects): the ChatGPT-like screen, never the old buttons in between
   const liveUi = liveWanted && !liveFailed.current && !typing;
@@ -804,7 +804,10 @@ export function VoiceComposer({ props }: { props: { mode?: 'food' | 'workout'; d
     }); }, 520);
   };
   const stars = useRef<DustStar[]>([]);
-  const unstar = (id: string) => { stars.current = stars.current.map((x) => (x.id === id ? { ...x, gone: true } : x)); };
+  const unstar = (id: string) => {
+    stars.current = stars.current.map((x) => (x.id === id ? { ...x, gone: true } : x));
+    setTimeout(() => { stars.current = stars.current.filter((x) => x.id !== id); }, 2000); // (faded by then)
+  };
   const onDustCrisp = (on: boolean) => { if (formBusy.current && shaping.current) { if (on) formDone(formBusy.current); return; } setCrisp(on); };
   // Undo: the card dissolves back into dust (its outline and words, flowing home)
   const dissolve = (id: string) => {

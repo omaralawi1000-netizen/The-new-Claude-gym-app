@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import { DustEngine, type DustState, type RGB } from './engine';
+import { springSamples, SURFACE } from '../motion';
 
 /** What the orb screen tells Stardust every frame (read when it draws, not on render). */
 export interface DustLive {
@@ -129,7 +130,7 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
       air.style.background = `radial-gradient(closest-side, rgba(${c},0) 76%, rgba(${c},.42) 84.5%, rgba(${c},.14) 90%, rgba(${c},0) 100%)`;
     };
     // your day as stars: small points of light on the rim (each one element, moved and faded by transform and opacity only)
-    type StarEl = { el: HTMLDivElement; slot: number; o: number; landed: boolean; tw: number };
+    type StarEl = { el: HTMLDivElement; slot: number; o: number; landed: boolean; tw: number; tf: string };
     const starEls = new Map<string, StarEl>();
     const starCss = 'position:absolute;left:0;top:0;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;pointer-events:none;opacity:0;will-change:transform,opacity';
     const paintStar = (el: HTMLDivElement) => { const c = airKey || '255,255,255'; el.style.background = `radial-gradient(closest-side, rgba(255,255,255,${colors.dark ? 1 : 0.95}) 0 22%, rgba(${c},.55) 40%, rgba(${c},0) 100%)`; };
@@ -138,14 +139,16 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
       const side = n % 2 ? -1 : 1, k = Math.floor(n / 2), a = side * (0.2 + k * 0.09) + Math.sin(t * 0.00021 + n * 1.7) * 0.004;
       return [cx + Math.sin(a) * R * 1.035, cy - Math.cos(a) * R * 1.035];
     };
-    const ease = (x: number) => 1 - Math.pow(1 - x, 3);
+    // (the flight follows the app's own SURFACE spring, sampled: the same curve a card arrives with)
+    const FL = springSamples(SURFACE), FLY = Math.max(600, FL.duration);
+    const ease = (x: number) => { const i = x * (FL.xs.length - 1), k = Math.floor(i); return k >= FL.xs.length - 1 ? 1 : FL.xs[k] + (FL.xs[k + 1] - FL.xs[k]) * (i - k); };
     let voiceFor = 0, stage: HTMLElement | null = null;
     const tick = () => {
       if (stopped || (!worker && !eng)) return; // (it couldn't draw: nothing more to do)
       raf = requestAnimationFrame(tick);
       const L = live.current, el = orbEl.current; if (!L || !el) return;
       // (only while there is dust to draw: before it starts and once it has gone, no frames)
-      if (!L.on && gone) return;
+      if (!L.on && gone) { if (starEls.size) { starEls.forEach((e) => e.el.remove()); starEls.clear(); } return; } // (the dust has gone: so have its stars)
       if (L.on) gone = false;
       // (its place without the finger's move, plus the move as it is right now: the move is read live, never a frame late
       // whichever of the two runs first in a frame)
@@ -199,19 +202,21 @@ export function Stardust({ orbEl, greetEl, greet, live, onCrisp, ready, classNam
         for (const s0 of list) {
           let e = starEls.get(s0.id);
           if (!e && s0.gone) continue; // (taken away and already faded)
-          if (!e) { const el = document.createElement('div'); el.style.cssText = starCss; paintStar(el); holder.insertBefore(el, canvas); e = { el, slot: -1, o: -1, landed: false, tw: Math.random() * 6 }; starEls.set(s0.id, e); }
+          if (!e) { const el = document.createElement('div'); el.style.cssText = starCss; paintStar(el); holder.insertBefore(el, canvas); e = { el, slot: -1, o: -1, landed: false, tw: Math.random() * 6, tf: '' }; starEls.set(s0.id, e); }
           if (!s0.gone) e.slot = n++;
           const [rx, ry] = rimAt(Math.max(0, e.slot), st.cx, st.cy, st.r, t);
-          const fly = s0.from && !st.reduced ? Math.min(1, Math.max(0, (t - s0.at) / 900)) : 1;
-          if (fly >= 1 && !e.landed && !s0.gone) { e.landed = true; if (t - s0.at < 4000) L.onStar(); }
+          const fly = s0.from && !st.reduced ? Math.min(1, Math.max(0, (t - s0.at) / FLY)) : 1;
+          if (fly >= 1 && !e.landed && !s0.gone) { e.landed = true; if (t - s0.at < 4000 && hzE > 0.3) L.onStar(); } // (felt only when it can be seen)
           const f = ease(fly), [fx, fy] = s0.from ?? [rx, ry];
           // (the arc: it rises a little first, then falls onto the rim)
           const x = fx + (rx - fx) * f, y = fy + (ry - fy) * f - Math.sin(Math.PI * f) * 46;
-          const pulse = e.landed ? 1 + 0.6 * Math.max(0, 1 - (t - s0.at - 900) / 500) : 0.7 + 0.5 * f;
-          const breathe = e.landed ? 0.82 + 0.18 * Math.sin(t * 0.0016 + e.tw) : 1;
+          const pulse = e.landed && !st.reduced ? 1 + 0.6 * (1 - ease(Math.min(1, Math.max(0, (t - s0.at - FLY) / 500)))) : e.landed ? 1 : 0.7 + 0.5 * f;
+          // (resting, it breathes a little, in steps of a few percent: no new opacity every frame; still under Reduce motion)
+          const breathe = e.landed && !st.reduced ? Math.round((0.82 + 0.18 * Math.sin(t * 0.0016 + e.tw)) * 25) / 25 : 1;
           const o = Math.round((s0.gone ? 0 : (fly > 0 ? 1 : 0)) * breathe * (s0.from ? Math.max(hzE, 1 - f) : hzE) * 100) / 100;
           const oS = e.o < 0 ? 0 : e.o + (o - e.o) * (s0.gone ? 0.08 : 1);
-          e.el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${pulse.toFixed(3)})`;
+          const tf = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) scale(${pulse.toFixed(3)})`;
+          if (e.o > 0.005 || oS > 0.005) { if (tf !== e.tf) { e.tf = tf; e.el.style.transform = tf; } } // (only when seen and moved)
           if (Math.abs(oS - e.o) > 0.005) { e.o = oS; e.el.style.opacity = oS.toFixed(3); }
           if (s0.gone && oS < 0.01) { e.el.remove(); starEls.delete(s0.id); }
         }
