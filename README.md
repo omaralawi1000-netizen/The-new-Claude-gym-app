@@ -3188,7 +3188,7 @@ tone or message counts, no rules per topic, going over the calories said once li
 - Exam round 3 adds `honest-praise` (praise must be counted exactly). Before/after: live main in a git worktree vs the
   branch, on Gemini through `scripts/exam/_ba.test.ts` (a local scratch file, never committed; see the plan doc).
 
-## Living coach, step 2: goals you tell it (26 Oct 2026, branch `claude/project-thread-fomqy0`, not shipped yet)
+## Living coach, step 2: goals you tell it (26 Oct 2026, branch `claude/project-thread-fomqy0`, shipped v0.1.180)
 Omar's go 26 Oct 00:37: "if I want a plan, like, I want to lose 2 kilos in 2 weeks… and it also checks my recovery and
 training, and if I'm stalling… make sure I'm not losing muscle… like a real coach. That's the bar." Built overnight in
 rounds, each checked by a fresh judge that only suggests (6.5 → 7.5 → 8.0 → see the plan doc's table).
@@ -3297,3 +3297,31 @@ rounds, each checked by a fresh judge that only suggests (6.5 → 7.5 → 8.0 �
 - Tests: `tests/goals.test.ts`. Before/after on Gemini Flash: `scripts/exam/_goals.test.ts` (scratch, never committed; a
   copy and `show.py` live in `/mnt/project-files/living-coach/tools/`), run as
   `G_OUT=dir G_TAG=after npx vitest run --config scripts/exam/vitest.config.ts scripts/exam/_goals.test.ts`.
+
+### Step 2 polish + the Coach on Gemini 4 Argon (26 Oct 2026, v0.1.181)
+Omar, 11:47: "focus on polish and perfect it first"; 15:22: out of OpenAI credit, "Use Argon for the coach"; 15:33 chose
+"ship both". Twelve rounds on Gemini 4 Argon, four judges: the live Coach ~5 → 7–7.5 (Flash 6–6.5), replies 190 → 85 words.
+- **The Coach thinks with Argon** (`gemini.ts` `COACH_MODEL`, `agentModels(big, coach)`): Coach, its pin, week review and the
+  eating watch try `gemini-4-argon` first, then the newest Flash. The orb stays on Flash (Argon takes 6–20 s). A model too
+  slow to start answering now hands over to the next one (`withFallback`) instead of failing the turn.
+- **Honesty checks** (`answerCheck.ts`, one retry): a routine, plan, target or goal said changed/saved must have its action;
+  1–2 routine changes are applied, so the reply must say so; previews are never "created"; one question per reply; a goal
+  reply over ~150 words is asked to shorten. Dates are written day first ("24 December", `readableDates`).
+- **What the model forgets, the app fills** (`agent.ts`): a routine change only said in words becomes the edit; a goal lift's
+  new plan is saved on the goal when only the routine got it (`savePlanFromGoals`); a setting already at its value makes no card.
+- Prompt: plans ~110 words, follow-ups ~80, at most three numbers a sentence; weigh-in odds are "likely or tight", never a
+  promise; no diet weeks or numbers for under-18s.
+
+### The current-set outline glides (alive plan step 1, 27 Oct 2026, v0.1.182)
+Omar, 26 Oct 19:36: go for step 1; 27 Oct 06:27 after Beta: "Put in live". Four fresh judges: 8.0 → 7.5 → 8.6 → 9.1.
+- **What it does** (`src/screens/workout/setRing.ts`): after a tick, the set's outline leaves 100 ms later (the check pops first)
+  and glides to the next set of the same card on the SMOOTH spring. Quick ticks, unticks and + Set re-aim it with its position,
+  speed and current strength. Longer moves dim it to half between 30 % and 60 % of the way, so it passes over the rows' text
+  instead of striking through it. Moving to another card it fades as before. The faint fill, number colour and check ring
+  still fade, 160–180 ms later so they arrive with it. Focus view keeps the row's own outline.
+- **Layers** (flicker rule): two outlines live in the list above every card (`.wk-rings`, z-index 4, so nothing is pushed onto a
+  layer by them) and keep their layers while the list is open; the spare one waits at 0.002 opacity.
+- **Cost**: it looks only when something moved (resize, rows added or removed, a carrying animation ending, Move up/down via
+  `flipstart`), never while Focus view hides the list. Flicker-layers and 4× CPU timings match the live app.
+- Tests used: `scripts/flicker-layers.mjs` (wk steps), `scripts/perf-workout.mjs` (add-set step); real-speed clips were recorded
+  by slowing every page animation through CDP and resampling by animation time.

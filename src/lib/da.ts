@@ -1845,6 +1845,7 @@ export const da: Record<string, string> = {
  "Slow connection.": "Langsom forbindelse.",
  "Slow connection. Try again, or find your question in the Coach.": "Langsom forbindelse. Prøv igen, eller find dit spørgsmål i Coach.",
  "Slow connection…": "Langsom forbindelse…",
+ "Checking the answer…": "Tjekker svaret…",
  "Still thinking…": "Tænker stadig…",
  "Still true? “{text}”": "Stadig rigtigt? “{text}”",
  "Today’s free Gemini quota is used up. It’s back at {time}.": "Dagens gratis Gemini-kvote er brugt. Den er tilbage kl. {time}.",
