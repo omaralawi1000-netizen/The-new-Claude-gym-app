@@ -202,7 +202,7 @@ await p.getByRole('button', { name: 'Stop reading' }).click(); await wait(p, 200
 assert.equal(await p.locator('.w-on, .w-next').count(), 0, 'stop clears the highlight');
 await p.screenshot({ path: 'shots/ai-9-coach.png' });
 await p.getByLabel('Message the Coach').fill('open progress'); await p.getByRole('button', { name: 'Send', exact: true }).click(); await wait(p, 2600);
-assert(await p.locator('.tabbar').getByRole('button', { name: 'Progress', exact: true }).getAttribute('aria-current') === 'page', 'navigated by asking');
+assert(await p.locator('.tabbar').getByRole('button', { name: 'Health', exact: true }).getAttribute('aria-current') === 'page', 'navigated by asking');
 await p.getByLabel('Coach').click().catch(() => {}); await wait(p, 700);
 
 // ── coach: streaming grounded answer, then routine preview → explicit create ──
