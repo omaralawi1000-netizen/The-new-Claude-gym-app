@@ -67,9 +67,10 @@ export function useFillWhenSeen(ref: RefObject<HTMLElement | null>, on: boolean)
       const now = `${Math.round(r.left * 2)},${Math.round(r.top * 2)}`;
       const moved = now !== at; at = now;
       if (moved) return false;
+      // (a slide or rise shows as the strip moving; asking the page for its running animations instead left the week's count
+      // number undrawn for a few frames in films while Today came back)
       for (let n = el.parentElement; n; n = n.parentElement) if (getComputedStyle(n).opacity !== '1') return false;
-      return !document.getAnimations().some((a) => a.playState === 'running' && a.effect instanceof KeyframeEffect
-        && a.effect.target instanceof Element && a.effect.target.contains(el));
+      return true;
     };
     const tick = () => {
       calm = still() ? calm + 1 : 0;
