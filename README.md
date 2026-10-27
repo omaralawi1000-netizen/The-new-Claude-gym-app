@@ -21,6 +21,7 @@ When this part and an old section disagree, this part wins.
 - [`docs/polish-plan.md`](docs/polish-plan.md): the old numbered to-do list ("do section N"). Paused since 15 Oct.
 - [`docs/living-coach-plan.md`](docs/living-coach-plan.md): the living Coach plan with its progress table.
 - [`docs/coach-plan.md`](docs/coach-plan.md) and [`docs/coach-brain-plan.md`](docs/coach-brain-plan.md): Coach 2.0 and the Coach brain work (done, kept for the why).
+- [`figures/RESUME.md`](figures/RESUME.md): everything for the exercise figures (code, rules, per-exercise status, how to restore the big files from [`figures/ASSETS.md`](figures/ASSETS.md)). Start there for anything figures.
 - Outside the repo, in the Claude project's shared folder `/mnt/project-files/` (only visible from inside Omar's
   "The memory of aven" project): `inspiration/design-spec.md` (the living design spec and taste picks),
   `inspiration/alive-plan.md`, `inspiration/tabbar-handover.md`, `anatomy-proof/handover-sonnet.md` (figures),

@@ -1,0 +1,27 @@
+CAMDIAG f0 near r: fist-column gap near 60px far 147px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..458
+CAMDIAG f5 near r: fist-column gap near 59px far 147px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..458
+CAMDIAG f10 near r: fist-column gap near 57px far 149px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..460
+CAMDIAG f15 near r: fist-column gap near 54px far 153px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..463
+CAMDIAG f20 near r: fist-column gap near 51px far 158px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..466
+CAMDIAG f25 near r: fist-column gap near 47px far 167px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..470
+CAMDIAG f30 near r: fist-column gap near 42px far 178px | figure+station x 314..576 mid 445 (-35) | pulley/head top margin 34px bottom 51px | figure x 314..475
+CAMDIAG f35 near r: fist-column gap near 39px far 187px | figure+station x 305..576 mid 440 (-40) | pulley/head top margin 34px bottom 51px | figure x 305..478
+CAMDIAG f40 near r: fist-column gap near 38px far 191px | figure+station x 300..576 mid 438 (-42) | pulley/head top margin 34px bottom 51px | figure x 300..479
+CAMDIAG f45 near r: fist-column gap near 36px far 194px | figure+station x 297..576 mid 437 (-43) | pulley/head top margin 34px bottom 51px | figure x 297..480
+CAMDIAG f50 near r: fist-column gap near 36px far 195px | figure+station x 296..576 mid 436 (-44) | pulley/head top margin 34px bottom 51px | figure x 296..481
+CAMDIAG f55 near r: fist-column gap near 35px far 196px | figure+station x 295..576 mid 435 (-45) | pulley/head top margin 34px bottom 51px | figure x 295..482
+CAMDIAG f60 near r: fist-column gap near 34px far 196px | figure+station x 295..576 mid 435 (-45) | pulley/head top margin 34px bottom 51px | figure x 295..483
+CAMDIAG f65 near r: fist-column gap near 34px far 194px | figure+station x 298..576 mid 437 (-43) | pulley/head top margin 34px bottom 51px | figure x 298..483
+CAMDIAG f70 near r: fist-column gap near 35px far 188px | figure+station x 304..576 mid 440 (-40) | pulley/head top margin 34px bottom 51px | figure x 304..481
+CAMDIAG f75 near r: fist-column gap near 36px far 181px | figure+station x 311..576 mid 443 (-37) | pulley/head top margin 34px bottom 51px | figure x 311..481
+CAMDIAG f80 near r: fist-column gap near 37px far 174px | figure+station x 318..576 mid 447 (-33) | pulley/head top margin 34px bottom 51px | figure x 318..480
+CAMDIAG f85 near r: fist-column gap near 41px far 165px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..476
+CAMDIAG f90 near r: fist-column gap near 46px far 157px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..471
+CAMDIAG f95 near r: fist-column gap near 51px far 151px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..466
+CAMDIAG f100 near r: fist-column gap near 54px far 148px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..463
+CAMDIAG f105 near r: fist-column gap near 56px far 147px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..461
+CAMDIAG f110 near r: fist-column gap near 57px far 146px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..460
+CAMDIAG f115 near r: fist-column gap near 58px far 146px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..459
+CAMDIAG f120 near r: fist-column gap near 59px far 146px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..459
+CAMDIAG f125 near r: fist-column gap near 59px far 147px | figure+station x 323..576 mid 449 (-31) | pulley/head top margin 34px bottom 51px | figure x 323..458
+CAMDIAG worst near-fist gap 34px at f60
