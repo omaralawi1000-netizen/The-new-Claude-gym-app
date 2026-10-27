@@ -247,8 +247,8 @@ export class Expander {
     // rides with the card's top-left corner to its place (the flying number moves with it), so the card is never empty
     const [ox, oy] = this.ride(src);
     if (card) src.classList.add('hx-src');
-    // home is covered by the page as it grows, and steps back a little around it
-    st.home = this.cover(src, win, at, () => 1, { duration: D }, undefined, paths, (p) => 1 - ss((p - 0.08) / 0.3));
+    // a row of home shows until the growing page overlaps a quarter of it (the page is see-through glass), then waits under it
+    st.home = this.cover(src, win, at, () => 4, { duration: D }, undefined, paths);
     st.anims.push(this.anim(this.e.shade, [{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 1, offset: 0.75 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
     // each block of the page shows as soon as it is inside the card (never cut by an edge) and the card's own words have left
     const fade = reduced() ? 1 : card ? Math.min(90, D * 0.12) : 40, gone = card ? fade / D : 0;
@@ -340,13 +340,7 @@ export class Expander {
     (st.out ?? []).forEach((a) => a.cancel());
     const g1 = this.edges(st.src), wf = this.framesOf(g1);
     const out: Animation[] = [];
-    // the section's own words come back as soon as the copies landing on it have left their spot (never under a number)
-    const at = curve(E), paths: [Box, Box][] = fl.map(({ c, a }) => {
-      const rb = { x: parseFloat(c.style.left), y: parseFloat(c.style.top), w: parseFloat(c.style.width), h: parseFloat(c.style.height) };
-      const m = new DOMMatrix(c.style.transform && c.style.transform !== 'none' ? c.style.transform : undefined), ra = this.box(a), s = this.scale(a, ra, rb);
-      const full = true;
-      return [{ x: rb.x + m.e, y: rb.y + m.f, w: rb.w * m.a, h: rb.h * m.d, full }, { x: ra.x, y: ra.y, w: rb.w * s, h: rb.h * s, full }];
-    });
+    const at = curve(E);
     const card = st.src.classList.contains('hx-card');
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
     st.dim.forEach((x, i) => {
@@ -359,7 +353,6 @@ export class Expander {
     // the swipe's own move (down and a little smaller) eases out on the same spring as the window
     if (dragFrom !== 'none') out.push(this.anim(drag, [{ transform: dragFrom }, { transform: 'none' }], { duration: D, delay, easing: E }));
     // the page's material clears onto the card's own glass film (always under it), so the last frame is the card
-    const m0 = Number(matO), mo = (p: number) => m0 * (1 - ss((p - 0.06) / 0.34));
     const mk = dg ? [0.3, 0.7] : [0.06, 0.4]; // after a swipe the page stays a page until it is nearly the card
     out.push(this.anim(mat, [{ opacity: matO }, { opacity: matO, offset: mk[0] }, { opacity: 0, offset: mk[1] }, { opacity: 0 }], { duration: D, delay, easing: 'linear' }));
     // where the window is now (its layers' moves, and the swipe's), and where it lands: the card
@@ -375,7 +368,7 @@ export class Expander {
     // after a swipe, a row already showing beside the page stays, and the rest come back as the page's edge passes them (the
     // copies fly inside the page, never over a row; a row the page still overlaps by a quarter stays hidden, so nothing shows through its glass)
     const shown = dm ? (r: Box) => cover([r.x, r.y, r.x + r.w, r.y + r.h], toScreen(g0, 0)) < 0.99 : undefined;
-    st.home = this.cover(st.src, (e) => toScreen(mixE(g0, g1, e), e), at, dm ? () => 4 : mo, { duration: D, delay }, dm ? undefined : paths, undefined, undefined, shown);
+    st.home = this.cover(st.src, (e) => toScreen(mixE(g0, g1, e), e), at, () => 4, { duration: D, delay }, undefined, undefined, undefined, shown);
     out.push(...st.home);
     this.e.shade.getAnimations().filter(mine).forEach((a) => a.cancel());
     out.push(this.anim(this.e.shade, [{ opacity: shO }, { opacity: 0, offset: 0.4 }, { opacity: 0 }], { duration: D, delay, easing: 'linear' }));
