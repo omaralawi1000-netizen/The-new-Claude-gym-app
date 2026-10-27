@@ -110,7 +110,7 @@ await p.screenshot({ path: 'shots/coach6-7-answered.png' });
 await p.getByRole('button', { name: 'Close' }).first().click(); await wait(p, 900);
 
 // ── hold a chart on Progress ──
-await p.locator('.tabbar').getByRole('button', { name: 'Progress', exact: true }).click(); await wait(p, 1400);
+await p.locator('.tabbar').getByRole('button', { name: 'Health', exact: true }).click(); await wait(p, 1400); { const tr = p.locator('.hx-sec[data-k="training"]'); await tr.scrollIntoViewIfNeeded(); await wait(p, 600); await tr.click({ position: { x: 30, y: 10 } }); await wait(p, 2500); }
 const cc = p.locator('[data-ask="chart:bodyweight"]');
 await cc.scrollIntoViewIfNeeded(); await wait(p, 400);
 const cb = await cc.boundingBox();
