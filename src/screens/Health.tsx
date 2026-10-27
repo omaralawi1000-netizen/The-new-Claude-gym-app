@@ -593,9 +593,9 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     const nights = n.last14.concat([{ date: v.today, min: n.asleep }]);
     const top = Math.max(540, ...nights.map((x) => x.min));
     out = <>
-      <div className="hx-lab"><i />{t('Last night')}</div>
+      <div className="hx-lab" data-share="lab"><i />{t(NAME.sleep)}</div>
       <div className="hx-n hx-n56" data-share="num">{hm(n.asleep, lang)}</div>
-      <div className="hx-sub">{fmtTime(n.session.start, lang)} → {fmtTime(n.session.end, lang)}</div>
+      <div className="hx-sub" data-share="cap">{fmtTime(n.session.start, lang)} → {fmtTime(n.session.end, lang)} · {t('deep')} {hm(n.stages.deep, lang)}</div>
       {hero({ marginTop: 10 })}
       <h3 className="hx-dt hx-rise">{head}</h3>
       {diff !== undefined && <p className="hx-dsub hx-rise">{Math.abs(diff) < USUAL_BAND ? t('About your usual {u}.', { u: hm(n.usual!, lang) }) : t(diff > 0 ? '{d} more than your usual {u}.' : '{d} less than your usual {u}.', { d: hm(Math.abs(diff), lang), u: hm(n.usual!, lang) })}</p>}
@@ -620,7 +620,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     const calm = h.rest !== undefined && h.usual !== undefined && h.rest <= h.usual;
     const hrvLow = h.hrv !== undefined && !!h.hrvRange && h.hrv < h.hrvRange[0];
     out = <>
-      <div className="hx-lab"><i />{t('Resting heart rate')}</div>
+      <div className="hx-lab" data-share="lab"><i />{t(NAME.heart)}</div>
       <div><span className="hx-n hx-n64" data-share="num">{h.rest ?? '—'}</span><span className="hx-sub hx-unit" data-share="unit">{t('bpm resting')}</span></div>
       {hero({ marginTop: 4 })}
       {h.trace.length > 1 && <div className="hx-ends hx-rise" style={{ marginTop: 0 }}><span className="hx-ax3">{fmtDate(addDays(v.today, 1 - h.trace.length), lang, { day: 'numeric', month: 'short' })}</span><span className="hx-ax3">{t('Today')}</span></div>}
@@ -639,7 +639,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     const ahead = usualNow !== undefined && st.today !== undefined ? st.today - usualNow : undefined;
     const top = Math.max(1, ...st.week.map((x) => x.count ?? 0));
     out = <>
-      <div className="hx-lab"><i />{t('Steps today')}</div>
+      <div className="hx-lab" data-share="lab"><i />{t(NAME.move)}</div>
       <div><span className="hx-n hx-n52" data-share="num">{fmtNum(st.today ?? 0, lang, 0)}</span>{st.usual ? <span className="hx-sub hx-unit">{t('of your usual {n}', { n: fmtNum(Math.round(st.usual / 100) * 100, lang, 0) })}</span> : null}</div>
       {hero({ marginTop: 14 })}
       <h3 className="hx-dt hx-rise">{ahead === undefined ? t('Today so far') : Math.abs(ahead) < 800 ? t('On your usual pace') : ahead > 0 ? t('Ahead of your usual day') : t('Behind your usual day')}</h3>
