@@ -5,7 +5,7 @@ import { mic } from '../lib/mic';
 import { useVoice } from '../state/voice';
 import { speakingLevel, onVoiceOut, voiceOutOn } from '../lib/voiceOut';
 import { useStore } from '../state/store';
-import { useUI, haptic } from '../state/ui';
+import { useUI } from '../state/ui';
 import { kb, onKeyboardGoal } from './keyboard';
 import { highRefresh, onHighRefresh, springCurve } from './motion';
 
@@ -670,9 +670,8 @@ export function SphereStage() {
           // else it lands with one firm tick
           const ignite = landed && !wasLanded && topSlot.id === 'voice';
           if (ignite) ignitePending = 1;
-          if (useStore.getState().settings.haptics && running) {
-            if (ignite) haptic('arrive');
-          }
+          // (no heartbeat on landing any more, Omar 27 Oct: "very annoying when the coach is up"; the orb is felt only when you
+          // touch it)
           wasLifted = lifted; wasLanded = landed;
         }
       } else { wasLifted = false; wasLanded = false; }

@@ -179,7 +179,6 @@ export const HAPTICS = {
   warn: 30,                         // that can't be done yet (a set with no reps)
   countdown: 24,                    // each of a rest's last three seconds
   restOver: [180, 90, 180, 90, 320],// the rest is over (strong enough to feel through a pocket)
-  arrive: [4, 135, 5, 112, 6, 92, 7, 76, 9, 60, 11, 46, 14, 34, 30], // the orb lands on its screen: a quickening heartbeat
 } as const;
 export type Haptic = keyof typeof HAPTICS;
 export const haptic = (k: Haptic) => buzz(HAPTICS[k] as number | number[]);
