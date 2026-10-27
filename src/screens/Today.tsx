@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { resumeWorkout } from '../ui/workoutOpen';
 import { motion } from 'motion/react';
 import { useStore, plannedFor, missedWorkouts, foodPool, exerciseMap } from '../state/store';
@@ -24,11 +24,81 @@ import { Roll } from '../ui/Roll';
 import { openFoodPhoto } from '../lib/photoOpen';
 import { CoachPin } from '../ui/CoachPin';
 import { useEdgeFade } from '../ui/edgeFade';
+import { BOUNCY, springCurve } from '../ui/motion';
+import { useFillWhenSeen, useWeekFill, weekFillStarted } from './weekFill';
 
 /** a sideways row of chips that fades only on the side with more to scroll to */
 function SoftChips({ style, children }: { style?: React.CSSProperties; children: React.ReactNode }) {
   const ref = useEdgeFade<HTMLDivElement>();
   return <div ref={ref} className="chips fade-x" style={style}>{children}</div>;
+}
+
+type DayLook = { bg: string; color: string; shadow?: string; content: React.ReactNode };
+function dayLook(done: boolean, wr: boolean, r: Routine | undefined, isToday: boolean, pw: boolean): DayLook {
+  return {
+    bg: done || wr ? 'var(--ac)' : r || isToday ? 'var(--s2)' : 'transparent',
+    color: done || wr ? 'var(--ac-ink)' : 'var(--tx2)',
+    shadow: done || wr ? '0 0 18px -2px var(--ac)' : isToday ? 'inset 0 0 0 1.5px var(--ac), 0 0 18px -6px var(--ac)' : r ? 'inset 0 0 0 1px var(--line)' : undefined,
+    content: done ? <Icon name="check" size={17} sw={2.6} /> : wr ? <Icon name="wrestle" size={17} /> : r ? r.name.slice(0, 1).toUpperCase() : pw ? <Icon name="wrestle" size={16} style={{ opacity: 0.75 }} /> : <i aria-hidden style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--tx3)', opacity: 0.6 }} />,
+  };
+}
+const reducedMotion = () => document.documentElement.dataset.motion === 'reduce'
+  || (document.documentElement.dataset.motion !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+/**
+ * A day's circle in the week strip. The first time the strip is seen after a workout, today's fills: the full circle swells
+ * out of the middle on the bouncy spring with its check a beat behind, the empty ring and letter fade from under it, and
+ * one soft ring goes out and away. Everything is held where it ends (the plain circle's look), so nothing is dropped
+ * when it settles; opening Today later draws the plain circle.
+ */
+function DayDot({ look, before, fresh }: { look: DayLook; before: DayLook; fresh: boolean }) {
+  const held = useRef(false);
+  if (fresh && !reducedMotion()) held.current = true;
+  const pre = useRef<HTMLSpanElement>(null), disc = useRef<HTMLSpanElement>(null), tick = useRef<HTMLSpanElement>(null), ring = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (!fresh) return;
+    weekFillStarted();
+    if (!pre.current || !disc.current || !tick.current || !ring.current) return;
+    // (one keyframe at the start: each goes from there to its resting look, the style below)
+    const sp = springCurve(BOUNCY);
+    disc.current.animate([{ transform: 'scale(0.6)', offset: 0 }], { duration: sp.duration, easing: sp.easing, fill: 'both' });
+    disc.current.animate([{ opacity: 0, offset: 0 }], { duration: 200, easing: 'cubic-bezier(0.3, 0, 0.4, 1)', fill: 'both' });
+    tick.current.animate([{ transform: 'scale(0.5)', opacity: 0, offset: 0 }], { duration: sp.duration, easing: sp.easing, delay: 80, fill: 'both' });
+    pre.current.animate([{ opacity: 1, offset: 0 }], { duration: 280, easing: 'cubic-bezier(0.4, 0, 0.6, 1)', fill: 'both' });
+    ring.current.animate([{ transform: 'none', opacity: 0.7, offset: 0 }], { duration: 900, delay: 140, easing: 'cubic-bezier(0.2, 0.6, 0.35, 1)', fill: 'both' });
+  }, [fresh]);
+  const dot: React.CSSProperties = { width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700 };
+  if (!held.current) return <span style={{ ...dot, background: look.bg, color: look.color, boxShadow: look.shadow }}>{look.content}</span>;
+  // resting looks: the empty one and the ring gone (kept at a breath above zero, so they keep their layer), the full one there.
+  // The dark look's one orange (look.css) is matched on a day's own circle only, so these layers ask for it themselves
+  const fill: React.CSSProperties = { ...dot, position: 'absolute', inset: 0 };
+  const of = (v?: string) => v?.replaceAll('var(--ac)', 'var(--of, var(--ac))');
+  return (
+    <span style={{ ...dot, position: 'relative' }}>
+      <span ref={pre} style={{ ...fill, background: before.bg, color: before.color, boxShadow: of(before.shadow), opacity: 0.002 }}>{before.content}</span>
+      <i ref={ring} aria-hidden style={{ ...fill, boxShadow: 'inset 0 0 0 1.5px var(--of, var(--ac))', transform: 'scale(1.45)', opacity: 0.002 }} />
+      <span ref={disc} style={{ ...fill, background: of(look.bg), color: look.color, boxShadow: of(look.shadow) }}><span ref={tick} style={{ display: 'grid' }}>{look.content}</span></span>
+    </span>
+  );
+}
+
+/**
+ * The line between two trained days, centre to centre (under the circles, over nothing else). The one reaching a circle
+ * that has just filled draws itself out of the day before, landing as the circle does; it is held there.
+ */
+function Link({ a, b, grow }: { a: number; b: number; grow: boolean }) {
+  const ref = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (grow && !reducedMotion()) ref.current?.animate([{ transform: 'scaleX(0)', offset: 0 }], { duration: 620, delay: 60, easing: 'cubic-bezier(0.3, 0, 0.2, 1)', fill: 'both' });
+  }, [grow]);
+  return <i ref={ref} aria-hidden style={{ position: 'absolute', zIndex: 0, top: 'var(--link-y, 31.5px)', height: 3, borderRadius: 3, background: 'var(--of, var(--ac))', transformOrigin: 'left', left: `calc((100% - 24px) / 7 * ${a + 0.5} + ${a * 4}px)`, width: `calc((100% - 24px) / 7 * ${b - a} + ${(b - a) * 4}px)` }} />;
+}
+
+/** the week's count, its number rolling as today's circle fills (it lands with the circle) */
+function CountLine({ text }: { text: string }) {
+  const m = /\d+/.exec(text);
+  if (!m) return <>{text}</>;
+  return <>{text.slice(0, m.index)}<Roll text={m[0]} delay={140} />{text.slice(m.index + m[0].length)}</>;
 }
 
 export function estMinutes(r: Routine): number {
@@ -114,16 +184,39 @@ export function TodayScreen() {
     if (added) toast(t('Added {name}', { name: food.name }), { tone: 'ok', actionLabel: t('Undo'), onAction: () => s.removeEntry(added.id) });
   };
 
-  // week
+  // week. A workout just finished is left out until the strip is seen, then today's circle fills (screens/weekFill.ts)
+  const wf = useWeekFill();
+  const freshDate = wf.fresh ? s.sessions.find((x) => x.id === wf.fresh)?.date : undefined;
+  const stripRef = useRef<HTMLElement>(null);
+  useFillWhenSeen(stripRef, !!wf.pending);
   const weekStart = startOfWeek(today, settings.weekStart);
   const week = Array.from({ length: 7 }, (_, i) => {
     const d = addDays(weekStart, i);
     const p = plannedFor(s, d, today);
-    const done = s.sessions.some((x) => x.date === d);
+    const done = s.sessions.some((x) => x.date === d && x.id !== wf.pending);
     const wr = s.activities.some((x) => x.date === d && x.kind === 'wrestling');
     const pw = !!s.schedule.activities?.[weekdayOf(d)]?.includes('wrestling'); // wrestling planned that weekday
     return { d, p, done, wr, pw };
   });
+  // the trained days joined by a line (Omar's pick, 27 Oct): it runs on across rest days and breaks at a missed workout
+  const links: [number, number][] = [];
+  {
+    let last = -1;
+    week.forEach((w, i) => {
+      if ((w.done || w.wr) && w.d <= today) { if (last >= 0) links.push([last, i]); last = i; return; }
+      if ((w.p && w.d < today) || w.d > today) last = -1;
+    });
+  }
+  // the line runs through the circles' middles: measured, as the day letters above them set where that is
+  useLayoutEffect(() => {
+    const sec = stripRef.current;
+    const btn = sec?.querySelector('button'), dot = btn?.children[1] as HTMLElement | undefined;
+    if (!sec || !btn || !dot) return;
+    const put = () => sec.style.setProperty('--link-y', `${btn.offsetTop + dot.offsetTop + dot.offsetHeight / 2 - 1.5}px`);
+    put();
+    const ro = new ResizeObserver(put); ro.observe(btn);
+    return () => ro.disconnect();
+  }, [links.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
   // under the dots: how the week is going, the streak of weeks that hit the plan, and wrestling
   const weekLine = useMemo(() => {
     const target = s.schedule.mode === 'rotation' ? s.schedule.rotation.perWeek : Object.values(s.schedule.weekly).filter(Boolean).length;
@@ -134,16 +227,16 @@ export function TodayScreen() {
     const cardioN = s.activities.filter((x) => x.source === 'watch' && x.kind !== 'wrestling' && !watchWalk(x) && inWeek(x.date)).length;
     const stepDays = (s.steps ?? []).filter((x) => inWeek(x.date) && x.date <= today);
     const stepsAvg = stepDays.length ? Math.round(stepDays.reduce((n, x) => n + x.count, 0) / stepDays.length / 100) * 100 : 0;
-    const streak = target ? weekStreak(weeklyTraining(s.sessions, today, 26, settings.weekStart), target) : 0;
-    const parts = [
-      target ? t('{a} of {b} workouts', { a: doneN, b: target }) : doneN ? t(doneN === 1 ? '1 workout' : '{n} workouts', { n: doneN }) : '',
+    const streak = target ? weekStreak(weeklyTraining(s.sessions.filter((x) => x.id !== wf.pending), today, 26, settings.weekStart), target) : 0;
+    const count = target ? t('{a} of {b} workouts', { a: doneN, b: target }) : doneN ? t(doneN === 1 ? '1 workout' : '{n} workouts', { n: doneN }) : '';
+    const rest = [
       streak >= 2 ? t('{n}-week streak', { n: streak }) : '',
       wrN ? t(wrN === 1 ? '1 wrestling session' : '{n} wrestling sessions', { n: wrN }) : '',
       cardioN ? t(cardioN === 1 ? '1 cardio' : '{n} cardio', { n: cardioN }) : '',
       stepsAvg ? t('{n} steps a day', { n: fmtNum(stepsAvg, lang, 0) }) : '',
-    ].filter(Boolean);
-    return parts.join(' · ');
-  }, [s.sessions, s.activities, s.steps, s.schedule, weekStart, today, settings.weekStart, t]); // eslint-disable-line react-hooks/exhaustive-deps
+    ].filter(Boolean).join(' · ');
+    return { count, rest };
+  }, [s.sessions, s.activities, s.steps, s.schedule, weekStart, today, settings.weekStart, t, wf.pending]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // While the workout overlay is open, keep the hero looking like it did when it was tapped: otherwise it flips to its
   // "in progress" layout (a different height) in the middle of the plate morph that grows out of it.
@@ -302,25 +395,26 @@ export function TodayScreen() {
         if (k === 'weight') return <WeightTrend key={k} />;
         return (
           <div key={k} className="stack tc-week" style={{ gap: 12 }} aria-label={t('Week')}>
-            <section style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+            <section ref={stripRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, position: 'relative' }}>
+        {links.map(([a, b]) => <Link key={`${a}-${b}`} a={a} b={b} grow={week[b].d === freshDate} />)}
         {week.map((w) => {
           const isToday = w.d === today;
           const past = w.d < today;
           const r = w.p ? s.routines.find((x) => x.id === w.p!.routineId) : undefined;
           return (
-            <button key={w.d} className="press" onClick={() => setTab('train')} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }} aria-label={`${fmtDate(w.d, lang)}${r ? `: ${r.name}` : ''}${w.done ? `, ${t('done')}` : ''}`}>
+            <button key={w.d} className="press" onClick={() => setTab('train')} style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }} aria-label={`${fmtDate(w.d, lang)}${r ? `: ${r.name}` : ''}${w.done ? `, ${t('done')}` : ''}`}>
               <span className="micro" style={{ color: isToday ? 'var(--ac-text)' : undefined }}>{fmtWeekdayShort(weekdayOf(w.d), lang, true)}</span>
-              <span style={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', background: w.done || w.wr ? 'var(--ac)' : r || isToday ? 'var(--s2)' : 'transparent', color: w.done || w.wr ? 'var(--ac-ink)' : 'var(--tx2)', boxShadow: w.done || w.wr ? '0 0 18px -2px var(--ac)' : isToday ? 'inset 0 0 0 1.5px var(--ac), 0 0 18px -6px var(--ac)' : r ? 'inset 0 0 0 1px var(--line)' : undefined, fontSize: 12, fontWeight: 700 }}>
-                {/* filled = done (the glyph says what: a check for the gym, the wrestler for the mat); a rest day is just a quiet dot */}
-                {w.done ? <Icon name="check" size={17} sw={2.6} /> : w.wr ? <Icon name="wrestle" size={17} /> : r ? r.name.slice(0, 1).toUpperCase() : w.pw ? <Icon name="wrestle" size={16} style={{ opacity: 0.75 }} /> : <i aria-hidden style={{ width: 4, height: 4, borderRadius: 4, background: 'var(--tx3)', opacity: 0.6 }} />}
-              </span>
+              {/* filled = done (the glyph says what: a check for the gym, the wrestler for the mat); a rest day is just a quiet dot */}
+              <DayDot look={dayLook(w.done, w.wr, r, isToday, w.pw)} before={dayLook(false, false, r, isToday, w.pw)} fresh={w.d === freshDate} />
               {/* under it: a missed workout (red), or wrestling planned beside the gym (accent) */}
               <i style={{ width: 4, height: 4, borderRadius: 4, background: r && past && !w.done ? 'var(--bad)' : w.pw && !w.wr && r ? 'var(--ac)' : 'transparent' }} />
             </button>
           );
         })}
       </section>
-            {weekLine && <div className="xs t2 num" style={{ textAlign: 'center' }}>{weekLine}</div>}
+            {(weekLine.count || weekLine.rest || wf.pending) && <div className="xs t2 num" style={{ textAlign: 'center' }}>
+              <CountLine text={weekLine.count} />{weekLine.count && weekLine.rest ? ' · ' : ''}{weekLine.rest || (weekLine.count ? '' : '\u00a0')}
+            </div>}
           </div>
         );
       })}

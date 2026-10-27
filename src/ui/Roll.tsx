@@ -11,7 +11,8 @@ const reduced = () => document.documentElement.dataset.motion === 'reduce'
   || (document.documentElement.dataset.motion !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
 const digits = (s: string) => Number(s.replace(/[^\d]/g, '')) || 0;
 
-export function Roll({ text, className, style }: { text: string; className?: string; style?: CSSProperties }) {
+/** `delay` (ms): the roll waits, the old digits still showing, so it can land with something else (the week's fill) */
+export function Roll({ text, className, style, delay = 0 }: { text: string; className?: string; style?: CSSProperties; delay?: number }) {
   const ref = useRef<HTMLSpanElement>(null);
   const prev = useRef(text);
   useLayoutEffect(() => {
@@ -20,7 +21,7 @@ export function Roll({ text, className, style }: { text: string; className?: str
     if (!root || was === text || reduced()) return;
     const up = digits(text) >= digits(was);
     const c = springCurve(SMOOTH);
-    const opts = { duration: Math.max(420, c.duration), easing: c.easing };
+    const opts = { duration: Math.max(420, c.duration), easing: c.easing, delay };
     const d = up ? 1 : -1;
     const cells = root.children;
     for (let i = 0; i < text.length; i++) {
