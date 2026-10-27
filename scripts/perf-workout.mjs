@@ -48,6 +48,7 @@ await measure('tick-1', tick, 1600);
 await measure('rest-idle', async () => {}, 3000);
 await measure('tick-2', tick, 1600);
 await measure('tick-3', tick, 1600);
+await measure('add-set', () => p.locator('.wk-list .wk-add-set').first().tap(), 1400);
 await measure('rest-panel', () => p.locator('.wk-bar-main').tap(), 1400);
 await measure('rest-panel-close', () => p.locator('.wk-bar-main').tap(), 1400);
 await measure('edit-kg', async () => { const f = p.locator('.wk-sheet input[inputmode="decimal"]').first(); await f.tap(); await p.keyboard.type('7'); await p.keyboard.press('Enter'); }, 1400);
