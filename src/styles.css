@@ -2975,19 +2975,20 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .action-line.ac-pickable.stack .ac-text { white-space: normal; }
 /* applied: the filled disc steps back to a quiet accent check (opacity only: two checks, one fades over the other) */
 .ac-pick-done { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ac-text); opacity: 0; transition: opacity 420ms var(--ease-smooth); }
-.action-card.sealed:not(.undone) .ac-pick-fill { opacity: 0; transform: scale(0.4); transition: opacity 150ms var(--ease-smooth), transform 260ms cubic-bezier(0.3, 0, 0.2, 1); } /* (it shrinks into the tick, still solid, and fades once small: fading at full size passed through brown) */
+.action-card.sealed:not(.undone) .ac-pick-fill { opacity: 0; transform: scale(0.2); transition: opacity 90ms linear, transform 300ms cubic-bezier(0.3, 0, 0.2, 1); } /* (it shrinks into the tick, still solid, and fades only once hidden under it: fading while bigger passed through brown) */
+.action-card.sealed:not(.undone) .ac-pick-fill svg { opacity: 0; transition: opacity 120ms var(--ease-smooth) calc(80ms + var(--i, 0) * 40ms); } /* (its dark check goes first, so two checks never overlap) */
 .action-card.undone .ac-pick-fill { transition: opacity 260ms var(--ease-smooth); } /* (Undo: it comes back at full size, its size set while unseen) */
-.action-card.sealed:not(.undone) .ac-pick-ring { opacity: 0; transition: opacity 220ms var(--ease-smooth); }
+.action-card.sealed:not(.undone) .ac-pick-ring { opacity: 0; transition: opacity 120ms var(--ease-smooth); } /* (gone before the shrinking disc uncovers it) */
 .action-card.sealed:not(.undone) .action-line:not(.ac-off) .ac-pick-done { opacity: 0.8; }
 /* Apply: each line's tick lands on the ripple, one after another (40 ms apart, as the lines lift); its disc and ring go
    with it. On `.sealed`, not `.sealing`: `.sealing` arrives a frame after Apply, when these fades have already begun.
    Undo drops the delays (`.undone`), so it goes back all at once. The tick's scale is an animation held where it ends,
    kept on after Undo (`.sealing` is never taken off): a transition would give the 14 px check a layer and drop it after */
 .action-card.sealed:not(.undone) .ac-pick-done, .action-card.sealed:not(.undone) .ac-pick-ring { transition-delay: calc(80ms + var(--i, 0) * 40ms); }
-.action-card.sealed:not(.undone) .ac-pick-fill { transition-delay: calc(190ms + var(--i, 0) * 40ms), calc(80ms + var(--i, 0) * 40ms); } /* (opacity, transform) */
+.action-card.sealed:not(.undone) .ac-pick-fill { transition-delay: calc(290ms + var(--i, 0) * 40ms), calc(80ms + var(--i, 0) * 40ms); } /* (opacity, transform) */
 .action-card.sealing .action-line:not(.ac-off) .ac-pick-done { animation: acTick 520ms var(--ease-spring) both; animation-delay: calc(80ms + var(--i, 0) * 40ms); }
 @keyframes acTick { from { transform: scale(0.7); } }
-:root[data-motion='reduce'] .action-card :is(.ac-pick-done, .ac-pick-fill, .ac-pick-ring) { transition-delay: 0s !important; animation-delay: 0s !important; } /* (reduced motion: all at once) */
+:root[data-motion='reduce'] .action-card :is(.ac-pick-done, .ac-pick-fill, .ac-pick-fill svg, .ac-pick-ring) { transition-delay: 0s !important; animation-delay: 0s !important; } /* (reduced motion: all at once) */
 /* the chart uses the card's whole inner width (under the icon too) */
 .ac-chart { margin-left: -36px; }
 
