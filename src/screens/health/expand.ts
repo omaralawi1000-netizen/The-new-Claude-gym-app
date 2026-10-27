@@ -250,21 +250,21 @@ export class Expander {
     // home is covered by the page as it grows, and steps back a little around it
     st.home = this.cover(src, win, at, () => 1, { duration: D }, undefined, paths, (p) => 1 - ss((p - 0.08) / 0.3));
     st.anims.push(this.anim(this.e.shade, [{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 1, offset: 0.75 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
-    // each block of the page shows as soon as it is inside the card (never cut by an edge), from a fifth of the way on
+    // each block of the page shows as soon as it is inside the card (never cut by an edge) and the card's own words have left
+    const fade = reduced() ? 1 : card ? Math.min(90, D * 0.12) : 40, gone = card ? fade / D : 0;
     const paired = new Set(st.fl.map((o) => o.b));
     for (const x of this.pageBlocks(paired)) {
       const r = this.inkBox(x);
       const kf = Array.from({ length: N + 1 }, (_, i) => { const p = i / N, e = at(p), w = win(e), y = r.y + oy * (1 - e), xx = r.x + ox * (1 - e);
         // a block taller than the screen counts only down to the screen's edge (else it never fits and stays hidden)
         const bot = Math.min(y + r.h, H - 12);
-        return { offset: p, opacity: i === N ? 1 : +(ss((w[3] - bot) / 12) * ss((y - w[1]) / 12) * ss((w[2] - (xx + r.w)) / 12 + 1) * ss((xx - w[0]) / 12 + 1) * ss((e - 0.04) / 0.3)).toFixed(4) }; });
+        return { offset: p, opacity: i === N ? 1 : +(ss((w[3] - bot) / 12) * ss((y - w[1]) / 12) * ss((w[2] - (xx + r.w)) / 12 + 1) * ss((xx - w[0]) / 12 + 1) * ss((e - 0.04) / 0.3) * ss((p - gone) / 0.1)).toFixed(4) }; });
       st.anims.push(this.anim(x, kf, { duration: D, easing: 'linear' }));
     }
     // (measured above with the page at rest; now it starts shifted)
     st.anims.push(this.anim(dsc, [{ transform: `translate(${ox}px,${oy}px)` }, { transform: 'none' }], { duration: D, easing: E }));
     st.dim = this.dimOf(src);
-    // a card's own words hand over to the page's as it grows (the page's come in from a twentieth of the way); a pill's step aside at once
-    const fade = reduced() ? 1 : card ? Math.min(90, D * 0.12) : 40;
+    // a card's own words step aside quickly, then the page's come in (never both at once); a pill's step aside at once
     st.dim.forEach((x) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.opacity = '0'; x.animate([{ opacity: 1 }, { opacity: 0 }], { duration: fade, easing: 'linear' }); });
     this.playPage(Math.round(D * 0.08));
     // landed: the page's own number and chart take over from the copies
@@ -351,7 +351,7 @@ export class Expander {
     const dimO = st.dim.map((x) => getComputedStyle(x).opacity);
     st.dim.forEach((x, i) => {
       // the card's words come back as the card clears off it, in time to be there when the window lands (a pill: its number lands inside it)
-      const p = x === st.src ? 0.1 : card ? (swiped ? 0.3 : 0.1) : 0.42;
+      const p = x === st.src ? 0.1 : card ? (swiped ? 0.3 : 0.12) : 0.42;
       x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.opacity = '0';
       out.push(this.anim(x, [{ opacity: dimO[i] }, { opacity: dimO[i], offset: p }, { opacity: 1, offset: p + (card ? 0.2 : 0.18) }, { opacity: 1 }], { duration: D, delay, easing: 'linear' }));
     });
@@ -387,7 +387,7 @@ export class Expander {
     page.forEach(({ e: x, o }) => {
       const r = this.inkBox(x), o0 = Number(o);
       const kf = Array.from({ length: N + 1 }, (_, i) => { const p = i / N, e = at(p), w = win(e), y = r.y + cy + (oy - cy) * e, xx = r.x + cx + (ox - cx) * e;
-        return { offset: p, opacity: +(o0 * ss((w[3] - Math.min(y + r.h, h - 12)) / 12) * ss((y - w[1]) / 12) * ss((w[2] - (xx + r.w)) / 12 + 1) * ss((xx - w[0]) / 12 + 1) * (1 - ss(p / (dg ? 0.1 : 0.2)))).toFixed(4) }; });
+        return { offset: p, opacity: +(o0 * ss((w[3] - Math.min(y + r.h, h - 12)) / 12) * ss((y - w[1]) / 12) * ss((w[2] - (xx + r.w)) / 12 + 1) * ss((xx - w[0]) / 12 + 1) * (1 - ss(p / (card ? 0.1 : 0.2)))).toFixed(4) }; });
       this.anim(x, kf, { duration: D, delay, easing: 'linear' });
     });
     out.push(this.anim(dsc, [{ transform: `translate(${cx}px,${cy}px)` }, { transform: `translate(${ox}px,${oy}px)` }], { duration: D, delay, easing: E }));
