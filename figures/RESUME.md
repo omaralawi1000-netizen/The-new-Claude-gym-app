@@ -53,6 +53,10 @@ Wrapper: `run5.py scene.blend script.py -- args`.
   `render8.py` imports `pose` before the motion's `ENV` is applied, so `MOTION=hammer`/`pushdown` without `PROP` exported may
   use the barbell elbow hinge; the gate's diagnostic renders omit the camera argument (`ref` instead of `clipref`), which
   could give pocket masks from a different viewpoint. Export `PROP` yourself and pass the camera until these are fixed.
+  Third round, same status: the runners write their `.done` markers even when a stage fails (delete the marker of any stage that
+  failed); `POCKETDIAG` in `render8.py` raises `KeyError: 'C'` for plain barbell/EZ props (no rope-eye data); the grip regex in
+  `gatereport.py` drops negative clearances, so a penetrating chunk can be ignored. **Treat the whole gate as unvalidated and
+  fix it against a full clip before trusting a green.**
 - Encode: `ffmpeg -framerate 30 -i dir/f%03d.png -c:v libx264 -crf 20 -pix_fmt yuv420p -movflags +faststart x.mp4` (and libvpx-vp9 for webm).
 - Show Omar: `python3 tools/clip-page.py` is in the Claude project folder (`/mnt/project-files/tools/`); if you don't have it, any
   page with Real/Half/Quarter speed works. He watches inside Claude, never downloads.
