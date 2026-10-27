@@ -2975,7 +2975,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .action-line.ac-pickable.stack .ac-text { white-space: normal; }
 /* applied: the filled disc steps back to a quiet accent check (opacity only: two checks, one fades over the other) */
 .ac-pick-done { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ac-text); opacity: 0; transition: opacity 420ms var(--ease-smooth); }
-.action-card.sealed:not(.undone) .ac-pick-fill { opacity: 0; transform: scale(0.2); transition: opacity 90ms linear, transform 300ms cubic-bezier(0.3, 0, 0.2, 1); } /* (it shrinks into the tick, still solid, and fades only once hidden under it: fading while bigger passed through brown) */
+.action-card.sealed:not(.undone) .ac-pick-fill { opacity: 0; transform: scale(0.01); transition: opacity 60ms linear, transform 300ms cubic-bezier(0.3, 0, 0.2, 1); } /* (it shrinks to a point inside the tick, still solid, and is hidden once about 1 px: fading any bigger passed through brown) */
 .action-card.sealed:not(.undone) .ac-pick-fill svg { opacity: 0; transition: opacity 120ms var(--ease-smooth) calc(80ms + var(--i, 0) * 40ms); } /* (its dark check goes first, so two checks never overlap) */
 .action-card.undone .ac-pick-fill { transition: opacity 260ms var(--ease-smooth); } /* (Undo: it comes back at full size, its size set while unseen) */
 .action-card.sealed:not(.undone) .ac-pick-ring { opacity: 0; transition: opacity 120ms var(--ease-smooth); } /* (gone before the shrinking disc uncovers it) */
@@ -2985,7 +2985,7 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
    Undo drops the delays (`.undone`), so it goes back all at once. The tick's scale is an animation held where it ends,
    kept on after Undo (`.sealing` is never taken off): a transition would give the 14 px check a layer and drop it after */
 .action-card.sealed:not(.undone) .ac-pick-done, .action-card.sealed:not(.undone) .ac-pick-ring { transition-delay: calc(80ms + var(--i, 0) * 40ms); }
-.action-card.sealed:not(.undone) .ac-pick-fill { transition-delay: calc(290ms + var(--i, 0) * 40ms), calc(80ms + var(--i, 0) * 40ms); } /* (opacity, transform) */
+.action-card.sealed:not(.undone) .ac-pick-fill { transition-delay: calc(300ms + var(--i, 0) * 40ms), calc(80ms + var(--i, 0) * 40ms); } /* (opacity, transform) */
 .action-card.sealing .action-line:not(.ac-off) .ac-pick-done { animation: acTick 520ms var(--ease-spring) both; animation-delay: calc(80ms + var(--i, 0) * 40ms); }
 @keyframes acTick { from { transform: scale(0.7); } }
 :root[data-motion='reduce'] .action-card :is(.ac-pick-done, .ac-pick-fill, .ac-pick-fill svg, .ac-pick-ring) { transition-delay: 0s !important; animation-delay: 0s !important; } /* (reduced motion: all at once) */
