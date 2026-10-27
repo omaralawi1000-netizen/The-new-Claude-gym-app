@@ -3311,3 +3311,17 @@ Omar, 11:47: "focus on polish and perfect it first"; 15:22: out of OpenAI credit
   new plan is saved on the goal when only the routine got it (`savePlanFromGoals`); a setting already at its value makes no card.
 - Prompt: plans ~110 words, follow-ups ~80, at most three numbers a sentence; weigh-in odds are "likely or tight", never a
   promise; no diet weeks or numbers for under-18s.
+
+### The current-set outline glides (alive plan step 1, 27 Oct 2026, v0.1.182)
+Omar, 26 Oct 19:36: go for step 1; 27 Oct 06:27 after Beta: "Put in live". Four fresh judges: 8.0 → 7.5 → 8.6 → 9.1.
+- **What it does** (`src/screens/workout/setRing.ts`): after a tick, the set's outline leaves 100 ms later (the check pops first)
+  and glides to the next set of the same card on the SMOOTH spring. Quick ticks, unticks and + Set re-aim it with its position,
+  speed and current strength. Longer moves dim it to half between 30 % and 60 % of the way, so it passes over the rows' text
+  instead of striking through it. Moving to another card it fades as before. The faint fill, number colour and check ring
+  still fade, 160–180 ms later so they arrive with it. Focus view keeps the row's own outline.
+- **Layers** (flicker rule): two outlines live in the list above every card (`.wk-rings`, z-index 4, so nothing is pushed onto a
+  layer by them) and keep their layers while the list is open; the spare one waits at 0.002 opacity.
+- **Cost**: it looks only when something moved (resize, rows added or removed, a carrying animation ending, Move up/down via
+  `flipstart`), never while Focus view hides the list. Flicker-layers and 4× CPU timings match the live app.
+- Tests used: `scripts/flicker-layers.mjs` (wk steps), `scripts/perf-workout.mjs` (add-set step); real-speed clips were recorded
+  by slowing every page animation through CDP and resampling by animation time.
