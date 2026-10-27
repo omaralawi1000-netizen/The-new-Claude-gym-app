@@ -24,7 +24,7 @@ import { Roll } from '../ui/Roll';
 import { openFoodPhoto } from '../lib/photoOpen';
 import { CoachPin } from '../ui/CoachPin';
 import { useEdgeFade } from '../ui/edgeFade';
-import { BOUNCY, GENTLE, springCurve } from '../ui/motion';
+import { apple, BOUNCY, springCurve } from '../ui/motion';
 import { useFillWhenSeen, useWeekFill, weekFillStarted } from './weekFill';
 
 /** a sideways row of chips that fades only on the side with more to scroll to */
@@ -57,7 +57,7 @@ const reducedMotion = () => document.documentElement.dataset.motion === 'reduce'
  * one soft ring goes out and away. Everything is held where it ends (the plain circle's look), so nothing is dropped
  * when it settles; opening Today later draws the plain circle.
  */
-function DayDot({ look, before, fresh }: { look: DayLook; before: DayLook; fresh: boolean }) {
+function DayDot({ look, before, fresh, delay = 0 }: { look: DayLook; before: DayLook; fresh: boolean; delay?: number }) {
   const held = useRef(false);
   if (fresh && !reducedMotion()) held.current = true;
   const pre = useRef<HTMLSpanElement>(null), disc = useRef<HTMLSpanElement>(null), tick = useRef<HTMLSpanElement>(null), ring = useRef<HTMLElement>(null);
@@ -68,11 +68,12 @@ function DayDot({ look, before, fresh }: { look: DayLook; before: DayLook; fresh
     // (one keyframe at the start: each goes from there to its resting look, the style below)
     const sp = springCurve(BOUNCY);
     endWhenHidden([
-      disc.current.animate([{ transform: 'scale(0.6)', offset: 0 }], { duration: sp.duration, easing: sp.easing, fill: 'both' }),
-      disc.current.animate([{ opacity: 0, offset: 0 }], { duration: 200, easing: 'cubic-bezier(0.3, 0, 0.4, 1)', fill: 'both' }),
-      tick.current.animate([{ transform: 'scale(0.5)', opacity: 0, offset: 0 }], { duration: sp.duration, easing: sp.easing, delay: 80, fill: 'both' }),
-      pre.current.animate([{ opacity: 1, offset: 0 }], { duration: 280, easing: 'cubic-bezier(0.4, 0, 0.6, 1)', fill: 'both' }),
-      ring.current.animate([{ transform: 'none', opacity: 0.7, offset: 0 }], { duration: 900, delay: 140, easing: 'cubic-bezier(0.2, 0.6, 0.35, 1)', fill: 'both' }),
+      // small and already solid (a see-through disc over the empty circle read brown); the empty one goes once it is covered
+      disc.current.animate([{ transform: 'scale(0.35)', offset: 0 }], { duration: sp.duration, easing: sp.easing, delay, fill: 'both' }),
+      disc.current.animate([{ opacity: 0, offset: 0 }], { duration: 60, easing: 'linear', delay, fill: 'both' }),
+      tick.current.animate([{ transform: 'scale(0.5)', opacity: 0, offset: 0 }], { duration: sp.duration, easing: sp.easing, delay: delay + 80, fill: 'both' }),
+      pre.current.animate([{ opacity: 1, offset: 0 }], { duration: 160, easing: 'cubic-bezier(0.4, 0, 0.6, 1)', delay: delay + 120, fill: 'both' }),
+      ring.current.animate([{ transform: 'none', opacity: 0.6, offset: 0 }, { opacity: 0.25, offset: 0.35 }], { duration: 650, delay: delay + 140, easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)', fill: 'both' }),
     ]);
   }, [fresh]);
   const dot: React.CSSProperties = { width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700 };
@@ -84,36 +85,42 @@ function DayDot({ look, before, fresh }: { look: DayLook; before: DayLook; fresh
   return (
     <span style={{ ...dot, position: 'relative' }}>
       <span ref={pre} style={{ ...fill, background: before.bg, color: before.color, boxShadow: of(before.shadow), opacity: 0.002 }}>{before.content}</span>
-      <i ref={ring} aria-hidden style={{ ...fill, boxShadow: 'inset 0 0 0 1.5px var(--of, var(--ac))', transform: 'scale(1.45)', opacity: 0.002 }} />
+      <i ref={ring} aria-hidden style={{ ...fill, boxShadow: 'inset 0 0 0 1.5px color-mix(in oklab, var(--of, var(--ac)) 75%, white)', transform: 'scale(1.6)', opacity: 0.002 }} />
       <span ref={disc} style={{ ...fill, background: of(look.bg), color: look.color, boxShadow: of(look.shadow) }}><span ref={tick} style={{ display: 'grid' }}>{look.content}</span></span>
     </span>
   );
 }
 
 /**
- * The line between two trained days, centre to centre (under the circles, over nothing else). The one reaching a circle
- * that has just filled draws itself out of the day before, landing as the circle does; it is held there.
+ * The line between two trained days, from one circle's edge to the next (a pixel under each; over nothing else). The one
+ * reaching a circle that is about to fill slides out of the day before, all of its ease in sight, and today fills as it
+ * arrives (`LEAD`); a longer gap takes a little longer, never more than 0.85 s. It is held there.
  */
+const LEAD = 220;
 function Link({ a, b, grow }: { a: number; b: number; grow: boolean }) {
   const ref = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
-    // (its slow last stretch is under today's circle)
-    const c = springCurve(GENTLE);
-    if (grow && !reducedMotion() && ref.current) endWhenHidden([ref.current.animate([{ transform: 'scaleX(0)', offset: 0 }], { duration: c.duration, delay: 60, easing: c.easing, fill: 'both' })]);
-  }, [grow]);
-  return <i ref={ref} aria-hidden style={{ position: 'absolute', zIndex: 0, top: 'var(--link-y, 31.5px)', height: 3, borderRadius: 3, background: 'var(--of, var(--ac))', transformOrigin: 'left', left: `calc((100% - 24px) / 7 * ${a + 0.5} + ${a * 4}px)`, width: `calc((100% - 24px) / 7 * ${b - a} + ${(b - a) * 4}px)` }} />;
+    if (!grow || reducedMotion() || !ref.current) return;
+    const c = springCurve(apple(Math.min(0.55 + 0.1 * (b - a - 1), 0.85)));
+    endWhenHidden([ref.current.animate([{ transform: 'translateX(-100%)', offset: 0 }], { duration: c.duration, easing: c.easing, fill: 'both' })]);
+  }, [grow]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <i aria-hidden style={{ position: 'absolute', zIndex: 0, top: 'var(--link-y, 31.5px)', height: 3, borderRadius: 3, overflow: 'hidden', left: `calc((100% - 24px) / 7 * ${a + 0.5} + ${a * 4 + 17}px)`, width: `calc((100% - 24px) / 7 * ${b - a} + ${(b - a) * 4 - 34}px)` }}>
+      <i ref={ref} style={{ display: 'block', height: '100%', borderRadius: 3, background: 'var(--of, var(--ac))' }} />
+    </i>
+  );
 }
 
 /** the week's count, its number rolling as today's circle fills (it lands with the circle) */
-function CountLine({ text }: { text: string }) {
+function CountLine({ text, delay = 0 }: { text: string; delay?: number }) {
   // with no weekly target the first workout brings the words themselves: they fade in instead
   const ref = useRef<HTMLSpanElement>(null), was = useRef(text);
   useLayoutEffect(() => {
-    if (!was.current && text && ref.current && !reducedMotion()) ref.current.animate([{ opacity: 0, offset: 0 }], { duration: 420, delay: 140, easing: 'cubic-bezier(0.3, 0, 0.4, 1)', fill: 'both' });
+    if (!was.current && text && ref.current && !reducedMotion()) ref.current.animate([{ opacity: 0, offset: 0 }], { duration: 420, delay: delay + 140, easing: 'cubic-bezier(0.3, 0, 0.4, 1)', fill: 'both' });
     was.current = text;
   }, [text]);
   const m = /\d+/.exec(text);
-  return <span ref={ref}>{m ? <>{text.slice(0, m.index)}<Roll text={m[0]} delay={140} />{text.slice(m.index + m[0].length)}</> : text}</span>;
+  return <span ref={ref}>{m ? <>{text.slice(0, m.index)}<Roll text={m[0]} delay={delay + 140} />{text.slice(m.index + m[0].length)}</> : text}</span>;
 }
 
 export function estMinutes(r: Routine): number {
@@ -215,6 +222,7 @@ export function TodayScreen() {
   });
   // the trained days joined by a line (Omar's pick, 27 Oct): it runs on across rest days and breaks at a missed workout
   const links: [number, number][] = [];
+  const lead = () => (links.some(([, b]) => week[b].d === freshDate) ? LEAD : 0); // the line reaches today first
   {
     let last = -1;
     week.forEach((w, i) => {
@@ -227,7 +235,8 @@ export function TodayScreen() {
     const sec = stripRef.current;
     const btn = sec?.querySelector('button'), dot = btn?.children[1] as HTMLElement | undefined;
     if (!sec || !btn || !dot) return;
-    const put = () => sec.style.setProperty('--link-y', `${btn.offsetTop + dot.offsetTop + dot.offsetHeight / 2 - 1.5}px`);
+    // (to the fraction of a pixel: a rounded one put the line visibly below the rest days' dots)
+    const put = () => { const r = dot.getBoundingClientRect(), q = sec.getBoundingClientRect(); sec.style.setProperty('--link-y', `${r.top - q.top + r.height / 2 - 1.5}px`); };
     put();
     const ro = new ResizeObserver(put); ro.observe(btn);
     return () => ro.disconnect();
@@ -420,7 +429,7 @@ export function TodayScreen() {
             <button key={w.d} className="press" onClick={() => setTab('train')} style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }} aria-label={`${fmtDate(w.d, lang)}${r ? `: ${r.name}` : ''}${w.done ? `, ${t('done')}` : ''}`}>
               <span className="micro" style={{ color: isToday ? 'var(--ac-text)' : undefined }}>{fmtWeekdayShort(weekdayOf(w.d), lang, true)}</span>
               {/* filled = done (the glyph says what: a check for the gym, the wrestler for the mat); a rest day is just a quiet dot */}
-              <DayDot look={dayLook(w.done, w.wr, r, isToday, w.pw)} before={dayLook(false, false, r, isToday, w.pw)} fresh={w.d === freshDate} />
+              <DayDot look={dayLook(w.done, w.wr, r, isToday, w.pw)} before={dayLook(false, false, r, isToday, w.pw)} fresh={w.d === freshDate} delay={w.d === freshDate ? lead() : 0} />
               {/* under it: a missed workout (red), or wrestling planned beside the gym (accent) */}
               <i style={{ width: 4, height: 4, borderRadius: 4, background: r && past && !w.done ? 'var(--bad)' : w.pw && !w.wr && r ? 'var(--ac)' : 'transparent' }} />
             </button>
@@ -428,7 +437,7 @@ export function TodayScreen() {
         })}
       </section>
             {(weekLine.count || weekLine.rest || wf.pending) && <div className="xs t2 num" style={{ textAlign: 'center' }}>
-              <CountLine text={weekLine.count} />{weekLine.count && weekLine.rest ? ' · ' : ''}{weekLine.rest || (weekLine.count ? '' : '\u00a0')}
+              <CountLine text={weekLine.count} delay={freshDate ? lead() : 0} />{weekLine.count && weekLine.rest ? ' · ' : ''}{weekLine.rest || (weekLine.count ? '' : '\u00a0')}
             </div>}
           </div>
         );

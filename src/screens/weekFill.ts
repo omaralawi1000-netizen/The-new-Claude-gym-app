@@ -51,7 +51,7 @@ export function weekFillStarted() { fresh = null; }
 
 /**
  * Fills it once the strip is really seen: nine tenths of it on screen, nothing over Today (the summary and its close have
- * gone), the page still (not sliding in, fading, rising or scrolling), for a quarter of a second. Checked ten times a second,
+ * gone), the page still (not sliding in, fading, rising or scrolling), for a fifth of a second. Checked ten times a second,
  * and only while a fill waits on Today.
  */
 export function useFillWhenSeen(ref: RefObject<HTMLElement | null>, on: boolean) {
@@ -73,7 +73,7 @@ export function useFillWhenSeen(ref: RefObject<HTMLElement | null>, on: boolean)
     };
     const tick = () => {
       calm = still() ? calm + 1 : 0;
-      if (calm >= 3) { playWeekFill(); return; }
+      if (calm >= 2) { playWeekFill(); return; }
       timer = window.setTimeout(tick, 90);
     };
     timer = window.setTimeout(tick, 90);
