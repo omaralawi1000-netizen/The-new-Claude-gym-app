@@ -89,7 +89,7 @@ export interface HealthView {
   ready: ReturnType<typeof readyScore> | null;
   heart: { rest?: number; usual?: number; trace: number[]; hrv?: number; hrvRange?: [number, number]; spo2?: number; resp?: number; restRange?: [number, number]; spo2Range?: [number, number]; respRange?: [number, number]; overnight: { t: number; bpm: number }[]; top?: number; vo2?: number; skin?: number; skinRange?: [number, number] };
   steps: { today?: number; usual?: number; curve: number[]; usualCurve: number[]; week: { date: string; count?: number }[]; nowFrac: number };
-  week: { days: { date: string; marks: ('gym' | 'wr' | 'run' | 'miss')[] }[]; cardioMin: number; workouts: number; target: number; sports: { label: string; min: number }[]; last?: ActivityLog };
+  week: { days: { date: string; marks: ('gym' | 'wr' | 'run' | 'miss')[]; cardioMin: number }[]; cardioMin: number; workouts: number; target: number; sports: { label: string; min: number }[]; last?: ActivityLog; list: { date: string; name: string; min?: number }[] };
   body: { kg?: number; date?: string; series: number[]; rate: number | null; fat?: number; lean?: number; water?: number; bone?: number; bmr?: number };
   /** workouts per week, the last eight weeks (this week last), and in the last 28 days */
   train: { weeks: number[]; n28: number };
@@ -186,11 +186,12 @@ export function buildView(a: { data: AppData; det: Map<string, WatchDetail> | nu
       gyms.filter((x) => x.date === d).forEach(() => marks.push('gym'));
       acts.filter((x) => x.date === d).forEach((x) => marks.push(x.kind === 'wrestling' ? 'wr' : 'run'));
       if (!marks.length && d < today) marks.push('miss');
-      return { date: d, marks };
+      return { date: d, marks, cardioMin: acts.filter((x) => x.date === d).reduce((n, x) => n + Math.round(x.durationSec / 60), 0) };
     }),
     cardioMin: acts.reduce((n, x) => n + Math.round(x.durationSec / 60), 0), workouts: gyms.length, target,
     sports: [...sportMin].map(([label, min]) => ({ label, min })).sort((x, y) => y.min - x.min),
     last: [...data.activities].sort((x, y) => y.at - x.at)[0],
+    list: [...gyms].sort((x, y) => x.startedAt - y.startedAt).map((x) => ({ date: x.date, name: x.name, min: x.endedAt ? Math.round((x.endedAt - x.startedAt - (x.pausedMs || 0)) / 60000) : undefined })),
   };
 
   // ── body

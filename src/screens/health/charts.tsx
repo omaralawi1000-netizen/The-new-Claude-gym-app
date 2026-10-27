@@ -85,7 +85,7 @@ export function Trace({ values, band, w, h = 40, pad = 20, color = C.heart, usua
 }
 
 /** today's steps (cumulative) over your usual day: the usual as a faint line, today in orange with its dot at now */
-export function StepsDay({ today, usual, w, h = 64, pad = 20, axis }: { today: number[]; usual: number[]; w: number; h?: number; pad?: number; axis?: string[] }) {
+export function StepsDay({ today, usual, w, h = 64, pad = 20, axis, sw = 2, r = 6 }: { today: number[]; usual: number[]; w: number; h?: number; pad?: number; axis?: string[]; sw?: number; r?: number }) {
   const top = Math.max(1, ...today, ...usual) * 1.08;
   const x = (k: number) => pad + (k / 95) * (w - 2 * pad), y = (v: number) => 4 + h - (v / top) * h;
   const U = usual.map((v, k): [number, number] => [x(k), y(v)]);
@@ -94,12 +94,12 @@ export function StepsDay({ today, usual, w, h = 64, pad = 20, axis }: { today: n
   return (
     <Svg w={w} h={h + (axis ? 22 : 8)}>
       <rect x={pad} y={y(0)} width={w - 2 * pad} height={1} fill="rgba(255,255,255,.10)" />
-      {U.length > 1 && <path d={smoothPath(U)} fill="none" stroke="rgba(255,255,255,.32)" strokeWidth={1.25} strokeDasharray="2 4" strokeLinecap="round" />}
+      {U.length > 1 && <path d={smoothPath(U)} fill="none" stroke="rgba(255,255,255,.32)" strokeWidth={sw * 0.62} strokeDasharray={`${sw} ${sw * 2}`} strokeLinecap="round" />}
       {T.length > 1 && <>
         <path d={`${smoothPath(T)} L${last[0].toFixed(1)} ${y(0)} L${T[0][0].toFixed(1)} ${y(0)} Z`} fill={C.move} opacity={0.16} />
-        <path d={smoothPath(T)} fill="none" stroke={C.move} strokeWidth={2} strokeLinecap="round" />
+        <path d={smoothPath(T)} fill="none" stroke={C.move} strokeWidth={sw} strokeLinecap="round" />
       </>}
-      {last && <><circle cx={last[0]} cy={last[1]} r={6} fill={C.move} /><circle cx={last[0]} cy={last[1]} r={2.4} fill="#fff" /></>}
+      {last && <><circle cx={last[0]} cy={last[1]} r={r} fill={C.move} /><circle cx={last[0]} cy={last[1]} r={r * 0.4} fill="#fff" /></>}
       {axis && axis.map((l, i) => <text key={i} className="hx-ax3" x={pad + (i / (axis.length - 1)) * (w - 2 * pad)} y={h + 20} textAnchor={i === 0 ? 'start' : i === axis.length - 1 ? 'end' : 'middle'}>{l}</text>)}
     </Svg>
   );
@@ -126,11 +126,58 @@ export function NightHeart({ points, w, h = 90, pad = 20, lowLabel, ends }: { po
 }
 
 /** a small weight line at cap height */
-export function Spark({ values, w = 120, h = 26, color = C.body }: { values: number[]; w?: number; h?: number; color?: string }) {
+export function Spark({ values, w = 120, h = 26, color = C.body, sw = 1.6, dot }: { values: number[]; w?: number; h?: number; color?: string; sw?: number; dot?: number }) {
   if (values.length < 2) return null;
-  const sm = avg(values, 1), lo = Math.min(...sm), hi = Math.max(...sm) || lo + 1;
-  const P = sm.map((v, i): [number, number] => [1 + (i / (sm.length - 1)) * (w - 2), 2 + (h - 4) - ((v - lo) / Math.max(0.1, hi - lo)) * (h - 4)]);
-  return <Svg w={w} h={h}><path d={smoothPath(P)} fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" /></Svg>;
+  const m = Math.max(2, dot ?? 0), sm = avg(values, 1), lo = Math.min(...sm), hi = Math.max(...sm) || lo + 1;
+  const P = sm.map((v, i): [number, number] => [1 + (i / (sm.length - 1)) * (w - 2), m + (h - 2 * m) - ((v - lo) / Math.max(0.1, hi - lo)) * (h - 2 * m)]);
+  const L = P[P.length - 1];
+  return <Svg w={w} h={h}><path d={smoothPath(P)} fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" />{dot && <circle cx={L[0]} cy={L[1]} r={dot} fill={color} />}</Svg>;
+}
+
+/*
+ * The cards' charts (Health's bento, 27 Oct). Each is drawn once, at the page's size, and the card shows the very same
+ * drawing scaled down (Health.tsx Card), so the chart that flies between card and page is one picture at both ends: no
+ * second drawing to cross-fade to. Lines and dots are drawn a little bold for that reason (on a square card they show at
+ * about 0.4).
+ */
+
+/** cardio minutes per day of the week: a rounded bar a day, a short dash on a day without */
+export function DayBars({ mins, w, h, pad = 20 }: { mins: number[]; w: number; h: number; pad?: number }) {
+  const top = Math.max(30, ...mins), slot = (w - 2 * pad) / mins.length, bw = Math.min(28, slot * 0.56);
+  return (
+    <Svg w={w} h={h}>{mins.map((v, i) => {
+      const x = pad + i * slot + (slot - bw) / 2, bh = v ? Math.max(bw, (v / top) * h) : 5;
+      return <rect key={i} x={x} y={h - bh} width={bw} height={bh} rx={v ? bw / 2 : 2.5} fill={v ? C.cardio : 'rgba(255,255,255,.12)'} />;
+    })}</Svg>
+  );
+}
+
+/** the week as seven dots: filled on a day he trained (gym orange, cardio gold), a ring on a day gone by without, faint
+ *  ahead; today ringed */
+export function WeekDotsSvg({ days, today, w, d = 33, pad = 20 }: { days: { date: string; marks: string[] }[]; today: string; w: number; d?: number; pad?: number }) {
+  const h = d + 16, gap = (w - 2 * pad - 7 * d) / 6, r = d / 2, cy = h / 2;
+  return (
+    <Svg w={w} h={h}>{days.map((x, i) => {
+      const cx = pad + r + i * (d + gap), m = x.marks.find((k) => k !== 'miss'), past = !m && x.date < today;
+      return (
+        <g key={x.date}>
+          <circle cx={cx} cy={cy} r={past ? r - 1.9 : r} fill={m ? (m === 'gym' ? C.train : C.cardio) : past ? 'none' : 'rgba(255,255,255,.09)'} stroke={past ? 'rgba(255,255,255,.22)' : 'none'} strokeWidth={3.8} />
+          {x.date === today && <circle cx={cx} cy={cy} r={r + 6.5} fill="none" stroke="rgba(255,255,255,.6)" strokeWidth={3.8} />}
+        </g>
+      );
+    })}</Svg>
+  );
+}
+
+/** workouts per week, the last eight weeks: this week in full colour, the ones before it quieter */
+export function WeekBarsBig({ weeks, w, h, pad = 20 }: { weeks: number[]; w: number; h: number; pad?: number }) {
+  const top = Math.max(1, ...weeks), slot = (w - 2 * pad) / weeks.length, bw = slot * 0.56;
+  return (
+    <Svg w={w} h={h}>{weeks.map((n, i) => {
+      const bh = n ? Math.max(10, (n / top) * h) : 5, last = i === weeks.length - 1;
+      return <rect key={i} x={pad + i * slot + (slot - bw) / 2} y={h - bh} width={bw} height={bh} rx={5} fill={n ? C.train : 'rgba(255,255,255,.12)'} opacity={n && !last ? 0.45 : 1} />;
+    })}</Svg>
+  );
 }
 
 /** a ring for a score: track, and the arc drawn by two half-disc masks turning (transform only) */

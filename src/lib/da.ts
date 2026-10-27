@@ -2106,4 +2106,13 @@ export const da: Record<string, string> = {
  "Last weigh-in {d}": "Sidste vejning {d}",
  "workouts, last 4 weeks": "træninger, seneste 4 uger",
  "Charts, records and exercise trends": "Grafer, rekorder og øvelsestendenser",
+ "30 days ago": "for 30 dage siden",
+ "8 weeks ago": "for 8 uger siden",
+ "Lifting": "Styrke",
+ "No workouts yet this week.": "Ingen træninger endnu i denne uge.",
+ "Workouts": "Træninger",
+ "last 4 weeks": "seneste 4 uger",
+ "min": "min",
+ "of {n}": "af {n}",
+ "usual {n}": "normalt {n}",
 };
