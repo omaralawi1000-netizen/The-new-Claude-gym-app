@@ -550,9 +550,9 @@ function Card({ k, size, v, t, lang, W, onTap }: { k: K; size: Size; v: HealthVi
   const ch = chartOf(k, v, W, u, t);
   return (
     <section ref={ref} className={`hx-sec hx-card hx-${size}`} data-k={k} style={{ ['--c' as string]: COL[k] }} onClick={(e) => onTap(k, e.currentTarget)}>
-      <div className="hx-lab"><i />{t(NAME[k])}</div>
+      <div className="hx-lab" data-share="lab"><i />{t(NAME[k])}</div>
       <div className="hx-rnum"><span className="hx-n" data-share="num">{num}</span>{unit && <span className="hx-sub hx-unit" data-share="unit">{unit}</span>}</div>
-      {cap && <div className="hx-sub hx-cap">{cap}</div>}
+      {cap && <div className="hx-sub hx-cap" data-share="cap">{cap}</div>}
       {ch && <div className="hx-cchart" data-share="chart" style={{ width: W * s, height: ch.h * s, marginLeft: -20 * s }}><div style={{ width: W, transform: `scale(${s})` }}>{ch.node}</div></div>}
       {extra}
     </section>
@@ -660,9 +660,9 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
   } else if (k === 'cardio') {
     const wk = v.week, mx = Math.max(1, ...wk.sports.map((x) => x.min));
     out = <>
-      <div className="hx-lab"><i />{t('Cardio')}</div>
+      <div className="hx-lab" data-share="lab"><i />{t('Cardio')}</div>
       <div className="hx-rnum"><span className="hx-n hx-n52" data-share="num">{wk.cardioMin}</span><span className="hx-sub hx-unit" data-share="unit">{t('min')}</span></div>
-      <div className="hx-sub" style={{ marginTop: 6 }}>{t('this week')}</div>
+      <div className="hx-sub" data-share="cap" style={{ marginTop: 6 }}>{t('this week')}</div>
       {hero({ marginTop: 22 })}
       <div className="hx-bleed hx-rise"><DayLetters v={v} lang={lang} w={W} pad={20} size={12} /></div>
       <div style={{ height: 26 }} />
@@ -674,9 +674,9 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
   } else if (k === 'week') {
     const wk = v.week;
     out = <>
-      <div className="hx-lab"><i />{t('Workouts')}</div>
+      <div className="hx-lab" data-share="lab"><i />{t('Workouts')}</div>
       <div className="hx-rnum"><span className="hx-n hx-n52" data-share="num">{wk.workouts}</span><span className="hx-sub hx-unit" data-share="unit">{t('of {n}', { n: wk.target })}</span></div>
-      <div className="hx-sub" style={{ marginTop: 6 }}>{t('this week')}</div>
+      <div className="hx-sub" data-share="cap" style={{ marginTop: 6 }}>{t('this week')}</div>
       {hero({ marginTop: 22 })}
       <div className="hx-bleed hx-rise" style={{ marginTop: 6 }}><DayLetters v={v} lang={lang} w={W} pad={20} size={12} /></div>
       <div style={{ height: 26 }} />
@@ -686,7 +686,7 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     const b = v.body, u = wu, ser = b.series.map((x) => kgToDisplay(x, u));
     const lo = Math.min(...ser), hi = Math.max(...ser);
     out = <>
-      <div className="hx-lab"><i />{t('Weight')}</div>
+      <div className="hx-lab" data-share="lab"><i />{t('Weight')}</div>
       <div className="hx-rnum"><span className="hx-n hx-n52" data-share="num">{fmtNum(kgToDisplay(b.kg!, u), lang, 1)}</span><span className="hx-sub hx-unit" data-share="unit">{u}</span></div>
       {hero({ marginTop: 22 })}
       {ser.length > 1 && <div className="hx-ends hx-rise"><span className="hx-ax3">{t('30 days ago')}</span><span className="hx-ax3">{fmtNum(lo, lang, 1)}–{fmtNum(hi, lang, 1)} {u}</span></div>}
@@ -704,9 +704,9 @@ function Page({ k, v, t, lang }: { k: K; v: HealthView; t: TFn; lang: Lang }) {
     </>;
   } else if (k === 'training') {
     out = <>
-      <div className="hx-lab"><i />{t('Lifting')}</div>
+      <div className="hx-lab" data-share="lab"><i />{t('Lifting')}</div>
       <div className="hx-rnum"><span className="hx-n hx-n52" data-share="num">{v.train.n28}</span><span className="hx-sub hx-unit" data-share="unit">{t('workouts')}</span></div>
-      <div className="hx-sub" style={{ marginTop: 6 }}>{t('last 4 weeks')}</div>
+      <div className="hx-sub" data-share="cap" style={{ marginTop: 6 }}>{t('last 4 weeks')}</div>
       {hero({ marginTop: 22 })}
       <div className="hx-ends hx-rise"><span className="hx-ax3">{t('8 weeks ago')}</span><span className="hx-ax3">{t('This week')}</span></div>
       <div className="hx-rise hx-training"><ProgressBody /></div>

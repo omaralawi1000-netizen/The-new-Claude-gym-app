@@ -223,3 +223,5 @@
 :root[data-theme='light'] .hx-wd i { background: rgba(20, 28, 48, .08); }
 :root[data-theme='light'] .hx-wd i.past { box-shadow: inset 0 0 0 1.5px rgba(20, 28, 48, .25); }
 :root[data-theme='light'] .hx-gexp { background: rgba(0, 0, 0, .55); }
+/* a shared label or caption is as wide as its words, so it flies at its own size (not stretched to the box it sits in) */
+.hx-lab[data-share], .hx-sub[data-share="cap"] { width: fit-content; max-width: 100%; }

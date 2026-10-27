@@ -43,7 +43,7 @@ const slide = () => document.documentElement.dataset.hxMotion === 'slide';
 const mine = (a: Animation) => !(a instanceof CSSAnimation) && !(a instanceof CSSTransition);
 const $$ = (s: string, r: ParentNode) => [...r.querySelectorAll<HTMLElement>(s)];
 const curT = (el: Element) => { const s = getComputedStyle(el).transform; return s === 'none' ? 'none' : s; };
-const SHARE = ['num', 'unit', 'chart'];
+const SHARE = ['num', 'unit', 'chart', 'lab', 'cap']; // a label or caption is shared only where the card and the page say the same
 /** the slide's curve (open, close and chips): as calm at the start as the spring it replaces, with a short tail (the
  * spring crept its last 10 px a step every other frame) */
 const bez = (x1: number, y1: number, x2: number, y2: number) => (x: number) => {
@@ -92,6 +92,12 @@ export class Expander {
 
   private win() { return springCurve(SURFACE, 0, true); }
   private sm() { return springCurve(SMOOTH); }
+  /** the flying copies stay inside the window (a big chart never hangs out of a card that is already small) */
+  private clipFly(win: (e: number) => Edges, at: (p: number) => number, o: { duration: number; delay?: number }) {
+    const { W, H } = this.size();
+    const kf = Array.from({ length: N + 1 }, (_, i) => { const w = win(at(i / N)); return { offset: i / N, clipPath: `inset(${(w[1] - 1).toFixed(1)}px ${(W - w[2] - 1).toFixed(1)}px ${(H - w[3] - 1).toFixed(1)}px ${(w[0] - 1).toFixed(1)}px round 22px)` }; });
+    return this.anim(this.e.fly, kf, { ...o, easing: 'linear' });
+  }
   private anim(el: Element, kf: Keyframe[], o: { duration: number; delay?: number; easing?: string }) {
     const r = reduced();
     return el.animate(kf, { fill: 'both', duration: r ? 1 : o.duration, delay: r ? 0 : o.delay ?? 0, easing: o.easing ?? this.sm().easing });
@@ -141,6 +147,8 @@ export class Expander {
     const rb = this.box(b);
     const c = b.cloneNode(true) as HTMLElement;
     c.removeAttribute('data-share'); c.style.margin = '0'; c.style.opacity = '';
+    // it keeps the page's colours (a label's dot and tint come from the page's --c, which the flying layer doesn't have)
+    const cs = getComputedStyle(b); c.style.setProperty('--c', cs.getPropertyValue('--c')); c.style.color = cs.color;
     Object.assign(c.style, { left: `${rb.x}px`, top: `${rb.y}px`, width: `${rb.w}px`, height: `${rb.h}px` });
     this.e.fly.appendChild(c);
     return { c, rb };
@@ -246,7 +254,7 @@ export class Expander {
     // the page lives inside the card from the first frame: it starts shifted so its number sits on the card's number, and
     // rides with the card's top-left corner to its place (the flying number moves with it), so the card is never empty
     const [ox, oy] = this.ride(src);
-    if (card) src.classList.add('hx-src');
+    if (card) { src.classList.add('hx-src'); st.anims.push(this.clipFly(win, at, { duration: D })); }
     // a row of home fades as the growing page comes over it (gone at two fifths) (the page is see-through glass), then waits under it
     st.home = this.cover(src, win, at, () => 2.5, { duration: D }, undefined, paths);
     st.anims.push(this.anim(this.e.shade, [{ opacity: 0 }, { opacity: 1, offset: 0.4 }, { opacity: 1, offset: 0.75 }, { opacity: 0 }], { duration: D, easing: 'linear' }));
@@ -373,6 +381,7 @@ export class Expander {
     const shown = dm ? (r: Box) => cover([r.x, r.y, r.x + r.w, r.y + r.h], toScreen(g0, 0)) < 0.99 : undefined;
     st.home = this.cover(st.src, (e) => toScreen(mixE(g0, g1, e), e), at, () => 2.5, { duration: D, delay }, undefined, undefined, undefined, shown);
     out.push(...st.home);
+    if (card) out.push(this.clipFly((e) => mixE(g0, g1, e), at, { duration: D, delay }));
     this.e.shade.getAnimations().filter(mine).forEach((a) => a.cancel());
     out.push(this.anim(this.e.shade, [{ opacity: shO }, { opacity: 0, offset: 0.4 }, { opacity: 0 }], { duration: D, delay, easing: 'linear' }));
     // the rim comes back as the window turns into the card again
@@ -545,7 +554,7 @@ export class Expander {
     // home back as it was; a style write after the cancel makes Chrome recompute it (it can keep a cancelled 0 otherwise)
     $$('*', this.e.scr).forEach((x) => { const c = x.getAnimations().filter((a) => a.id === 'hx-cover'); if (!c.length) return; c.forEach((a) => a.cancel()); x.style.opacity = '1'; x.style.opacity = ''; });
     dsc.getAnimations().filter(mine).forEach((a) => a.cancel()); dsc.style.transform = '';
-    [...L, mat, this.e.scr, this.e.shade].forEach((x) => x.getAnimations().filter(mine).forEach((a) => a.cancel()));
+    [...L, mat, this.e.scr, this.e.shade, fly].forEach((x) => x.getAnimations().filter(mine).forEach((a) => a.cancel()));
     $$('[data-share]', root).forEach((x) => { x.style.opacity = ''; });
     $$('*', dsc).forEach((x) => { x.getAnimations().filter(mine).forEach((a) => a.cancel()); x.style.transform = ''; x.style.opacity = ''; });
     this.st = null;
