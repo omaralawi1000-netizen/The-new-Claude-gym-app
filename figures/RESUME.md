@@ -44,6 +44,10 @@ Wrapper: `run5.py scene.blend script.py -- args`.
   `CABLEDIAG=1`, `CAMDIAG=1`, `SLIVERDIAG=1`, `POCKETDIAG=1`, `SLIDEDIAG=1`.
 - Gate: `./gate.sh MOTION RAWDIR x0,y0,x1,y1 4` (hands box, processes). ~1.5 h per clip. `GATE_RESUME=1` resumes.
   **gate.sh has run end to end only on the pushdown; see the fixes still listed in `docs/handover-sonnet.md`.**
+  Known gate gaps (found by an automated review, not fixed): `gatereport.py` can report GREEN if a parallel job was killed
+  without a traceback (check every `.ok` marker and the frame count yourself); it has no summary line for straight-barbell
+  contact (`GRIP f..` records), so it says "no GRIPDIAG result" on barbell/curl clips. The runner scripts in `batchA/` take
+  `AP=<working folder>` and `FIGMARK=<marker folder>` (defaults `/root/fig/ap`, `/root/fig`).
 - Encode: `ffmpeg -framerate 30 -i dir/f%03d.png -c:v libx264 -crf 20 -pix_fmt yuv420p -movflags +faststart x.mp4` (and libvpx-vp9 for webm).
 - Show Omar: `python3 tools/clip-page.py` is in the Claude project folder (`/mnt/project-files/tools/`); if you don't have it, any
   page with Real/Half/Quarter speed works. He watches inside Claude, never downloads.

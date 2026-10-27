@@ -32,7 +32,7 @@ for n in sliver tilt far cable cam slide; do [ -f $O/jobs/$n.log ] && grep -E "^
 grep -l Traceback $O/jobs/*.log > $O/crashed.txt && echo "GATE: crashed jobs: $(cat $O/crashed.txt)"
 # pixels: closed pockets (ray masks) -> notches (2 passes on the frames still hit) -> final scan
 python3 holefill3.py $RAW $O/hf3 $O/masks 0 $LAST $X0 $Y0 $X1 $Y1 > $O/holefill3.log 2>&1
-cp -r $O/hf3 $FIN
+rm -rf $FIN; cp -r $O/hf3 $FIN
 if [ -n "${FLECK_BOX:-}" ]; then   # slit fill (HF3_SLITS=1) only inside FLECK_BOX (x0,y0,x1,y1) on frames FLECK_A..FLECK_B: the slit fill paints a fuzzy rim if used on the whole hands box
   HF3_SLITS=1 python3 holefill3.py $RAW $O/hf3s $O/masks 0 $LAST $X0 $Y0 $X1 $Y1 > $O/holefill3s.log 2>&1
   python3 - $O/hf3s $FIN ${FLECK_A:-0} ${FLECK_B:-$LAST} $FLECK_BOX <<'PY'
