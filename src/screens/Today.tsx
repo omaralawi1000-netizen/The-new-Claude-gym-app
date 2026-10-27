@@ -71,7 +71,7 @@ function DayDot({ look, before, fresh, delay = 0 }: { look: DayLook; before: Day
     endWhenHidden([
       // small and already solid (a see-through disc over the empty circle read brown); the empty one goes once it is covered
       disc.current.animate([{ transform: 'scale(0.3)', offset: 0 }], { duration: sp.duration, easing: sp.easing, delay, fill: 'both' }),
-      disc.current.animate([{ opacity: 0, offset: 0 }], { duration: 34, easing: 'linear', delay, fill: 'both' }),
+      disc.current.animate([{ opacity: 0, offset: 0 }], { duration: 17, easing: 'steps(1, jump-start)', delay, fill: 'both' }),
       tick.current.animate([{ transform: 'scale(0.5)', opacity: 0, offset: 0 }], { duration: sp.duration, easing: sp.easing, delay: delay + 80, fill: 'both' }),
       letter.current.animate([{ opacity: 1, offset: 0 }], { duration: Math.min(100, delay), easing: 'cubic-bezier(0.4, 0, 1, 1)', delay: Math.max(0, delay - 100), fill: 'both' }),
       // the ring stays lit until the disc reaches its outer edge (about +270 ms), then goes unseen under it
