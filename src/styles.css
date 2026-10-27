@@ -2978,6 +2978,14 @@ html:root[data-glow='soft'] .bg-photo-dim { background: linear-gradient(to botto
 .action-card.sealed:not(.undone) .ac-pick-fill { opacity: 0; transform: none; }
 .action-card.sealed:not(.undone) .ac-pick-ring { opacity: 0; transition: opacity 420ms var(--ease-smooth); }
 .action-card.sealed:not(.undone) .action-line:not(.ac-off) .ac-pick-done { opacity: 0.8; }
+/* Apply: each line's tick lands on the ripple, one after another (40 ms apart, as the lines lift); its disc and ring go
+   with it. On `.sealed`, not `.sealing`: `.sealing` arrives a frame after Apply, when these fades have already begun.
+   Undo drops the delays (`.undone`), so it goes back all at once. The tick's scale is an animation held where it ends,
+   kept on after Undo (`.sealing` is never taken off): a transition would give the 14 px check a layer and drop it after */
+.action-card.sealed:not(.undone) .ac-pick-done, .action-card.sealed:not(.undone) .ac-pick-fill, .action-card.sealed:not(.undone) .ac-pick-ring { transition-delay: calc(80ms + var(--i, 0) * 40ms); }
+.action-card.sealing .action-line:not(.ac-off) .ac-pick-done { animation: acTick 520ms var(--ease-spring) both; animation-delay: calc(80ms + var(--i, 0) * 40ms); }
+@keyframes acTick { from { transform: scale(0.7); } }
+:root[data-motion='reduce'] .action-card :is(.ac-pick-done, .ac-pick-fill, .ac-pick-ring) { transition-delay: 0s !important; animation-delay: 0s !important; } /* (reduced motion: all at once) */
 /* the chart uses the card's whole inner width (under the icon too) */
 .ac-chart { margin-left: -36px; }
 
