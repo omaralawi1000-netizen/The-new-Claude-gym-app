@@ -3626,3 +3626,6 @@ breaks at a missed planned workout.
   orange themselves (`var(--of, var(--ac))`), since look.css only reaches a circle's direct child spans.
 - Interruptions: switching tab mid-fill shows the plain filled circle; putting the app away finishes it at once; reduced
   motion shows the end state. Fresh judges 7 -> 8 -> 8.5 -> 9.
+
+## Quick second tap on Apply no longer undoes (1 Nov 2026, v0.1.185)
+After Apply on a Coach card, the Undo button fades in right under the Apply button. A fast second tap used to hit that Undo and cancel the change. Now Undo can't be tapped while it fades in (`acLock` in `src/styles.css`, about 0.6 s) and works normally after. Checked by a script that double-taps Apply (fails before, passes after) and then taps Undo.
