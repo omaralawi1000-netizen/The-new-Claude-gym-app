@@ -94,3 +94,29 @@ Process: reference card, camera test, pose, gate (all green), stills judge, clip
   frames to shared storage as you go.
 - Realism found late by Omar was the biggest cost (rope 70 cm in front of the body). Get a real reference video first.
 - A 6-frame smoke test shows false loop-wrap failures; only trust full 130-frame clips.
+
+## Where it stopped (1 Nov 2026)
+Omar moved all work to a new project, so the figures stopped here. Nothing is running. Nothing was published or shipped.
+
+**Per exercise**
+- Barbell curl, EZ-bar curl: live in the app, nothing to do.
+- Rope hammer curl: clip 3 approved by Omar (locked in `figures-hammer-clip3-approved.zip`), not in the app yet.
+- Rope pushdown: body-motion clip judged 8.6, body motion 9.0. Still open: white flecks f39-41 and f70-80, far-elbow fan f16-22 / f90-96, cable near the chest f48-64.
+- Cable curl (Batch A): **all 120 frames are rendered** (`curl-cable-clip_cc1` in `/mnt/project-files/anatomy-proof/batch1/batchA/`, plus an mp4). Not judged, not shown to Omar. The gate (checks) stopped at 30 of 60 jobs (contact checks passed so far, 0 inside). Those job results were only in the old container.
+- Bar pushdown (Batch A): v1 judged 8.4 (cable grazed the chest). The fix (`HIGH_Y` 0.75) is in the motion file. It needs a full re-render (~50 min), a gate run and a judge.
+- Straight-arm pulldown: one test still only. Needs a full render, gate, judge.
+- Single-arm pushdown: framing looked good, grip not closely checked. Needs a full render, gate, judge.
+
+**The gate needs a full rerun.** Treat it as unvalidated: it has the gaps listed above, plus one fix made on 27 Oct that is only in the working copy (not in git): the diagnostic runs in `gate.sh` need `-- still /dev/null 0 16 960 640 clipref` (render settings and the `clipref` camera) or they crash or use the wrong camera. Apply that to both `gate.sh` copies first.
+
+**Binaries (not in git, kept private on purpose):** the 5 zips in the Claude project folder `/mnt/project-files/figures-assets/`, which Omar will upload into the new project's files. SHA-256:
+```
+811313be37ed6483d0623a20f09859722ea4ab6495879399602bcb8cfe6ab977  figures-scene12-blend.zip
+b65128984089cf7c104249396fbccf2517620b86beab6dc9968eb2af1a1b2da3  figures-hammer-clip3-approved.zip
+41684c2aa3109355b19c20488619de42df566be420377fe2d86ec7c041faf0d7  figures-pushdown-clip12-body.zip
+5d3334c100bd983a248e91268d498188ca57119e7e5ec1734716f7d31403f6ca  figures-batchA-partial-frames.zip
+0b4ecc47d3384ab34823058015e5547f74601e5d766643cdca4830e31d0a9494  figures-pushdown-r8-keys-trials.zip
+```
+The 120 finished cable-curl frames are not in those zips (the zip has only the first 64): copy `curl-cable-clip_cc1/` too.
+
+**Prompt for a new session:** "Read README.md 'Start here', then figures/RESUME.md and figures/batchA/HANDOVER.md in the repo omaralawi1000-netizen/The-new-Claude-gym-app. The figure zips are in this project's files. Restore them as described in figures/ASSETS.md, set up bpy as in RESUME.md, then continue with the cable curl gate."
