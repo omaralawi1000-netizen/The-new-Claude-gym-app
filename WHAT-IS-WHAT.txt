@@ -1,0 +1,27 @@
+Extract ALL zips into the same folder; paths merge into one tree.
+Files cut into parts: see README-JOIN.txt (inside aven-figures-01.zip or similar).
+
+aven-figures-01.zip: 93 files, first README-JOIN.txt
+aven-figures-02.zip: 51 files, first anatomy-proof/batch1/batchA/curl-cable-clip_cc1/f040.png
+aven-figures-03.zip: 62 files, first anatomy-proof/batch1/batchA/curl-cable-clip_cc1/f091.png
+aven-figures-04.zip: 77 files, first anatomy-proof/batch1/batchA/pushdown-bar/frames/f032.png
+aven-figures-05.zip: 440 files, first anatomy-proof/batch1/batchA/pushdown-bar/frames/f109.png
+aven-figures-06.zip: 39 files, first anatomy-proof/batch1/rope-hammer-curl/clip1/clip-f055.png
+aven-figures-07.zip: 1 files, first anatomy-proof/batch1/rope-hammer-curl/clip3/approved/frames-clip_hm5w.tgz.part00
+aven-figures-08.zip: 40 files, first anatomy-proof/batch1/rope-hammer-curl/clip3/approved/frames-clip_hm5w.tgz.part01
+aven-figures-09.zip: 127 files, first anatomy-proof/batch1/rope-hammer-curl/hammer-f030.png
+aven-figures-10.zip: 77 files, first anatomy-proof/batch1/rope-pushdown/clip10-r14/frames/f035.png
+aven-figures-11.zip: 87 files, first anatomy-proof/batch1/rope-pushdown/clip10-r14/frames/f112.png
+aven-figures-12.zip: 77 files, first anatomy-proof/batch1/rope-pushdown/clip12-body/frames/f047.png
+aven-figures-13.zip: 131 files, first anatomy-proof/batch1/rope-pushdown/clip12-body/frames/f124.png
+aven-figures-14.zip: 141 files, first anatomy-proof/batch1/rope-pushdown/clip7-r11/keys/f060.png
+aven-figures-15.zip: 58 files, first anatomy-proof/curl-clip-r14.mp4
+aven-figures-16.zip: 1 files, first anatomy-proof/rig/scene12.blend.part00
+aven-figures-17.zip: 1 files, first anatomy-proof/rig/scene12.blend.part01
+aven-figures-18.zip: 1 files, first anatomy-proof/rig/scene12.blend.part02
+aven-figures-19.zip: 1 files, first anatomy-proof/rig/scene12.blend.part03
+aven-figures-20.zip: 1 files, first anatomy-proof/rig/scene12.blend.part04
+aven-figures-21.zip: 1 files, first anatomy-proof/rig/scene12.blend.part05
+aven-figures-22.zip: 1 files, first anatomy-proof/rig/scene12.blend.part06
+aven-figures-23.zip: 1 files, first anatomy-proof/rig/scene12.blend.part07
+aven-figures-24.zip: 54 files, first anatomy-proof/rig/scene12.blend.part08
